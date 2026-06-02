@@ -3,7 +3,7 @@
     
     <!-- 좌측 -->
     <div style="flex:1; display:flex; flex-direction:column; gap:16px;">
-      <div v-for="i in 6" :key="'left'+i"
+      <div v-for="index in 6" :key="'left'+index"
            style="display:flex; border:2px solid #000; padding:12px; gap:16px;">
 
         <!-- 포켓몬 선택 -->
@@ -12,17 +12,17 @@
                style="width:80px; height:80px; object-fit:cover;" />
 
           <input
-            v-model="search[i]"
+            v-model="search[index - 1]"
             placeholder="포켓몬 검색"
             style="width:100px; font-size:12px;"
           />
 
           <select
-            v-model="selectedPokemon[i]"
+            v-model="selectedPokemon[index - 1]"
             style="width:100px; font-size:12px;"
           >
             <option disabled value="">포켓몬 선택</option>
-            <option v-for="p in filteredPokemonNames(i)" :key="p">
+            <option v-for="p in filteredPokemonNames(index - 1)" :key="p">
               {{ p }}
             </option>
           </select>
@@ -30,7 +30,7 @@
           <!-- 특성 -->
           <select style="width:100px; font-size:12px;">
             <option disabled selected>특성 선택</option>
-            <option v-for="a in abilityOptions(i)" :key="a">
+            <option v-for="a in abilityOptions(index - 1)" :key="a">
               {{ a }}
             </option>
           </select>
@@ -69,7 +69,7 @@
             <span>{{ k }}번째 기술</span>
             <select style="width:13ch;">
               <option selected disabled>선택</option>
-              <option v-for="m in moveOptions(i)" :key="m">{{ m }}</option>
+              <option v-for="m in moveOptions(index - 1)" :key="m">{{ m }}</option>
             </select>
           </div>
         </div>
@@ -125,8 +125,8 @@ export const setup = () => {
 
   const pokemonNames = ref([])
 
-  const search = ref(Array(7).fill(''))
-  const selectedPokemon = ref(Array(7).fill(''))
+  const search = ref(Array(6).fill(''))
+  const selectedPokemon = ref(Array(6).fill(''))
 
   const loadPokemon = async () => {
     const MAX_ID = 1025
