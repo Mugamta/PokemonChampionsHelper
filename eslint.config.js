@@ -7,7 +7,9 @@ export default [
 
   {
     rules: {
-      'indent': ['warn', 'tab'],
+      'indent': ['warn', 2],
+      'vue/html-indent': ['warn', 2],
+      
       'no-multi-spaces': 'warn',
       'space-infix-ops': 'warn',
       'comma-spacing': 'warn',
