@@ -6,7 +6,6 @@
         :key="'left' + index"
         style="display:flex; border:2px solid #000; padding:12px; gap:16px; box-sizing: border-box; background: #666;"
       >
-        <!-- 포켓몬 및 특성 선택 -->
         <div style="display:flex; flex-direction:column; gap:6px; align-items:center;">
           <img
             src="/public/pokemon.webp"
@@ -40,30 +39,32 @@
           </select>
         </div>
 
-        <!-- 도구 및 성격 선택 영역 (상하 벌리기 정렬 적용) -->
         <div style="display:flex; flex-direction:column; justify-content:space-between; height: 160px; align-items:center; padding: 4px 0;">
           <div style="display:flex; flex-direction:column; gap:4px; align-items:center;">
             <img
               src="/public/pokemon.webp"
               style="width:80px; height:80px; object-fit:cover;"
             >
-            <select style="width:90px; font-size:12px; padding: 4px;">
+            <select 
+              v-model="selectedTool[index - 1]" 
+              style="width:90px; font-size:12px; padding: 4px;"
+            >
               <option
+                value=""
                 disabled
-                selected
               >
                 도구 선택
               </option>
               <option
                 v-for="t in toolOptions"
                 :key="t"
+                :value="t"
               >
                 {{ t }}
               </option>
             </select>
           </div>
 
-          <!-- 성격 선택 -->
           <div style="display:flex; flex-direction:column; gap:2px;">
             <span style="font-size:11px; color:#555; text-align:center;">성격</span>
             <select 
@@ -83,7 +84,6 @@
           </div>
         </div>
 
-        <!-- 능력치 입력 및 실능치 출력 영역 (성격 보정 색상 반영) -->
         <div style="flex:1;">
           <div style="display:flex; flex-direction:column; gap:6px;">
             <div
@@ -104,7 +104,6 @@
                 @input="updateSingleStat(index - 1, stat.key)"
               >
 
-              
               <div style="display:flex; align-items:center; gap:4px; font-size:12px;">
                 <span style="color: #666;">→</span>
                 <span 
@@ -116,12 +115,25 @@
                 >
                   {{ calcStats[index - 1]?.[stat.key] || 0 }}
                 </span>
+
+                <span 
+                  v-if="stat.key === 'H'" 
+                  style="font-size: 11px; color: #ffeb3b; margin-left: 8px; white-space: nowrap;"
+                >
+                  {{ checkHpCondition(index - 1) }}
+                </span>
+
+                <span 
+                  v-if="stat.key === 'B' || stat.key === 'D'" 
+                  style="font-size: 11px; color: #ddd; margin-left: 8px; white-space: nowrap;"
+                >
+                  [{{ stat.key === 'B' ? '물리' : '특수' }}: {{ calcDurability(index - 1, stat.key) }}]
+                </span>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- 기술 선택 영역 (가로 정렬) -->
         <div style="display:flex; flex-direction:column; gap:8px; justify-content:center;">
           <div
             v-for="k in 4"
@@ -130,12 +142,12 @@
           >
             <span style="white-space:nowrap; width: 65px;">{{ k }}번째 기술</span>
             <select 
+              v-model="selectedMoves[index - 1][k - 1]"
               :disabled="!selectedPokemon[index - 1]"
               style="width:14ch; padding: 2px;"
             >
               <option
                 disabled
-                selected
                 value=""
               >
                 선택
@@ -172,7 +184,8 @@ export default {
     const toolOptions = [
       '생명의구슬',
       '기합의띠',
-      '먹다남은음식'
+      '먹다남은음식',
+      '검은진흙'
     ]
 
     const natureOptions = [
@@ -201,8 +214,13 @@ export default {
     const selectedPokemon = ref(Array(6).fill(''))
     const selectedAbility = ref(Array(6).fill(''))
     const selectedNature = ref(Array(6).fill('노력'))
-    const START_ID = 987 // 1
-    const END_ID = 1010 // 1010
+    
+    // 도구 및 기술의 상태 추적을 위한 상태 선언
+    const selectedTool = ref(Array(6).fill(''))
+    const selectedMoves = ref(Array(6).fill(null).map(() => Array(4).fill('')))
+
+    const START_ID = 987
+    const END_ID = 1010
 
     const inputStats = ref(
       Array(6).fill(null).map(() => ({ H: 0, A: 0, B: 0, C: 0, D: 0, S: 0 }))
@@ -212,7 +230,6 @@ export default {
       Array(6).fill(null).map(() => ({ H: 0, A: 0, B: 0, C: 0, D: 0, S: 0 }))
     )
 
-    // 성격 보정수치 산출 함수
     const getNatureMultiplier = (pokemonIndex, statKey) => {
       const natureName = selectedNature.value[pokemonIndex] || '노력'
       const natureEffect = natures[natureName]
@@ -258,7 +275,53 @@ export default {
       keys.forEach(key => updateSingleStat(pokemonIndex, key))
     }
 
-    // 얕은 복사 방식으로 싱크를 맞춘 단일 watch
+    // 내구력 계산 함수
+    const calcDurability = (pokemonIndex, statKey) => {
+      const hp = calcStats.value[pokemonIndex]?.H || 0
+      const defense = calcStats.value[pokemonIndex]?.[statKey] || 0
+      
+      if (hp === 0 || defense === 0) return 0
+      return Math.floor((hp * defense) / 0.411)
+    }
+
+    // HP 조정 배수 순차 판정 함수
+    const checkHpCondition = (pokemonIndex) => {
+      const hp = calcStats.value[pokemonIndex]?.H || 0
+      if (hp === 0) return ''
+
+      const ability = selectedAbility.value[pokemonIndex]
+      const tool = selectedTool.value[pokemonIndex]
+      const moves = selectedMoves.value[pokemonIndex] || []
+
+      // 1순위: 특성 [재생력] 검사
+      if (ability === '재생력') {
+        return hp % 3 === 0 ? '3n O' : '3n X'
+      }
+
+      // 2순위: 특성 [포이즌힐] 검사
+      if (ability === '포이즌힐') {
+        return hp % 8 === 1 ? '8n+1 O' : '8n+1 X'
+      }
+
+      // 3순위: 도구 [먹다남은음식], [검은진흙] 검사
+      if (tool === '먹다남은음식' || tool === '검은진흙') {
+        return hp % 16 === 0 ? '16n O' : '16n X'
+      }
+
+      // 4순위: 기술 리스트 중 [대타출동] 검사
+      if (moves.includes('대타출동')) {
+        return hp % 16 === 1 ? '16n+1 O' : '16n+1 X'
+      }
+
+      // 5순위: 기술 리스트 중 [씨뿌리기] 검사
+      if (moves.includes('씨뿌리기')) {
+        return (hp + 1) % 8 === 0 ? '8n-1 O' : '8n-1 X'
+      }
+
+      // 6순위: 위 조건에 모두 충족되지 않을 때의 기본값
+      return (hp + 1) % 16 === 0 ? '16n-1 O' : '16n-1 X'
+    }
+
     watch(
       () => [...selectedPokemon.value],
       (newVal, oldVal) => {
@@ -269,10 +332,14 @@ export default {
               const abilities = pokemonMap.value[pokemon]?.abilities || []
               selectedAbility.value[index] = abilities[0] || ''
               selectedNature.value[index] = '노력'
+              selectedTool.value[index] = ''
+              selectedMoves.value[index] = Array(4).fill('')
               calculateAllStats(index)
             } else {
               selectedAbility.value[index] = ''
               selectedNature.value[index] = '노력'
+              selectedTool.value[index] = ''
+              selectedMoves.value[index] = Array(4).fill('')
               inputStats.value[index] = { H: 0, A: 0, B: 0, C: 0, D: 0, S: 0 }
               calcStats.value[index] = { H: 0, A: 0, B: 0, C: 0, D: 0, S: 0 }
             }
@@ -329,6 +396,8 @@ export default {
       search,
       selectedPokemon,
       selectedAbility,
+      selectedTool,
+      selectedMoves,
       filteredPokemonNames,
       abilityOptions,
       moveOptions,
@@ -337,7 +406,9 @@ export default {
       inputStats,
       updateSingleStat,
       calculateAllStats,
-      getNatureMultiplier
+      getNatureMultiplier,
+      calcDurability,
+      checkHpCondition
     }
   }
 }
