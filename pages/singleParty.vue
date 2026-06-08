@@ -4,7 +4,7 @@
       <div
         v-for="index in 6"
         :key="'left' + index"
-        style="display:flex; border:2px solid #000; padding:12px; gap:16px; box-sizing: border-box;"
+        style="display:flex; border:2px solid #000; padding:12px; gap:16px; box-sizing: border-box; background: #666;"
       >
         <!-- 포켓몬 및 특성 선택 -->
         <div style="display:flex; flex-direction:column; gap:6px; align-items:center;">
@@ -69,7 +69,7 @@
             <select 
               v-model="selectedNature[index - 1]"
               :disabled="!selectedPokemon[index - 1]"
-              style="width:90px; font-size:12px; padding: 4px;"
+              style="width:120px; font-size:12px; padding: 4px;"
               @change="calculateAllStats(index - 1)"
             >
               <option
@@ -175,20 +175,21 @@ export default {
     ]
 
     const natureOptions = [
-      '노력', '외로움', '고집', '개구쟁이', '용감',
-      '대담', '온순', '장난꾸러기', '신중', '무사태평',
-      '조심', '의젓', '수줍음', '덜렁이', '냉정',
-      '차분', '얌전', '건방', '겁쟁이', '성급', 
-      '명랑', '천진난만', '성실'
+      '노력, 온순, 수줍음, 성실, 변덕 (무보정)',
+      '외로움(공격↑ 방어↓)', '고집(공격↑ 특공↓)', '개구쟁이(공격↑ 특방↓)', '용감(공격↑ 스피드↓)',
+      '대담(방어↑ 공격↓)', '장난꾸러기(방어↑ 특공↓)', '촐랑(방어↑ 특방↓)', '무사태평(방어↑ 스피드↓)',
+      '조심(특공↑ 공격↓)', '의젓(특공↑ 방어↓)', '덜렁(특공↑ 특방↓)', '냉정(특공↑ 스피드↓)',
+      '차분(특방↑ 공격↓)', '얌전(특방↑ 방어↓)', '신중(특방↑ 특공↓)', '건방(특방↑ 스피드↓)',
+      '겁쟁이(스피드↑ 공격↓)', '성급(스피드↑ 방어↓)', '명랑(스피드↑ 특공↓)', '천진난만(스피드↑ 특방↓)'
     ]
 
     const natures = {
-      '노력': {}, '온순': {}, '수줍음': {}, '성실': {},
-      '외로움': { up: 'A', down: 'B' }, '고집': { up: 'A', down: 'C' }, '개구쟁이': { up: 'A', down: 'D' }, '용감': { up: 'A', down: 'S' },
-      '대담': { up: 'B', down: 'A' }, '장난꾸러기': { up: 'B', down: 'C' }, '신중': { up: 'B', down: 'D' }, '무사태평': { up: 'B', down: 'S' },
-      '조심': { up: 'C', down: 'A' }, '의젓': { up: 'C', down: 'B' }, '덜렁이': { up: 'C', down: 'D' }, '냉정': { up: 'C', down: 'S' },
-      '차분': { up: 'D', down: 'A' }, '얌전': { up: 'D', down: 'B' }, '신중': { up: 'D', down: 'C' }, '건방': { up: 'D', down: 'S' },
-      '겁쟁이': { up: 'S', down: 'A' }, '성급': { up: 'S', down: 'B' }, '명랑': { up: 'S', down: 'C' }, '천진난만': { up: 'S', down: 'D' }
+      '노력, 온순, 수줍음, 성실, 변덕 (무보정)': {},
+      '외로움(공격↑ 방어↓)': { up: 'A', down: 'B' }, '고집(공격↑ 특공↓)': { up: 'A', down: 'C' }, '개구쟁이(공격↑ 특방↓)': { up: 'A', down: 'D' }, '용감(공격↑ 스피드↓)': { up: 'A', down: 'S' },
+      '대담(방어↑ 공격↓)': { up: 'B', down: 'A' }, '장난꾸러기(방어↑ 특공↓)': { up: 'B', down: 'C' }, '촐랑(방어↑ 특방↓)': { up: 'B', down: 'D' }, '무사태평(스피드↑ 방어↓)': { up: 'B', down: 'S' },
+      '조심(특공↑ 공격↓)': { up: 'C', down: 'A' }, '의젓(방어↑ 특방↓)': { up: 'C', down: 'B' }, '덜렁(방어↑ 특방↓)': { up: 'C', down: 'D' }, '냉정(특공↑ 스피드↓)': { up: 'C', down: 'S' },
+      '차분(특공↑ 스피드↓)': { up: 'D', down: 'A' }, '얌전(방어↑ 특방↓)': { up: 'D', down: 'B' }, '신중(특방↑ 스피드↓)': { up: 'D', down: 'C' }, '건방(스피드↑ 공격↓)': { up: 'D', down: 'S' },
+      '겁쟁이(스피드↑ 방어↓)': { up: 'S', down: 'A' }, '명랑(스피드↑ 방어↓)': { up: 'S', down: 'B' }, '천진난만(특공↑ 스피드↓)': { up: 'S', down: 'C' }, '성실(공격↑ 방어↓)': { up: 'S', down: 'D' }
     }
 
     const pokemons = ref([])
@@ -199,7 +200,7 @@ export default {
     const selectedPokemon = ref(Array(6).fill(''))
     const selectedAbility = ref(Array(6).fill(''))
     const selectedNature = ref(Array(6).fill('노력'))
-    const MAX_ID = 1010
+    const MAX_ID = 30 // 1010
 
     const inputStats = ref(
       Array(6).fill(null).map(() => ({ H: 0, A: 0, B: 0, C: 0, D: 0, S: 0 }))
