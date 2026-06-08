@@ -134,32 +134,35 @@
           </div>
         </div>
 
-        <div style="display:flex; flex-direction:column; gap:8px; justify-content:center;">
+        <div style="display:flex; flex-direction:column; gap:6px;">
           <div
             v-for="k in 4"
             :key="k"
-            style="display:flex; align-items:center; gap:8px; font-size:12px;"
+            style="display:flex; align-items:center; gap:12px;"
           >
-            <span style="white-space:nowrap; width: 65px;">{{ k }}번째 기술</span>
-            <select 
-              v-model="selectedMoves[index - 1][k - 1]"
-              :disabled="!selectedPokemon[index - 1]"
-              style="width:14ch; padding: 2px;"
+            <span
+              style="
+				width: 50px;
+				font-size: 12px;
+				text-align: right;
+				white-space: nowrap;
+			"
             >
-              <option
-                disabled
-                value=""
-              >
-                선택
-              </option>
-              <option
-                v-for="m in moveOptions(index - 1)"
-                :key="m"
-                :value="m"
-              >
-                {{ m }}
-              </option>
-            </select>
+              기술{{ k }}
+            </span>
+
+            <span style="color:#666;">
+              →
+            </span>
+
+            <v-autocomplete
+              :disabled="!selectedPokemon[index - 1]"
+              :items="moveOptions(index - 1)"
+              density="compact"
+              hide-details
+              menu-icon=""
+              style="width:175px; font-size:12px;"
+            />
           </div>
         </div>
       </div>
@@ -189,7 +192,7 @@ export default {
     ]
 
     const natureOptions = [
-      '노력, 온순, 수줍음, 성실, 변덕 (무보정)',
+      '무보정',
       '외로움(공격↑ 방어↓)', '고집(공격↑ 특공↓)', '개구쟁이(공격↑ 특방↓)', '용감(공격↑ 스피드↓)', '------------------------------',
       '대담(방어↑ 공격↓)', '장난꾸러기(방어↑ 특공↓)', '촐랑(방어↑ 특방↓)', '무사태평(방어↑ 스피드↓)', '------------------------------',
       '조심(특공↑ 공격↓)', '의젓(특공↑ 방어↓)', '덜렁(특공↑ 특방↓)', '냉정(특공↑ 스피드↓)', '------------------------------',
@@ -198,7 +201,7 @@ export default {
     ]
 
     const natures = {
-      '노력, 온순, 수줍음, 성실, 변덕 (무보정)': {},
+      '무보정': {},
       '외로움(공격↑ 방어↓)': { up: 'A', down: 'B' }, '고집(공격↑ 특공↓)': { up: 'A', down: 'C' }, '개구쟁이(공격↑ 특방↓)': { up: 'A', down: 'D' }, '용감(공격↑ 스피드↓)': { up: 'A', down: 'S' },
       '대담(방어↑ 공격↓)': { up: 'B', down: 'A' }, '장난꾸러기(방어↑ 특공↓)': { up: 'B', down: 'C' }, '촐랑(방어↑ 특방↓)': { up: 'B', down: 'D' }, '무사태평(스피드↑ 방어↓)': { up: 'B', down: 'S' },
       '조심(특공↑ 공격↓)': { up: 'C', down: 'A' }, '의젓(특공↑ 방어↓)': { up: 'C', down: 'B' }, '덜렁(특공↑ 특방↓)': { up: 'C', down: 'D' }, '냉정(특공↑ 스피드↓)': { up: 'C', down: 'S' },
@@ -413,3 +416,8 @@ export default {
   }
 }
 </script>
+<style>
+.v-autocomplete__selection-text {
+	font-size: 12px !important;
+}
+</style>
