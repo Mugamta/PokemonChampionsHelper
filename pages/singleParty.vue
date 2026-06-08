@@ -104,6 +104,7 @@
                 @input="updateSingleStat(index - 1, stat.key)"
               >
 
+              
               <div style="display:flex; align-items:center; gap:4px; font-size:12px;">
                 <span style="color: #666;">→</span>
                 <span 
@@ -176,10 +177,10 @@ export default {
 
     const natureOptions = [
       '노력, 온순, 수줍음, 성실, 변덕 (무보정)',
-      '외로움(공격↑ 방어↓)', '고집(공격↑ 특공↓)', '개구쟁이(공격↑ 특방↓)', '용감(공격↑ 스피드↓)',
-      '대담(방어↑ 공격↓)', '장난꾸러기(방어↑ 특공↓)', '촐랑(방어↑ 특방↓)', '무사태평(방어↑ 스피드↓)',
-      '조심(특공↑ 공격↓)', '의젓(특공↑ 방어↓)', '덜렁(특공↑ 특방↓)', '냉정(특공↑ 스피드↓)',
-      '차분(특방↑ 공격↓)', '얌전(특방↑ 방어↓)', '신중(특방↑ 특공↓)', '건방(특방↑ 스피드↓)',
+      '외로움(공격↑ 방어↓)', '고집(공격↑ 특공↓)', '개구쟁이(공격↑ 특방↓)', '용감(공격↑ 스피드↓)', '------------------------------',
+      '대담(방어↑ 공격↓)', '장난꾸러기(방어↑ 특공↓)', '촐랑(방어↑ 특방↓)', '무사태평(방어↑ 스피드↓)', '------------------------------',
+      '조심(특공↑ 공격↓)', '의젓(특공↑ 방어↓)', '덜렁(특공↑ 특방↓)', '냉정(특공↑ 스피드↓)', '------------------------------',
+      '차분(특방↑ 공격↓)', '얌전(특방↑ 방어↓)', '신중(특방↑ 특공↓)', '건방(특방↑ 스피드↓)', '------------------------------',
       '겁쟁이(스피드↑ 공격↓)', '성급(스피드↑ 방어↓)', '명랑(스피드↑ 특공↓)', '천진난만(스피드↑ 특방↓)'
     ]
 
@@ -187,9 +188,9 @@ export default {
       '노력, 온순, 수줍음, 성실, 변덕 (무보정)': {},
       '외로움(공격↑ 방어↓)': { up: 'A', down: 'B' }, '고집(공격↑ 특공↓)': { up: 'A', down: 'C' }, '개구쟁이(공격↑ 특방↓)': { up: 'A', down: 'D' }, '용감(공격↑ 스피드↓)': { up: 'A', down: 'S' },
       '대담(방어↑ 공격↓)': { up: 'B', down: 'A' }, '장난꾸러기(방어↑ 특공↓)': { up: 'B', down: 'C' }, '촐랑(방어↑ 특방↓)': { up: 'B', down: 'D' }, '무사태평(스피드↑ 방어↓)': { up: 'B', down: 'S' },
-      '조심(특공↑ 공격↓)': { up: 'C', down: 'A' }, '의젓(방어↑ 특방↓)': { up: 'C', down: 'B' }, '덜렁(방어↑ 특방↓)': { up: 'C', down: 'D' }, '냉정(특공↑ 스피드↓)': { up: 'C', down: 'S' },
-      '차분(특공↑ 스피드↓)': { up: 'D', down: 'A' }, '얌전(방어↑ 특방↓)': { up: 'D', down: 'B' }, '신중(특방↑ 스피드↓)': { up: 'D', down: 'C' }, '건방(스피드↑ 공격↓)': { up: 'D', down: 'S' },
-      '겁쟁이(스피드↑ 방어↓)': { up: 'S', down: 'A' }, '명랑(스피드↑ 방어↓)': { up: 'S', down: 'B' }, '천진난만(특공↑ 스피드↓)': { up: 'S', down: 'C' }, '성실(공격↑ 방어↓)': { up: 'S', down: 'D' }
+      '조심(특공↑ 공격↓)': { up: 'C', down: 'A' }, '의젓(특공↑ 방어↓)': { up: 'C', down: 'B' }, '덜렁(특공↑ 특방↓)': { up: 'C', down: 'D' }, '냉정(특공↑ 스피드↓)': { up: 'C', down: 'S' },
+      '차분(특공↑ 공격↓)': { up: 'D', down: 'A' }, '얌전(특방↑ 방어↓)': { up: 'D', down: 'B' }, '신중(특방↑ 특공↓)': { up: 'D', down: 'C' }, '건방(특방↑ 스피드↓)': { up: 'D', down: 'S' },
+      '겁쟁이(스피드↑ 공격↓)': { up: 'S', down: 'A' }, '성급(스피드↑ 방어↓)': { up: 'S', down: 'B' }, '명랑(스피드↑ 특공↓)': { up: 'S', down: 'B' }, '천진난만(스피드↑ 특방↓)': { up: 'S', down: 'C' },
     }
 
     const pokemons = ref([])
@@ -200,7 +201,8 @@ export default {
     const selectedPokemon = ref(Array(6).fill(''))
     const selectedAbility = ref(Array(6).fill(''))
     const selectedNature = ref(Array(6).fill('노력'))
-    const MAX_ID = 30 // 1010
+    const START_ID = 987 // 1
+    const END_ID = 1010 // 1010
 
     const inputStats = ref(
       Array(6).fill(null).map(() => ({ H: 0, A: 0, B: 0, C: 0, D: 0, S: 0 }))
@@ -231,21 +233,22 @@ export default {
         return
       }
 
-      const baseStat = pokemonData.stats[statKey] || 0
-      const iv = 31 
-      const championsEv = inputStats.value[pokemonIndex][statKey] || 0 
+      const baseStat = pokemonData.stats[statKey] || 0 // 종족값
+      const championsEv = inputStats.value[pokemonIndex][statKey] || 0 // 노력치
+
+      // 개체치는 31로 고정되었고, 노력치는 정수 단위가 되었으므로 HP는 + 75, 그 외는 + 20으로 계산식을 단순화
 
       let result = 0
-
       if (statKey === 'H') {
-        const baseHp = Math.floor(((baseStat * 2 + iv) * 50) / 100) + 50 + 10
-        result = baseHp + championsEv
+        // H = 종족값 + 75 + 능력 포인트(노력치)
+        result = baseStat + 75 + championsEv
         if (baseStat === 1) result = 1
-      } else {
-        const natureValue = getNatureMultiplier(pokemonIndex, statKey)
-        const baseOther = Math.floor((Math.floor(((baseStat * 2 + iv) * 50) / 100) + 5) * natureValue)
-        result = baseOther + championsEv
+      } else { 
+        // (종족값 + 20 + 능력 포인트 (노력치)) * 성격보정
+        const base = baseStat + 20 + championsEv
+        result = base * getNatureMultiplier(pokemonIndex, statKey)
       }
+      result = Math.floor(result)
 
       calcStats.value[pokemonIndex][statKey] = result
     }
@@ -280,7 +283,7 @@ export default {
 
     const loadPokemon = async () => {
       const validResults = []
-      for (let i = 1; i <= MAX_ID; i++) {
+      for (let i = START_ID; i <= END_ID; i++) {
         try {
           const res = await fetch(`/pokemon_list/${i}.json`)
           if (!res.ok) continue
