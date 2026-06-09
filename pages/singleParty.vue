@@ -48,6 +48,7 @@
             <select 
               v-model="selectedTool[index - 1]" 
               style="width:90px; font-size:12px; padding: 4px;"
+              @change="calculateAllStats(index - 1)"
             >
               <option
                 value=""
@@ -56,7 +57,7 @@
                 도구 선택
               </option>
               <option
-                v-for="t in toolOptions"
+                v-for="t in itemList"
                 :key="t"
                 :value="t"
               >
@@ -172,6 +173,8 @@
 
 <script>
 import { ref, onMounted, watch } from 'vue'
+import { items } from '@/data/item';
+import { calculateStat } from '@/utils/stat';
 
 export default {
   setup() {
@@ -184,12 +187,7 @@ export default {
       { key: 'S', name: '스피드' }
     ]
 
-    const toolOptions = [
-      '생명의구슬',
-      '기합의띠',
-      '먹다남은음식',
-      '검은진흙'
-    ]
+    const itemList = [...items]
 
     const natureOptions = [
       '무보정',
@@ -253,23 +251,12 @@ export default {
         return
       }
 
-      const baseStat = pokemonData.stats[statKey] || 0 // 종족값
-      const championsEv = inputStats.value[pokemonIndex][statKey] || 0 // 노력치
+      const Base_Stat = pokemonData.stats[statKey] || 0 // 종족값
+      const Stat_Points = inputStats.value[pokemonIndex][statKey] || 0 // 노력치
+      const Nature = selectedNature.value[pokemonIndex]?.replace(/\([^)]*\)/g, '') || '노력' // 성격
+      const Item = selectedTool.value[pokemonIndex] || '' // 도구
 
-      // 개체치는 31로 고정되었고, 노력치는 정수 단위가 되었으므로 HP는 + 75, 그 외는 + 20으로 계산식을 단순화
-
-      let result = 0
-      if (statKey === 'H') {
-        // H = 종족값 + 75 + 능력 포인트(노력치)
-        result = baseStat + 75 + championsEv
-        if (baseStat === 1) result = 1
-      } else { 
-        // (종족값 + 20 + 능력 포인트 (노력치)) * 성격보정
-        const base = baseStat + 20 + championsEv
-        result = base * getNatureMultiplier(pokemonIndex, statKey)
-      }
-      result = Math.floor(result)
-
+      const result = calculateStat(statKey, Base_Stat, Stat_Points, Nature, Item)
       calcStats.value[pokemonIndex][statKey] = result
     }
 
@@ -392,7 +379,7 @@ export default {
 
     return {
       stats,
-      toolOptions,
+      itemList,
       natureOptions,
       selectedNature,
       pokemonNames,
