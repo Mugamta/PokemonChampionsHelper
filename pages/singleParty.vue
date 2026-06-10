@@ -30,6 +30,12 @@
             style="width:160px; font-size:12px; padding: 4px;"
           >
             <option
+              value=""
+              disabled
+            >
+              특성
+            </option>
+            <option
               v-for="a in abilityOptions(index - 1)"
               :key="a"
               :value="a"
@@ -141,22 +147,10 @@
             :key="k"
             style="display:flex; align-items:center; gap:12px;"
           >
-            <span
-              style="
-				width: 50px;
-				font-size: 12px;
-				text-align: right;
-				white-space: nowrap;
-			"
-            >
-              기술{{ k }}
-            </span>
-
-            <span style="color:#666;">
-              →
-            </span>
+            <span style="color:#666;">→</span>
 
             <v-autocomplete
+              v-model="selectedMoves[index - 1][k - 1]"
               :disabled="!selectedPokemon[index - 1]"
               :items="moveOptions(index - 1)"
               density="compact"
@@ -164,6 +158,17 @@
               menu-icon=""
               style="width:175px; font-size:12px;"
             />
+
+            <span
+              style="
+                width:40px;
+                text-align:right;
+                font-size:12px;
+                color:#ffeb3b;
+              "
+            >
+              {{ getMovePower(index - 1, k - 1) }}
+            </span>
           </div>
         </div>
       </div>
@@ -175,6 +180,8 @@
 import { ref, onMounted, watch } from 'vue'
 import { items } from '@/data/item';
 import { calculateStat } from '@/utils/stat';
+import { calculateBaseDamage } from '@/utils/move';
+import { moves } from '@/data/moves';
 
 export default {
   setup() {
@@ -213,8 +220,8 @@ export default {
 
     const search = ref(Array(6).fill(''))
     const selectedPokemon = ref(Array(6).fill(''))
-    const selectedAbility = ref(Array(6).fill(''))
-    const selectedNature = ref(Array(6).fill('노력'))
+    const selectedAbility = ref(Array(6).fill('특성'))
+    const selectedNature = ref(Array(6).fill('무보정'))
     
     // 도구 및 기술의 상태 추적을 위한 상태 선언
     const selectedTool = ref(Array(6).fill(''))
@@ -272,6 +279,25 @@ export default {
       
       if (hp === 0 || defense === 0) return 0
       return Math.floor((hp * defense) / 0.411)
+    }
+
+    const getBaseDamage = (pokemonIndex, moveIndex) => {
+      const moveName = selectedMoves.value[pokemonIndex]?.[moveIndex]
+
+      if (!moveName) {
+        return ''
+      }
+
+      const move = moves[moveName] || {} 
+      const power = move.Power || 0
+      const moveType = move.type || ''
+      const stab = true // 자속보정 수정필
+      const attack = move.Category === '물리' ? calcStats.value[pokemonIndex]?.A || 0 : calcStats.value[pokemonIndex]?.C || 0
+      const ability = selectedAbility.value[pokemonIndex]
+      const weather = '쾌청' // 날씨는 일단 고정, 나중에 선택지 추가 가능
+      const item = selectedTool.value[pokemonIndex]
+
+      return calculateBaseDamage(power, attack, stab, moveType, ability, weather, item)
     }
 
     // HP 조정 배수 순차 판정 함수
@@ -398,7 +424,8 @@ export default {
       calculateAllStats,
       getNatureMultiplier,
       calcDurability,
-      checkHpCondition
+      checkHpCondition,
+      getMovePower: getBaseDamage,
     }
   }
 }
