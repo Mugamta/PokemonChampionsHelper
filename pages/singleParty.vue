@@ -307,7 +307,7 @@ export default {
 
       const move = moves[moveName] || {} 
       const power = move.Power || 0
-      const moveType = move.type || ''
+      const moveType = move.Type || ''
       const stab = true // 자속보정 수정필
       const attack = move.Category === '물리' ? calcStats.value[pokemonIndex]?.A || 0 : calcStats.value[pokemonIndex]?.C || 0
       const ability = selectedAbility.value[pokemonIndex]
