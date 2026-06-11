@@ -91,12 +91,12 @@
           </div>
         </div>
 
-        <div style="flex:1;">
+        <div style="flex;">
           <div style="display:flex; flex-direction:column; gap:6px;">
             <div
               v-for="(stat, j) in stats"
               :key="j"
-              style="display:flex; align-items:center; gap:12px;"
+              style="display:flex; align-items:center; gap:6px;"
             >
               <span style="font-size:12px; white-space:nowrap; width: 70px;">
                 {{ stat.key }} ({{ stat.name }})
@@ -142,7 +142,7 @@
           </div>
         </div>
 
-        <div style="display:flex; flex-direction:column; gap:6px;">
+        <div style="display:flex; flex-direction:column; gap:16px;">
           <div
             v-for="k in 4"
             :key="k"
@@ -157,7 +157,7 @@
               density="compact"
               hide-details
               menu-icon=""
-              style="width:175px; font-size:12px;"
+              style="width:120px; font-size:12px;"
             />
 
             <span
