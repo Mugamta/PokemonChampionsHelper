@@ -108,6 +108,7 @@
                 min="0"
                 max="32"
                 style="width:50px; border: 1px solid #ccc; padding: 2px;"
+                :class="getInputClass(index)"
                 @input="updateSingleStat(index - 1, stat.key)"
               >
 
@@ -167,7 +168,7 @@
                 color:#ffeb3b;
               "
             >
-              {{ getMovePower(index - 1, k - 1) }}
+              {{ getBaseDamage(index - 1, k - 1) }}
             </span>
           </div>
         </div>
@@ -177,7 +178,7 @@
 </template>
 
 <script>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, computed } from 'vue'
 import { items } from '@/data/item';
 import { calculateStat } from '@/utils/stat';
 import { calculateBaseDamage } from '@/utils/move';
@@ -271,6 +272,22 @@ export default {
       const keys = ['H', 'A', 'B', 'C', 'D', 'S']
       keys.forEach(key => updateSingleStat(pokemonIndex, key))
     }
+
+    const getInputClass = (index) => {
+      const rowData = inputStats.value[index - 1];
+  
+      if (!rowData) return '';
+
+      // 객체의 모든 Value('A', 'B' 등의 숫자 값)를 더함 -> 노력치의 합
+      const totalSum = Object.values(rowData).reduce((sum, value) => {
+        return sum + (Number(value) || 0); // 숫자가 아닐 경우를 대비해 예외 처리
+      }, 0);
+      
+      const maxValue = Math.max(...Object.values(rowData))
+
+      // 합이 66을 넘으면 'red-input' 클래스 반환, 아니면 빈 문자열
+      return totalSum > 66 || maxValue > 32 ? 'red-input' : '';
+    };
 
     // 내구력 계산 함수
     const calcDurability = (pokemonIndex, statKey) => {
@@ -425,7 +442,8 @@ export default {
       getNatureMultiplier,
       calcDurability,
       checkHpCondition,
-      getMovePower: getBaseDamage,
+      getBaseDamage,
+      getInputClass,
     }
   }
 }
@@ -433,5 +451,11 @@ export default {
 <style>
 .v-autocomplete__selection-text {
 	font-size: 12px !important;
+}
+/* 합이 64일 때 적용할 스타일 */
+.red-input {
+  border-color: red !important;
+  color: red;
+  background-color: #fff0f0; /* 배경색도 살짝 변경 예시 */
 }
 </style>
