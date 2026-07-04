@@ -1,6 +1,22 @@
 <template>
-  <div style="display:flex; gap:16px; padding:16px;">
-    <div style="flex:1; display:grid; grid-template-columns: repeat(2, 1fr); gap:16px;">
+  <div style="display:flex; gap:16px; padding:16px; min-height: 300px;">
+    <div
+      v-if="isLoading"
+      style="display:flex; flex-direction:column; align-items:center; justify-content:center; width:100%; padding: 100px 0; gap:16px;"
+    >
+      <v-progress-circular
+        indeterminate
+        color="primary"
+        size="64"
+        width="6"
+      />
+      <span style="color:#ccc; font-size:14px;">포켓몬 데이터를 불러오는 중... ({{ loadedCount }} / {{ totalCount }})</span>
+    </div>
+
+    <div
+      v-else
+      style="flex:1; display:grid; grid-template-columns: repeat(2, 1fr); gap:16px;"
+    >
       <div
         v-for="index in 6"
         :key="'left' + index"
@@ -45,7 +61,7 @@
           </select>
         </div>
 
-        <div style="display:flex; flex-direction:column; justify-content:space-between; height: 160px; align-items:center; padding: 4px 0;">
+        <div style="display:flex; flex-direction:column; justify-content:space-between; height: 160px; align-items:center; padding: 4px 0; margin-right: 32px;">
           <div style="display:flex; flex-direction:column; gap:4px; align-items:center;">
             <img
               src="/public/pokemon.webp"
@@ -77,7 +93,7 @@
             <select 
               v-model="selectedNature[index - 1]"
               :disabled="!selectedPokemon[index - 1]"
-              style="width:120px; font-size:12px; padding: 4px;"
+              style="width:190px; font-size:12px; padding: 4px;"
               @change="calculateAllStats(index - 1)"
             >
               <option
@@ -218,6 +234,9 @@ export default {
     const pokemons = ref([])
     const pokemonMap = ref({})
     const pokemonNames = ref([])
+    const isLoading = ref(true)
+    const loadedCount = ref(0)
+    const totalCount = ref(0)
 
     const search = ref(Array(6).fill(''))
     const selectedPokemon = ref(Array(6).fill(''))
@@ -228,8 +247,8 @@ export default {
     const selectedTool = ref(Array(6).fill(''))
     const selectedMoves = ref(Array(6).fill(null).map(() => Array(4).fill('')))
 
-    const START_ID = 987
-    const END_ID = 1010
+    const START_ID = 1 // 987
+    const END_ID = 1023 // 1010
 
     const inputStats = ref(
       Array(6).fill(null).map(() => ({ H: 0, A: 0, B: 0, C: 0, D: 0, S: 0 }))
@@ -382,19 +401,38 @@ export default {
     )
 
     const loadPokemon = async () => {
-      const validResults = []
-      for (let i = START_ID; i <= END_ID; i++) {
+      isLoading.value = true
+      loadedCount.value = 0
+      totalCount.value = END_ID - START_ID + 1
+
+      const fetchOne = async (id) => {
         try {
-          const res = await fetch(`/pokemon_list/${i}.json`)
-          if (!res.ok) continue
-          validResults.push(await res.json())
+          const res = await fetch(`/pokemon_list/${id}.json`)
+          if (res.ok) {
+            return await res.json()
+          }
+          return null
         } catch {
-          continue
+          return null
+        } finally {
+          loadedCount.value += 1
         }
       }
-      pokemons.value = validResults
-      pokemonMap.value = Object.fromEntries(validResults.map(p => [p.name, p]))
-      pokemonNames.value = validResults.map(p => p.name)
+
+      try {
+        const ids = []
+        for (let i = START_ID; i <= END_ID; i++) ids.push(i)
+
+        // 24개 요청을 동시에 병렬로 실행 (순차 대기 X)
+        const results = await Promise.all(ids.map(fetchOne))
+        const validResults = results.filter(Boolean)
+
+        pokemons.value = validResults
+        pokemonMap.value = Object.fromEntries(validResults.map(p => [p.name, p]))
+        pokemonNames.value = validResults.map(p => p.name)
+      } finally {
+        isLoading.value = false
+      }
     }
 
     const filteredPokemonNames = (i) => {
@@ -437,6 +475,9 @@ export default {
       centerTexts,
       calcStats,
       inputStats,
+      isLoading,
+      loadedCount,
+      totalCount,
       updateSingleStat,
       calculateAllStats,
       getNatureMultiplier,

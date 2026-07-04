@@ -7,5 +7,9 @@ export default defineNuxtConfig({
 				defaultTheme: 'dark'
 			}
 		}
+	},
+
+	nitro: {
+		preset: 'github_pages'
 	}
 })
