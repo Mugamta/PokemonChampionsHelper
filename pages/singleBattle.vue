@@ -231,15 +231,12 @@ export default {
       '겁쟁이(스피드↑ 공격↓)': { up: 'S', down: 'A' }, '성급(스피드↑ 방어↓)': { up: 'S', down: 'B' }, '명랑(스피드↑ 특공↓)': { up: 'S', down: 'B' }, '천진난만(스피드↑ 특방↓)': { up: 'S', down: 'C' },
     }
 
-    // 전역 저장소에서 포켓몬 데이터 + 로딩 상태 가져오기 (여기서 fetch 하지 않음)
-    const {
-      pokemonMap,
-      pokemonNames,
-      isLoadingPokemon: isLoading,
-      loadedCount,
-      totalCount,
-      loadPokemonList,
-    } = useEligiblePokemon()
+    const pokemons = ref([])
+    const pokemonMap = ref({})
+    const pokemonNames = ref([])
+    const isLoading = ref(true)
+    const loadedCount = ref(0)
+    const totalCount = ref(0)
 
     const search = ref(Array(6).fill(''))
     const selectedPokemon = ref(Array(6).fill(''))
@@ -249,6 +246,9 @@ export default {
     // 도구 및 기술의 상태 추적을 위한 상태 선언
     const selectedTool = ref(Array(6).fill(''))
     const selectedMoves = ref(Array(6).fill(null).map(() => Array(4).fill('')))
+
+    const START_ID = 1 // 987
+    const END_ID = 1023 // 1010
 
     const inputStats = ref(
       Array(6).fill(null).map(() => ({ H: 0, A: 0, B: 0, C: 0, D: 0, S: 0 }))
@@ -400,6 +400,41 @@ export default {
       }
     )
 
+    const loadPokemon = async () => {
+      isLoading.value = true
+      loadedCount.value = 0
+      totalCount.value = END_ID - START_ID + 1
+
+      const fetchOne = async (id) => {
+        try {
+          const res = await fetch(`/pokemon_list/${id}.json`)
+          if (res.ok) {
+            return await res.json()
+          }
+          return null
+        } catch {
+          return null
+        } finally {
+          loadedCount.value += 1
+        }
+      }
+
+      try {
+        const ids = []
+        for (let i = START_ID; i <= END_ID; i++) ids.push(i)
+
+        // 24개 요청을 동시에 병렬로 실행 (순차 대기 X)
+        const results = await Promise.all(ids.map(fetchOne))
+        const validResults = results.filter(Boolean)
+
+        pokemons.value = validResults
+        pokemonMap.value = Object.fromEntries(validResults.map(p => [p.name, p]))
+        pokemonNames.value = validResults.map(p => p.name)
+      } finally {
+        isLoading.value = false
+      }
+    }
+
     const filteredPokemonNames = (i) => {
       const query = search.value[i]?.toLowerCase() || ''
       return pokemonNames.value.filter(name => name.toLowerCase().includes(query))
@@ -421,8 +456,7 @@ export default {
       '포켓몬 C가 포켓몬 D가 성격 무보정인 경우 확 1타로 잡는다.'
     ]
 
-    // 전역 저장소가 아직 안 채워졌으면 로드 트리거 (이미 로드됐으면 내부적으로 아무 일도 안 함)
-    onMounted(loadPokemonList)
+    onMounted(loadPokemon)
 
     return {
       stats,
@@ -457,7 +491,7 @@ export default {
 </script>
 <style>
 .v-autocomplete__selection-text {
-	font-size: 12px !important;
+    font-size: 12px !important;
 }
 /* 합이 64일 때 적용할 스타일 */
 .red-input {

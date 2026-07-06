@@ -3,12 +3,11 @@
     style="
       display: flex;
       flex-direction: column;
-      min-height: 100vh;
+      min-height: 875px;
             background-image: url('/pokemon.webp');
       background-size: cover;
       background-position: center;
       background-repeat: no-repeat;
-      min-height: 100vh;
     "
   >
     <main
@@ -26,10 +25,30 @@
           gap: 16px;
         "
       >
-        <button @click="goSingle" style="padding: 14px 24px;">싱글배틀</button>
-        <button @click="goMulti" style="padding: 14px 24px;">멀티배틀</button>
-        <button @click="goParty" style="padding: 14px 24px;">파티 관리</button>
-        <button @click="goHelp" style="padding: 14px 24px;">도움말</button>
+        <button
+          style="padding: 14px 24px;"
+          @click="goSingle"
+        >
+          싱글배틀
+        </button>
+        <button
+          style="padding: 14px 24px;"
+          @click="goMulti"
+        >
+          멀티배틀
+        </button>
+        <button
+          style="padding: 14px 24px;"
+          @click="goParty"
+        >
+          파티 관리
+        </button>
+        <button
+          style="padding: 14px 24px;"
+          @click="goHelp"
+        >
+          도움말
+        </button>
       </div>
     </main>
   </div>
