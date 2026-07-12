@@ -9,6 +9,7 @@ export function usePokemonList() {
   const loadedCount = useState('pkmn-loaded-count', () => 0)
   const totalCount = useState('pkmn-total-count', () => 0)
   const isLoaded = useState('pkmn-loaded-flag', () => false)
+  const hasStartedLoading = useState('pkmn-load-started', () => false)
 
   // GitHub Pages 서브 경로(/PokemonChampionsHelper/) 대응: fetch는 baseURL을 자동으로 안 붙여줘서 직접 붙여야 함
   const config = useRuntimeConfig()
@@ -18,11 +19,10 @@ export function usePokemonList() {
   const END_ID = 1023
 
   const loadPokemonList = async () => {
-    // 이미 로드됐거나 로딩 중이면 다시 실행하지 않음 (중복 fetch 방지)
-    if (isLoaded.value || (isLoading.value && pokemons.value.length === 0 && loadedCount.value > 0)) {
-      return
-    }
-    if (isLoaded.value) return
+    // hasStartedLoading을 맨 처음, await 이전에 동기적으로 세팅해서
+    // 거의 동시에 여러 컴포넌트가 호출해도 두 번째 호출은 확실히 막힘
+    if (isLoaded.value || hasStartedLoading.value) return
+    hasStartedLoading.value = true
 
     isLoading.value = true
     loadedCount.value = 0

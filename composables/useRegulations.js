@@ -21,6 +21,7 @@ export function useRegulations() {
   const regulations = useState('reg-list', () => [])
   const isLoadingRegulations = useState('reg-loading', () => true)
   const isRegulationsLoaded = useState('reg-loaded-flag', () => false)
+  const hasStartedLoadingRegulations = useState('reg-load-started', () => false)
   const selectedRegulationIndex = useState('reg-selected-index', () => null) // null = 자동(시간 기준)
   const currentTime = useState('reg-current-time', () => new Date())
 
@@ -29,7 +30,8 @@ export function useRegulations() {
   const baseURL = config.app.baseURL || '/'
 
   const loadRegulations = async () => {
-    if (isRegulationsLoaded.value) return
+    if (isRegulationsLoaded.value || hasStartedLoadingRegulations.value) return
+    hasStartedLoadingRegulations.value = true
 
     isLoadingRegulations.value = true
     try {

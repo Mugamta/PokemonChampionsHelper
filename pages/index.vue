@@ -1,14 +1,14 @@
 <template>
   <div
-    style="
-      display: flex;
-      flex-direction: column;
-      min-height: 875px;
-            background-image: url('/pokemon.webp');
-      background-size: cover;
-      background-position: center;
-      background-repeat: no-repeat;
-    "
+    :style="{
+      display: 'flex',
+      flexDirection: 'column',
+      minHeight: '875px',
+      backgroundImage: `url('${pokemonImg}')`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      backgroundRepeat: 'no-repeat',
+    }"
   >
     <main
       style="
@@ -55,6 +55,9 @@
 </template>
 
 <script setup>
+const { asset } = usePublicAsset()
+const pokemonImg = asset('pokemon.webp')
+
 const goSingle = () => navigateTo('/singleParty')
 const goMulti = () => navigateTo('/multi')
 const goParty = () => navigateTo('/party')
