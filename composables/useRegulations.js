@@ -24,18 +24,22 @@ export function useRegulations() {
   const selectedRegulationIndex = useState('reg-selected-index', () => null) // null = 자동(시간 기준)
   const currentTime = useState('reg-current-time', () => new Date())
 
+  // GitHub Pages 서브 경로(/PokemonChampionsHelper/) 대응
+  const config = useRuntimeConfig()
+  const baseURL = config.app.baseURL || '/'
+
   const loadRegulations = async () => {
     if (isRegulationsLoaded.value) return
 
     isLoadingRegulations.value = true
     try {
-      const indexRes = await fetch('/regulation/index.json')
+      const indexRes = await fetch(`${baseURL}regulation/index.json`)
       const fileNames = indexRes.ok ? await indexRes.json() : []
 
       const items = await Promise.all(
         fileNames.map(async (fileName) => {
           try {
-            const res = await fetch(`/regulation/${fileName}`)
+            const res = await fetch(`${baseURL}regulation/${fileName}`)
             if (!res.ok) return null
             const data = await res.json()
             const { start, end } = parsePeriod(data.period)

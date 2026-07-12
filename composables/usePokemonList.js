@@ -10,6 +10,10 @@ export function usePokemonList() {
   const totalCount = useState('pkmn-total-count', () => 0)
   const isLoaded = useState('pkmn-loaded-flag', () => false)
 
+  // GitHub Pages 서브 경로(/PokemonChampionsHelper/) 대응: fetch는 baseURL을 자동으로 안 붙여줘서 직접 붙여야 함
+  const config = useRuntimeConfig()
+  const baseURL = config.app.baseURL || '/'
+
   const START_ID = 1
   const END_ID = 1023
 
@@ -26,7 +30,7 @@ export function usePokemonList() {
 
     const fetchOne = async (id) => {
       try {
-        const res = await fetch(`/pokemon_list/${id}.json`)
+        const res = await fetch(`${baseURL}pokemon_list/${id}.json`)
         if (res.ok) {
           return await res.json()
         }
