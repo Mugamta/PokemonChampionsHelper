@@ -26,7 +26,7 @@ jobs:
       - run: npm install
       - run: npx nuxt build --preset github_pages
         env:
-          NUXT_APP_BASE_URL: /pokemonchampionshelper/
+          NUXT_APP_BASE_URL: /PokemonChampionsHelper/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: ./.output/public
