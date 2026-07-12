@@ -46,7 +46,23 @@ export function usePokemonList() {
       const ids = []
       for (let i = START_ID; i <= END_ID; i++) ids.push(i)
 
-      const results = await Promise.all(ids.map(fetchOne))
+      // 한꺼번에 1000개+ 를 쏘면 브라우저가 ERR_INSUFFICIENT_RESOURCES로 거부하므로
+      // 동시에 최대 CONCURRENCY개씩만 실행되도록 제한
+      const CONCURRENCY = 20
+      const results = new Array(ids.length)
+      let cursor = 0
+
+      const worker = async () => {
+        while (cursor < ids.length) {
+          const current = cursor++
+          results[current] = await fetchOne(ids[current])
+        }
+      }
+
+      await Promise.all(
+        Array.from({ length: Math.min(CONCURRENCY, ids.length) }, worker)
+      )
+
       const validResults = results.filter(Boolean)
 
       pokemons.value = validResults

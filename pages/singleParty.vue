@@ -24,7 +24,7 @@
       >
         <div style="display:flex; flex-direction:column; gap:6px; align-items:center;">
           <img
-            src="/public/pokemon.webp"
+            :src="pokemonImg"
             style="width:160px; height:160px; object-fit:cover;"
           >
           <v-autocomplete
@@ -64,7 +64,7 @@
         <div style="display:flex; flex-direction:column; justify-content:space-between; height: 160px; align-items:center; padding: 4px 0; margin-right: 32px;">
           <div style="display:flex; flex-direction:column; gap:4px; align-items:center;">
             <img
-              src="/public/pokemon.webp"
+              :src="pokemonImg"
               style="width:80px; height:80px; object-fit:cover;"
             >
             <select 
@@ -202,6 +202,9 @@ import { moves } from '@/data/moves';
 
 export default {
   setup() {
+    // GitHub Pages 서브 경로 대응: public 폴더 이미지도 baseURL을 직접 붙여야 함
+    const config = useRuntimeConfig()
+    const pokemonImg = (config.app.baseURL || '/') + 'pokemon.webp'
     const stats = [
       { key: 'H', name: '체력' },
       { key: 'A', name: '공격' },
@@ -444,6 +447,7 @@ export default {
       isLoading,
       loadedCount,
       totalCount,
+      pokemonImg,
       updateSingleStat,
       calculateAllStats,
       getNatureMultiplier,
