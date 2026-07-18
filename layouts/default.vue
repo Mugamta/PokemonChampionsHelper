@@ -17,19 +17,18 @@
     <!-- 공통 푸터 -->
     <footer
       style="
-        padding: 16px;
+        padding: 8px;
         text-align: center;
         background: #f5f5f5;
 
               display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 10px 16px;
+      padding: 0px 16px;
       background: #333;
       color: #fff;
-      margin-bottom: 10px;
       flex-wrap: wrap;
-      gap: 8px;
+      gap: 4px;
       "
     >
       <p>© 2026 Pokemon Champions Helper</p>

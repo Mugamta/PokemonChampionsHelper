@@ -1,8 +1,8 @@
 <template>
-  <div style="display:flex; gap:16px; padding:16px; min-height: 300px;">
+  <div style="display:flex; gap:8px; padding:8px; min-height: 300px;">
     <div
       v-if="isLoading"
-      style="display:flex; flex-direction:column; align-items:center; justify-content:center; width:100%; padding: 100px 0; gap:16px;"
+      style="display:flex; flex-direction:column; align-items:center; justify-content:center; width:100%; padding: 100px 0; gap:8px;"
     >
       <v-progress-circular
         indeterminate
@@ -15,12 +15,12 @@
 
     <div
       v-else
-      style="flex:1; display:grid; grid-template-columns: repeat(2, 1fr); gap:16px;"
+      style="flex:1; display:grid; grid-template-columns: repeat(2, 1fr); gap:6px;"
     >
       <div
         v-for="index in 6"
         :key="'left' + index"
-        style="display:flex; border:2px solid #000; padding:12px; gap:16px; box-sizing: border-box; background: #666;"
+        style="display:flex; border:2px solid #000; padding:12px; gap:8px; box-sizing: border-box; background: #666;"
       >
         <div style="display:flex; flex-direction:column; gap:6px; align-items:center;">
           <img
@@ -93,15 +93,16 @@
             <select 
               v-model="selectedNature[index - 1]"
               :disabled="!selectedPokemon[index - 1]"
-              style="width:190px; font-size:12px; padding: 4px;"
+              style="width:260px; font-size:12px; padding: 4px; font-family: monospace; text-align: center;"
               @change="calculateAllStats(index - 1)"
             >
               <option
                 v-for="n in natureOptions"
                 :key="n"
                 :value="n"
+                style="text-align: center;"
               >
-                {{ n }}
+                {{ natureLabel(n) }}
               </option>
             </select>
           </div>
@@ -158,7 +159,7 @@
           </div>
         </div>
 
-        <div style="display:flex; flex-direction:column; gap:16px;">
+        <div style="display:flex; flex-direction:column; gap:8px;">
           <div
             v-for="k in 4"
             :key="k"
@@ -199,6 +200,7 @@ import { items } from '@/data/item';
 import { calculateStat } from '@/utils/stat';
 import { calculateBaseDamage } from '@/utils/move';
 import { moves } from '@/data/moves';
+import { Nature, NatureMap } from '@/data/nature';
 
 export default {
   setup() {
@@ -216,22 +218,31 @@ export default {
 
     const itemList = [...items]
 
+    // NatureMap에서 up/down이 둘 다 없는(효과 없는) 성격들은 '무보정' 하나로 묶어서 표시
     const natureOptions = [
       '무보정',
-      '외로움(공격↑ 방어↓)', '고집(공격↑ 특공↓)', '개구쟁이(공격↑ 특방↓)', '용감(공격↑ 스피드↓)', '------------------------------',
-      '대담(방어↑ 공격↓)', '장난꾸러기(방어↑ 특공↓)', '촐랑(방어↑ 특방↓)', '무사태평(방어↑ 스피드↓)', '------------------------------',
-      '조심(특공↑ 공격↓)', '의젓(특공↑ 방어↓)', '덜렁(특공↑ 특방↓)', '냉정(특공↑ 스피드↓)', '------------------------------',
-      '차분(특방↑ 공격↓)', '얌전(특방↑ 방어↓)', '신중(특방↑ 특공↓)', '건방(특방↑ 스피드↓)', '------------------------------',
-      '겁쟁이(스피드↑ 공격↓)', '성급(스피드↑ 방어↓)', '명랑(스피드↑ 특공↓)', '천진난만(스피드↑ 특방↓)'
+      ...Nature.filter((n) => {
+        const effect = NatureMap[n]
+        return effect && effect.up && effect.down
+      }),
     ]
 
-    const natures = {
-      '무보정': {},
-      '외로움(공격↑ 방어↓)': { up: 'A', down: 'B' }, '고집(공격↑ 특공↓)': { up: 'A', down: 'C' }, '개구쟁이(공격↑ 특방↓)': { up: 'A', down: 'D' }, '용감(공격↑ 스피드↓)': { up: 'A', down: 'S' },
-      '대담(방어↑ 공격↓)': { up: 'B', down: 'A' }, '장난꾸러기(방어↑ 특공↓)': { up: 'B', down: 'C' }, '촐랑(방어↑ 특방↓)': { up: 'B', down: 'D' }, '무사태평(방어↑ 스피드↓)': { up: 'B', down: 'S' },
-      '조심(특공↑ 공격↓)': { up: 'C', down: 'A' }, '의젓(특공↑ 방어↓)': { up: 'C', down: 'B' }, '덜렁(특공↑ 특방↓)': { up: 'C', down: 'D' }, '냉정(특공↑ 스피드↓)': { up: 'C', down: 'S' },
-      '차분(특방↑ 공격↓)': { up: 'D', down: 'A' }, '얌전(특방↑ 방어↓)': { up: 'D', down: 'B' }, '신중(특방↑ 특공↓)': { up: 'D', down: 'C' }, '건방(특방↑ 스피드↓)': { up: 'D', down: 'S' },
-      '겁쟁이(스피드↑ 공격↓)': { up: 'S', down: 'A' }, '성급(스피드↑ 방어↓)': { up: 'S', down: 'B' }, '명랑(스피드↑ 특공↓)': { up: 'S', down: 'B' }, '천진난만(스피드↑ 특방↓)': { up: 'S', down: 'C' },
+    const STAT_LABELS = { A: '공격', B: '방어', C: '특수공격', D: '특수방어', S: '스피드' }
+
+    // 한글은 일반 스페이스(半角)로 패딩하면 폭이 안 맞아서, 한글 한 글자와 폭이 같은
+    // 전각공백(U+3000)으로 채워서 정렬을 맞춘다.
+    const FULL_SPACE = '\u3000'
+    const padFull = (str, width) => str + FULL_SPACE.repeat(Math.max(0, width - str.length))
+
+    // 성격 select 옵션 라벨: 성격명은 5자, 능력치명은 4자 폭으로 맞춰서 괄호 위치를 정렬
+    const natureLabel = (natureName) => {
+      const paddedName = padFull(natureName, 5)
+      const effect = NatureMap[natureName]
+      if (!effect || !effect.up || !effect.down) return paddedName
+
+      const upLabel = padFull(STAT_LABELS[effect.up], 4)
+      const downLabel = padFull(STAT_LABELS[effect.down], 4)
+      return `${paddedName}(${upLabel}↑ ${downLabel}↓)`
     }
 
     // 전역 저장소에서 포켓몬 데이터 + 로딩 상태 가져오기 (여기서 fetch 하지 않음)
@@ -262,8 +273,8 @@ export default {
     )
 
     const getNatureMultiplier = (pokemonIndex, statKey) => {
-      const natureName = selectedNature.value[pokemonIndex] || '노력'
-      const natureEffect = natures[natureName]
+      const natureName = selectedNature.value[pokemonIndex] || '무보정'
+      const natureEffect = NatureMap[natureName]
       if (!natureEffect) return 1.0
 
       if (natureEffect.up === statKey) return 1.1
@@ -283,7 +294,7 @@ export default {
 
       const Base_Stat = pokemonData.stats[statKey] || 0 // 종족값
       const Stat_Points = inputStats.value[pokemonIndex][statKey] || 0 // 노력치
-      const Nature = selectedNature.value[pokemonIndex]?.replace(/\([^)]*\)/g, '') || '노력' // 성격
+      const Nature = selectedNature.value[pokemonIndex]?.replace(/\([^)]*\)/g, '') || '무보정' // 성격
       const Item = selectedTool.value[pokemonIndex] || '' // 도구
 
       const result = calculateStat(statKey, Base_Stat, Stat_Points, Nature, Item)
@@ -386,13 +397,13 @@ export default {
             if (pokemon) {
               const abilities = pokemonMap.value[pokemon]?.abilities || []
               selectedAbility.value[index] = abilities[0] || ''
-              selectedNature.value[index] = '노력'
+              selectedNature.value[index] = '무보정'
               selectedTool.value[index] = ''
               selectedMoves.value[index] = Array(4).fill('')
               calculateAllStats(index)
             } else {
               selectedAbility.value[index] = ''
-              selectedNature.value[index] = '노력'
+              selectedNature.value[index] = '무보정'
               selectedTool.value[index] = ''
               selectedMoves.value[index] = Array(4).fill('')
               inputStats.value[index] = { H: 0, A: 0, B: 0, C: 0, D: 0, S: 0 }
@@ -402,6 +413,16 @@ export default {
         })
       }
     )
+
+    // 레귤레이션이 바뀌어 선택 가능한 포켓몬 목록(pokemonNames)이 바뀌면,
+    // 이미 골라둔 포켓몬이 새 목록에 없으면 선택 해제 (위 watch가 능력치/기술 등도 같이 초기화해줌)
+    watch(pokemonNames, (newNames) => {
+      selectedPokemon.value.forEach((name, index) => {
+        if (name && !newNames.includes(name)) {
+          selectedPokemon.value[index] = ''
+        }
+      })
+    })
 
     const filteredPokemonNames = (i) => {
       const query = search.value[i]?.toLowerCase() || ''
@@ -431,6 +452,7 @@ export default {
       stats,
       itemList,
       natureOptions,
+      natureLabel,
       selectedNature,
       pokemonNames,
       search,

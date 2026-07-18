@@ -4,10 +4,9 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 10px 16px;
+      padding: 8px 16px;
       background: #333;
       color: #fff;
-      margin-bottom: 10px;
       flex-wrap: wrap;
       gap: 8px;
     "
@@ -16,11 +15,11 @@
       <h2 style="margin: 0;">포켓몬 챔피언스 헬퍼</h2>
     </NuxtLink>
 
-    <div style="display:flex; align-items:center; gap:20px; flex-wrap: wrap;">
+    <div style="display:flex; align-items:center; gap:4px; flex-wrap: wrap;">
       <!-- 로딩 상태 -->
       <div
         v-if="isLoadingPokemon || isLoadingRegulations"
-        style="display:flex; align-items:center; gap:6px; font-size:12px; color:#ffeb3b;"
+        style="display:flex; align-items:center; gap:4px; font-size:12px; color:#ffeb3b;"
       >
         <v-progress-circular indeterminate size="16" width="2" color="#ffeb3b" />
         <span>
