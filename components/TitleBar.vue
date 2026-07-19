@@ -67,7 +67,7 @@ const {
   currentTime,
 } = useEligiblePokemon()
 
-const { regulations, selectedRegulationIndex, selectRegulation, useAutoRegulation, startClock } =
+const { regulations, selectedRegulationIndex, selectRegulation, useAutoRegulation, startClock, allowedDexIds } =
   useRegulations()
 
 const pad = (n) => String(n).padStart(2, '0')
@@ -89,9 +89,10 @@ const onRegulationChange = (value) => {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   startClock()
-  loadRegulations()
-  loadPokemonList()
+  await loadRegulations()
+  const ids = Array.from(allowedDexIds.value)
+  await loadPokemonList(ids)
 })
 </script>

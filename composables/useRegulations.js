@@ -94,6 +94,20 @@ export function useRegulations() {
     selectedRegulationIndex.value = null
   }
 
+  // 지금까지 로드된 모든 레귤레이션 파일에 한 번이라도 등장하는 도감번호 합집합.
+  // (활성 레귤레이션 하나만 기준으로 하면, 수동으로 다른 레귤레이션으로 바꿨을 때
+  //  그 안의 포켓몬 데이터가 아예 로드되어 있지 않아서 깨짐)
+  const allowedDexIds = computed(() => {
+    const set = new Set()
+    regulations.value.forEach((reg) => {
+      ;(reg.pokemon_list || []).forEach((code) => {
+        const id = parseInt(String(code).split('-')[0], 10)
+        if (!Number.isNaN(id)) set.add(id)
+      })
+    })
+    return set
+  })
+
   return {
     regulations,
     isLoadingRegulations,
@@ -101,6 +115,7 @@ export function useRegulations() {
     activeRegulation,
     timeMatchedRegulation,
     selectedRegulationIndex,
+    allowedDexIds,
     loadRegulations,
     startClock,
     selectRegulation,

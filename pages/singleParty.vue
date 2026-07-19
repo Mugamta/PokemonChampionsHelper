@@ -20,9 +20,9 @@
       <div
         v-for="index in 6"
         :key="'left' + index"
-        style="display:flex; border:2px solid #000; padding:12px; gap:8px; box-sizing: border-box; background: #666;"
+        style="display:flex; border:2px solid #000; padding:12px; gap:8px; box-sizing: border-box; background: #666; overflow-x: auto;"
       >
-        <div style="display:flex; flex-direction:column; gap:6px; align-items:center;">
+        <div style="display:flex; flex-direction:column; gap:6px; align-items:center; flex-shrink:0;">
           <img
             :src="pokemonSprite(index - 1)"
             style="width:160px; height:160px; object-fit:cover; border: 2px solid #333; border-radius: 8px; background: #e8e8e8;"
@@ -62,7 +62,7 @@
           </select>
         </div>
 
-        <div style="display:flex; flex-direction:column; justify-content:space-between; height: 160px; align-items:center; padding: 4px 0; margin-right: 32px;">
+        <div style="display:flex; flex-direction:column; justify-content:space-between; height: 160px; align-items:center; padding: 4px 0; margin-right: 32px; flex-shrink:0;">
           <div style="display:flex; flex-direction:column; gap:4px; align-items:center;">
             <img
               :src="pokemonImg"
@@ -94,7 +94,7 @@
             <select 
               v-model="selectedNature[index - 1]"
               :disabled="!selectedPokemon[index - 1]"
-              style="width:260px; font-size:12px; padding: 4px; font-family: monospace; text-align: center;"
+              style="width:230px; font-size:12px; padding: 4px; font-family: monospace; text-align: center;"
               @change="calculateAllStats(index - 1)"
             >
               <option
@@ -109,7 +109,7 @@
           </div>
         </div>
 
-        <div style="flex;">
+        <div style="width: 265px; flex-shrink:0;">
           <div style="display:flex; flex-direction:column; gap:6px;">
             <div
               v-for="(stat, j) in stats"
@@ -130,7 +130,7 @@
                 @input="updateSingleStat(index - 1, stat.key)"
               >
 
-              <div style="display:flex; align-items:center; gap:4px; font-size:12px;">
+              <div style="display:flex; align-items:center; gap:4px; font-size:12px; flex-wrap: wrap; max-width: 138px;">
                 <span style="color: #666;">→</span>
                 <span 
                   style="font-weight: bold; width: 35px; text-align: right;"
@@ -144,14 +144,14 @@
 
                 <span 
                   v-if="stat.key === 'H'" 
-                  style="font-size: 11px; color: #ffeb3b; margin-left: 8px; white-space: nowrap;"
+                  style="font-size: 11px; color: #ffeb3b; margin-left: 4px; white-space: normal; max-width: 90px;"
                 >
                   {{ checkHpCondition(index - 1) }}
                 </span>
 
                 <span 
                   v-if="stat.key === 'B' || stat.key === 'D'" 
-                  style="font-size: 11px; color: #ddd; margin-left: 8px; white-space: nowrap;"
+                  style="font-size: 11px; color: #ddd; margin-left: 4px; white-space: normal; max-width: 90px;"
                 >
                   [{{ stat.key === 'B' ? '물리' : '특수' }}: {{ calcDurability(index - 1, stat.key) }}]
                 </span>
@@ -160,7 +160,7 @@
           </div>
         </div>
 
-        <div style="display:flex; flex-direction:column; gap:8px;">
+        <div style="display:flex; flex-direction:column; gap:8px; flex-shrink:0;">
           <div
             v-for="k in 4"
             :key="k"
@@ -196,7 +196,7 @@
 </template>
 
 <script>
-import { ref, onMounted, watch, computed } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { items } from '@/data/item';
 import { calculateStat } from '@/utils/stat';
 import { calculateBaseDamage } from '@/utils/move';
@@ -262,7 +262,6 @@ export default {
       isLoadingPokemon: isLoading,
       loadedCount,
       totalCount,
-      loadPokemonList,
     } = useEligiblePokemon()
 
     const search = ref(Array(6).fill(''))
@@ -456,7 +455,8 @@ export default {
     ]
 
     // 전역 저장소가 아직 안 채워졌으면 로드 트리거 (이미 로드됐으면 내부적으로 아무 일도 안 함)
-    onMounted(loadPokemonList)
+    // 포켓몬 데이터 로딩은 헤더(TitleBar)에서 레귤레이션 로딩 후 필요한 번호만 트리거함.
+    // 여기서 파라미터 없이 부르면 레귤레이션 로딩보다 먼저 실행되어 전체 범위로 잠겨버릴 수 있어서 호출하지 않음.
 
     return {
       stats,
