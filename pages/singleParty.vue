@@ -24,8 +24,9 @@
       >
         <div style="display:flex; flex-direction:column; gap:6px; align-items:center;">
           <img
-            :src="pokemonImg"
-            style="width:160px; height:160px; object-fit:cover;"
+            :src="pokemonSprite(index - 1)"
+            style="width:160px; height:160px; object-fit:cover; border: 2px solid #333; border-radius: 8px; background: #e8e8e8;"
+            @error="$event.target.src = pokemonImg"
           >
           <v-autocomplete
             v-model="selectedPokemon[index - 1]"
@@ -65,7 +66,7 @@
           <div style="display:flex; flex-direction:column; gap:4px; align-items:center;">
             <img
               :src="pokemonImg"
-              style="width:80px; height:80px; object-fit:cover;"
+              style="width:80px; height:80px; object-fit:cover; border: 2px solid #333; border-radius: 8px; background: #e8e8e8;"
             >
             <select 
               v-model="selectedTool[index - 1]" 
@@ -207,6 +208,15 @@ export default {
     // GitHub Pages 서브 경로 대응: public 폴더 이미지도 baseURL을 직접 붙여야 함
     const config = useRuntimeConfig()
     const pokemonImg = (config.app.baseURL || '/') + 'pokemon.webp'
+
+    // 미리 public/pokemon_sprites/{id}.png 로 받아둔 로컬 스프라이트 사용 (download:sprites 스크립트로 준비)
+    const pokemonSprite = (index) => {
+      const name = selectedPokemon.value[index]
+      const data = name ? pokemonMap.value[name] : null
+      return data?.id
+        ? `${config.app.baseURL || '/'}pokemon_sprites/${data.id}.png`
+        : pokemonImg
+    }
     const stats = [
       { key: 'H', name: '체력' },
       { key: 'A', name: '공격' },
@@ -470,6 +480,7 @@ export default {
       loadedCount,
       totalCount,
       pokemonImg,
+      pokemonSprite,
       updateSingleStat,
       calculateAllStats,
       getNatureMultiplier,
