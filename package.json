@@ -8,7 +8,8 @@
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
-    "printTree": "powershell -NoProfile -ExecutionPolicy Bypass -File ./tree.ps1"
+    "printTree": "powershell -NoProfile -ExecutionPolicy Bypass -File ./tree.ps1",
+    "download:sprites": "node scripts/download-sprites.js"
   },
   "dependencies": {
     "nuxt": "^4.4.2",
