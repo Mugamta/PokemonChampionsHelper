@@ -91,19 +91,28 @@
               </select>
             </div>
 
-            <select
-              v-model="selectedWeather[index - 1]"
-              style="width:260px; font-size:11px; padding: 4px;"
-              @change="calculateAllStats(index - 1)"
-            >
-              <option
-                v-for="w in weatherOptions"
-                :key="w"
-                :value="w"
-              >
-                {{ w }}
-              </option>
-            </select>
+            <div style="display:flex; flex-direction:column; gap:1px; width:260px;">
+              <span style="font-size:10px; color:#ccc;">날씨</span>
+              <div style="display:flex; flex-wrap:wrap; gap:2px;">
+                <button
+                  v-for="w in weatherOptions"
+                  :key="w"
+                  type="button"
+                  :style="{
+                    fontSize: '10px',
+                    padding: '2px 6px',
+                    border: '1px solid #999',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    background: selectedWeather[index - 1] === w ? '#4caf50' : '#444',
+                    color: '#fff'
+                  }"
+                  @click="toggleWeather(index - 1, w)"
+                >
+                  {{ w }}
+                </button>
+              </div>
+            </div>
 
             <div style="display:flex; flex-direction:column; gap:1px; width:260px;">
               <span style="font-size:10px; color:#ccc;">필드</span>
@@ -344,7 +353,7 @@ export default {
     const selectedTool = ref(Array(6).fill(''))
 
     // 날씨 / 필드 / 상태이상 (슬롯별 선택)
-    const weatherOptions = ['없음', '쾌청', '비', '모래바람', '눈', '큰가뭄', '폭우', '난기류']
+    const weatherOptions = ['쾌청', '큰가뭄', '비', '폭우', '모래바람', '눈', '난기류']
     const fieldOptions = ['일렉트릭필드', '그래스필드', '미스트필드', '사이코필드']
     const statusOptions = ['마비', '화상']
 
@@ -385,8 +394,9 @@ export default {
       const Stat_Points = inputStats.value[pokemonIndex][statKey] || 0 // 노력치
       const Nature = selectedNature.value[pokemonIndex]?.replace(/\([^)]*\)/g, '') || '무보정' // 성격
       const Item = selectedTool.value[pokemonIndex] || '' // 도구
+      const Status = selectedStatus.value[pokemonIndex] // 상태이상
 
-      const result = calculateStat(statKey, Base_Stat, Stat_Points, Nature, Item)
+      const result = calculateStat(statKey, Base_Stat, Stat_Points, Nature, Item, Status)
       calcStats.value[pokemonIndex][statKey] = result
     }
 
@@ -395,7 +405,12 @@ export default {
       keys.forEach(key => updateSingleStat(pokemonIndex, key))
     }
 
-    // 필드/상태이상 버튼: 이미 선택된 걸 다시 누르면 '없음'(선택 해제)으로 토글
+    // 날씨/필드/상태이상 버튼: 이미 선택된 걸 다시 누르면 '없음'(선택 해제)으로 토글
+    const toggleWeather = (pokemonIndex, value) => {
+      selectedWeather.value[pokemonIndex] = selectedWeather.value[pokemonIndex] === value ? '없음' : value
+      calculateAllStats(pokemonIndex)
+    }
+
     const toggleField = (pokemonIndex, value) => {
       selectedField.value[pokemonIndex] = selectedField.value[pokemonIndex] === value ? '없음' : value
       calculateAllStats(pokemonIndex)
@@ -441,13 +456,15 @@ export default {
       const move = moves[moveName] || {} 
       const power = move.Power || 0
       const moveType = move.Type || ''
+      const moveCategory = move.Category || ''
       const stab = true // 자속보정 수정필
       const attack = move.Category === '물리' ? calcStats.value[pokemonIndex]?.A || 0 : calcStats.value[pokemonIndex]?.C || 0
       const ability = selectedAbility.value[pokemonIndex]
-      const weather = selectedWeather.value[pokemonIndex] // 슬롯별 선택값 (없음/쾌청/비/모래바람/눈)
+      const weather = selectedWeather.value[pokemonIndex] // 슬롯별 선택값 (없음/쾌청/비/모래바람/눈/큰가뭄/폭우/난기류)
       const item = selectedTool.value[pokemonIndex]
+      const status = selectedStatus.value[pokemonIndex]
 
-      return calculateBaseDamage(power, attack, stab, moveType, ability, weather, item)
+      return calculateBaseDamage(power, attack, stab, moveType, moveCategory, ability, weather, item, status)
     }
 
     // HP 조정 배수 순차 판정 함수
@@ -581,6 +598,7 @@ export default {
       itemSprite,
       updateSingleStat,
       calculateAllStats,
+      toggleWeather,
       toggleField,
       toggleStatus,
       getNatureMultiplier,

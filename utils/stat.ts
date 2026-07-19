@@ -1,6 +1,6 @@
 import { NatureMap, type NatureName } from '../data/nature';
 
-export const calculateStat = (statKey: string, Base_Stat: number, Stat_Points: number, Natures: NatureName, Item: string) => {
+export const calculateStat = (statKey: string, Base_Stat: number, Stat_Points: number, Natures: NatureName, Item: string, Status?: string) => {
     // 개체치는 31로 고정되었고, 노력치는 정수 단위가 되었으므로 HP는 + 75, 그 외는 + 20으로 계산식을 단순화
     let result = 0
 
@@ -24,6 +24,10 @@ export const calculateStat = (statKey: string, Base_Stat: number, Stat_Points: n
     else if(statKey == 'D' && Item === '돌격조끼') result = Math.floor(result * 1.5)
     else if(statKey == 'S' && Item === '구애스카프') result = Math.floor(result * 1.5)
 
+    // 마비 상태: 스피드 50% 감소
+    if (statKey === 'S' && Status === '마비') {
+        result = Math.floor(result * 0.5)
+    }
+
     return result
 }
-
