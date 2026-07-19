@@ -20,12 +20,12 @@
       <div
         v-for="index in 6"
         :key="'left' + index"
-        style="display:flex; border:2px solid #000; padding:12px; gap:8px; box-sizing: border-box; background: #666; overflow-x: auto;"
+        style="display:flex; border:2px solid #000; padding:12px; gap:6px; box-sizing: border-box; background: #666; overflow-x: auto;"
       >
         <div style="display:flex; flex-direction:column; gap:6px; align-items:center; flex-shrink:0;">
           <img
             :src="pokemonSprite(index - 1)"
-            style="width:160px; height:160px; object-fit:cover; border: 2px solid #333; border-radius: 8px; background: #e8e8e8;"
+            style="width:160px; height:160px; object-fit:cover; border: 2px solid #333; border-radius: 6px; background: #e8e8e8;"
             @error="$event.target.src = pokemonImg"
           >
           <v-autocomplete
@@ -62,40 +62,102 @@
           </select>
         </div>
 
-        <div style="display:flex; flex-direction:column; justify-content:space-between; height: 160px; align-items:center; padding: 4px 0; margin-right: 32px; flex-shrink:0;">
+        <div style="display:flex; flex-direction:column; justify-content:space-between; height: 160px; align-items:center; padding: 4px 0; margin-right: 6px; flex-shrink:0;">
           <div style="display:flex; flex-direction:column; gap:4px; align-items:center;">
-            <img
-              :src="itemSprite(index - 1)"
-              style="width:80px; height:80px; object-fit:cover; border: 2px solid #333; border-radius: 8px; background: #e8e8e8;"
-              @error="$event.target.src = pokemonImg"
-            >
-            <select 
-              v-model="selectedTool[index - 1]" 
-              style="width:90px; font-size:12px; padding: 4px;"
+            <div style="display:flex; align-items:center; gap:6px; width:260px;">
+              <img
+                :src="itemSprite(index - 1)"
+                style="width:80px; height:80px; object-fit:cover; border: 2px solid #333; border-radius: 6px; background: #e8e8e8; flex-shrink:0;"
+                @error="$event.target.src = pokemonImg"
+              >
+              <select 
+                v-model="selectedTool[index - 1]" 
+                style="width:144px; font-size:12px; padding: 4px;"
+                @change="calculateAllStats(index - 1)"
+              >
+                <option
+                  value=""
+                  disabled
+                >
+                  도구 선택
+                </option>
+                <option
+                  v-for="t in itemList"
+                  :key="t"
+                  :value="t"
+                >
+                  {{ t }}
+                </option>
+              </select>
+            </div>
+
+            <select
+              v-model="selectedWeather[index - 1]"
+              style="width:260px; font-size:11px; padding: 4px;"
               @change="calculateAllStats(index - 1)"
             >
               <option
-                value=""
-                disabled
+                v-for="w in weatherOptions"
+                :key="w"
+                :value="w"
               >
-                도구 선택
-              </option>
-              <option
-                v-for="t in itemList"
-                :key="t"
-                :value="t"
-              >
-                {{ t }}
+                {{ w }}
               </option>
             </select>
+
+            <div style="display:flex; flex-direction:column; gap:1px; width:260px;">
+              <span style="font-size:10px; color:#ccc;">필드</span>
+              <div style="display:flex; flex-wrap:wrap; gap:2px;">
+                <button
+                  v-for="f in fieldOptions"
+                  :key="f"
+                  type="button"
+                  :style="{
+                    fontSize: '10px',
+                    padding: '2px 6px',
+                    border: '1px solid #999',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    background: selectedField[index - 1] === f ? '#4caf50' : '#444',
+                    color: '#fff'
+                  }"
+                  @click="toggleField(index - 1, f)"
+                >
+                  {{ f }}
+                </button>
+              </div>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:1px; width:260px;">
+              <span style="font-size:10px; color:#ccc;">상태이상</span>
+              <div style="display:flex; flex-wrap:wrap; gap:2px;">
+                <button
+                  v-for="s in statusOptions"
+                  :key="s"
+                  type="button"
+                  :style="{
+                    fontSize: '10px',
+                    padding: '2px 6px',
+                    border: '1px solid #999',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    background: selectedStatus[index - 1] === s ? '#4caf50' : '#444',
+                    color: '#fff'
+                  }"
+                  @click="toggleStatus(index - 1, s)"
+                >
+                  {{ s }}
+                </button>
+              </div>
+            </div>
           </div>
 
           <div style="display:flex; flex-direction:column; gap:2px;">
-            <span style="font-size:11px; color:#555; text-align:center;">성격</span>
+            <span style="font-size:11px; color:#ccc; text-align:center;">성격</span>
             <select 
               v-model="selectedNature[index - 1]"
               :disabled="!selectedPokemon[index - 1]"
-              style="width:230px; font-size:12px; padding: 4px; font-family: monospace; text-align: center;"
+              style="width:260px; font-size:12px; padding: 4px; font-family: monospace; text-align: center;"
               @change="calculateAllStats(index - 1)"
             >
               <option
@@ -131,7 +193,7 @@
                 @input="updateSingleStat(index - 1, stat.key)"
               >
 
-              <div style="display:flex; align-items:center; gap:4px; font-size:12px; flex-wrap: wrap; max-width: 138px;">
+              <div style="display:flex; align-items:center; gap:4px; font-size:12px; flex-wrap: wrap; max-width: 136px;">
                 <span style="color: #666;">→</span>
                 <span 
                   style="font-weight: bold; width: 35px; text-align: right;"
@@ -161,7 +223,7 @@
           </div>
         </div>
 
-        <div style="display:flex; flex-direction:column; gap:8px; flex-shrink:0;">
+        <div style="display:flex; flex-direction:column; gap:6px; flex-shrink:0;">
           <div
             v-for="k in 4"
             :key="k"
@@ -280,6 +342,15 @@ export default {
     
     // 도구 및 기술의 상태 추적을 위한 상태 선언
     const selectedTool = ref(Array(6).fill(''))
+
+    // 날씨 / 필드 / 상태이상 (슬롯별 선택)
+    const weatherOptions = ['없음', '쾌청', '비', '모래바람', '눈', '큰가뭄', '폭우', '난기류']
+    const fieldOptions = ['일렉트릭필드', '그래스필드', '미스트필드', '사이코필드']
+    const statusOptions = ['마비', '화상']
+
+    const selectedWeather = ref(Array(6).fill('없음'))
+    const selectedField = ref(Array(6).fill('없음'))
+    const selectedStatus = ref(Array(6).fill('없음'))
     const selectedMoves = ref(Array(6).fill(null).map(() => Array(4).fill('')))
 
     const inputStats = ref(
@@ -324,6 +395,17 @@ export default {
       keys.forEach(key => updateSingleStat(pokemonIndex, key))
     }
 
+    // 필드/상태이상 버튼: 이미 선택된 걸 다시 누르면 '없음'(선택 해제)으로 토글
+    const toggleField = (pokemonIndex, value) => {
+      selectedField.value[pokemonIndex] = selectedField.value[pokemonIndex] === value ? '없음' : value
+      calculateAllStats(pokemonIndex)
+    }
+
+    const toggleStatus = (pokemonIndex, value) => {
+      selectedStatus.value[pokemonIndex] = selectedStatus.value[pokemonIndex] === value ? '없음' : value
+      calculateAllStats(pokemonIndex)
+    }
+
     const getInputClass = (index) => {
       const rowData = inputStats.value[index - 1];
   
@@ -362,7 +444,7 @@ export default {
       const stab = true // 자속보정 수정필
       const attack = move.Category === '물리' ? calcStats.value[pokemonIndex]?.A || 0 : calcStats.value[pokemonIndex]?.C || 0
       const ability = selectedAbility.value[pokemonIndex]
-      const weather = '쾌청' // 날씨는 일단 고정, 나중에 선택지 추가 가능
+      const weather = selectedWeather.value[pokemonIndex] // 슬롯별 선택값 (없음/쾌청/비/모래바람/눈)
       const item = selectedTool.value[pokemonIndex]
 
       return calculateBaseDamage(power, attack, stab, moveType, ability, weather, item)
@@ -478,6 +560,12 @@ export default {
       selectedPokemon,
       selectedAbility,
       selectedTool,
+      weatherOptions,
+      fieldOptions,
+      statusOptions,
+      selectedWeather,
+      selectedField,
+      selectedStatus,
       selectedMoves,
       filteredPokemonNames,
       abilityOptions,
@@ -493,6 +581,8 @@ export default {
       itemSprite,
       updateSingleStat,
       calculateAllStats,
+      toggleField,
+      toggleStatus,
       getNatureMultiplier,
       calcDurability,
       checkHpCondition,
