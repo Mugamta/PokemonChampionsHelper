@@ -143,7 +143,7 @@
                 </span>
 
                 <span 
-                  v-if="stat.key === 'H'" 
+                  v-if="stat.key === 'H' && checkHpCondition(index - 1)" 
                   style="font-size: 11px; color: #ffeb3b; margin-left: 4px; white-space: normal; max-width: 90px;"
                 >
                   {{ checkHpCondition(index - 1) }}
@@ -380,12 +380,12 @@ export default {
 
       // 3순위: 도구 [먹다남은음식], [검은진흙] 검사
       if (tool === '먹다남은음식' || tool === '검은진흙') {
-        return hp % 16 === 0 ? '16n O' : '16n X'
+        return hp % 16 === 0 ? '16n' : ''
       }
 
       // 4순위: 기술 리스트 중 [대타출동] 검사
       if (moves.includes('대타출동')) {
-        return hp % 16 === 1 ? '16n+1 O' : '16n+1 X'
+        return hp % 16 === 1 ? '16n+1' : ''
       }
 
       // 5순위: 기술 리스트 중 [씨뿌리기] 검사
@@ -394,7 +394,7 @@ export default {
       }
 
       // 6순위: 위 조건에 모두 충족되지 않을 때의 기본값
-      return (hp + 1) % 16 === 0 ? '16n-1 O' : '16n-1 X'
+      return (hp + 1) % 16 === 0 ? '16n-1' : ''
     }
 
     watch(
