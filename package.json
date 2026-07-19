@@ -9,7 +9,8 @@
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "printTree": "powershell -NoProfile -ExecutionPolicy Bypass -File ./tree.ps1",
-    "download:sprites": "node scripts/download-sprites.js"
+    "download:sprites": "node scripts/download-sprites.js",
+    "download:item-sprites": "node scripts/download-item-sprites.js"
   },
   "dependencies": {
     "nuxt": "^4.4.2",

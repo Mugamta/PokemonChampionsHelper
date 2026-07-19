@@ -65,8 +65,9 @@
         <div style="display:flex; flex-direction:column; justify-content:space-between; height: 160px; align-items:center; padding: 4px 0; margin-right: 32px; flex-shrink:0;">
           <div style="display:flex; flex-direction:column; gap:4px; align-items:center;">
             <img
-              :src="pokemonImg"
+              :src="itemSprite(index - 1)"
               style="width:80px; height:80px; object-fit:cover; border: 2px solid #333; border-radius: 8px; background: #e8e8e8;"
+              @error="$event.target.src = pokemonImg"
             >
             <select 
               v-model="selectedTool[index - 1]" 
@@ -215,6 +216,14 @@ export default {
       const data = name ? pokemonMap.value[name] : null
       return data?.id
         ? `${config.app.baseURL || '/'}pokemon_sprites/${data.id}.png`
+        : pokemonImg
+    }
+
+    // 선택된 도구의 스프라이트 (public/item_sprites/{한글이름}.png, download:item-sprites 스크립트로 준비)
+    const itemSprite = (index) => {
+      const tool = selectedTool.value[index]
+      return tool
+        ? `${config.app.baseURL || '/'}item_sprites/${encodeURIComponent(tool)}.png`
         : pokemonImg
     }
     const stats = [
@@ -481,6 +490,7 @@ export default {
       totalCount,
       pokemonImg,
       pokemonSprite,
+      itemSprite,
       updateSingleStat,
       calculateAllStats,
       getNatureMultiplier,
