@@ -8,7 +8,8 @@ export const calculateBaseDamage = (
         ability?: string, 
         weather?: string, 
         item?: string,
-        status?: string) => 
+        status?: string,
+        field?: string) => 
     {
     // (물리/특수 공격 실능치) * (기술 위력) * 자속 보정 * 특성 보정 * 날씨 보정 * 도구 보정
 
@@ -59,6 +60,13 @@ export const calculateBaseDamage = (
     if (item === '검은안경' && type === '악') result *= 1.2
     if (item === '금속코트' && type === '강철') result *= 1.2
     if (item === '요정의깃털' && type === '페어리') result *= 1.2
+
+    // 필드 보정 (땅에 있는 포켓몬 기준 효과. 부유 특성은 제외 - 비행 타입 제외는 타입 데이터 없어서 반영 불가)
+    if (field === '그래스필드' && type === '풀' && ability !== '부유') result *= 1.3
+    if (field === '일렉트릭필드' && type === '전기' && ability !== '부유') result *= 1.3
+    if (field === '사이코필드' && type === '에스퍼' && ability !== '부유') result *= 1.3
+    // 미스트필드: 드래곤 타입 기술의 대미지가 절반 (땅에 있는 대상 기준. 이 도구는 상대 정보를 안 다뤄서 공격측에 바로 적용)
+    if (field === '미스트필드' && type === '드래곤') result *= 0.5
 
     // 화상 상태 + 물리 기술: 최종 결정력 1/2 (버림). 단, 근성 특성이면 적용 안 함
     if (status === '화상' && category === '물리' && ability !== '근성') {

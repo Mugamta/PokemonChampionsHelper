@@ -463,8 +463,9 @@ export default {
       const weather = selectedWeather.value[pokemonIndex] // 슬롯별 선택값 (없음/쾌청/비/모래바람/눈/큰가뭄/폭우/난기류)
       const item = selectedTool.value[pokemonIndex]
       const status = selectedStatus.value[pokemonIndex]
+      const field = selectedField.value[pokemonIndex]
 
-      return calculateBaseDamage(power, attack, stab, moveType, moveCategory, ability, weather, item, status)
+      return calculateBaseDamage(power, attack, stab, moveType, moveCategory, ability, weather, item, status, field)
     }
 
     // HP 조정 배수 순차 판정 함수
