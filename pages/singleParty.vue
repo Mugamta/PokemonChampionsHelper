@@ -28,6 +28,12 @@
             style="width:160px; height:160px; object-fit:cover; border: 2px solid #333; border-radius: 6px; background: #e8e8e8;"
             @error="$event.target.src = pokemonImg"
           >
+          <span
+            v-if="selectedPokemon[index - 1]"
+            style="font-size:12px; font-weight:bold; color:#ffeb3b;"
+          >
+            {{ displayName(index - 1) }}
+          </span>
           <v-autocomplete
             v-model="selectedPokemon[index - 1]"
             :items="pokemonNames"
@@ -40,10 +46,11 @@
               offset: [0, 8]
             }"
           />
-          
+
           <select 
             v-model="selectedAbility[index - 1]"
-            :disabled="!selectedPokemon[index - 1]"
+            :disabled="!selectedPokemon[index - 1] || !!getMegaData(index - 1)"
+            :title="getMegaData(index - 1) ? '메가진화 중에는 특성이 고정됩니다' : ''"
             style="width:160px; font-size:12px; padding: 4px;"
           >
             <option
@@ -73,7 +80,7 @@
               <select 
                 v-model="selectedTool[index - 1]" 
                 style="width:144px; font-size:12px; padding: 4px;"
-                @change="calculateAllStats(index - 1)"
+                @change="onToolChange(index - 1)"
               >
                 <option
                   value=""
@@ -268,12 +275,13 @@
 </template>
 
 <script>
-import { ref, watch, computed } from 'vue'
+import { ref, watch } from 'vue'
 import { items } from '@/data/item';
 import { calculateStat } from '@/utils/stat';
 import { calculateBaseDamage } from '@/utils/move';
 import { moves } from '@/data/moves';
 import { Nature, NatureMap } from '@/data/nature';
+import { MegaEvolutionMap } from '@/data/mega-evolutions';
 
 export default {
   setup() {
@@ -281,8 +289,50 @@ export default {
     const config = useRuntimeConfig()
     const pokemonImg = (config.app.baseURL || '/') + 'pokemon.webp'
 
+    // 도구가 '메가스톤'이고 해당 포켓몬이 메가진화 가능하면 메가진화 데이터 반환
+    const getMegaData = (index) => {
+      const name = selectedPokemon.value[index]
+      const tool = selectedTool.value[index]
+      if (!name || tool !== '메가스톤') return null
+      const list = MegaEvolutionMap[name]
+      return list && list.length > 0 ? list[0] : null
+    }
+
+    // 표시용 이름: 메가진화 중이면 메가진화 이름, 아니면 원래 이름
+    const displayName = (index) => {
+      const mega = getMegaData(index)
+      return mega ? mega.megaName : (selectedPokemon.value[index] || '')
+    }
+
+    // 메가진화 상태와 selectedAbility를 동기화. 메가진화 중이면 특성을 고정값으로 강제하고,
+    // 메가진화가 풀리면(도구 변경 등) 원래 종족의 첫 번째 특성으로 되돌린다.
+    const syncMegaAbility = (index) => {
+      const mega = getMegaData(index)
+      if (mega) {
+        selectedAbility.value[index] = mega.ability
+        return
+      }
+      const name = selectedPokemon.value[index]
+      if (!name) return
+      const abilities = pokemonMap.value[name]?.abilities || []
+      // 지금 선택된 특성이 메가진화 전용 특성이었거나(=원래 목록에 없음) 비어있으면 기본 특성으로 복귀
+      if (!selectedAbility.value[index] || !abilities.includes(selectedAbility.value[index])) {
+        selectedAbility.value[index] = abilities[0] || ''
+      }
+    }
+
+    // 도구 선택 변경 핸들러: 메가진화 여부가 바뀔 수 있으므로 특성 동기화 후 능력치 재계산
+    const onToolChange = (index) => {
+      syncMegaAbility(index)
+      calculateAllStats(index)
+    }
+
     // 미리 public/pokemon_sprites/{id}.png 로 받아둔 로컬 스프라이트 사용 (download:sprites 스크립트로 준비)
     const pokemonSprite = (index) => {
+      const mega = getMegaData(index)
+      if (mega) {
+        return `${config.app.baseURL || '/'}pokemon_sprites/${mega.id}.png`
+      }
       const name = selectedPokemon.value[index]
       const data = name ? pokemonMap.value[name] : null
       return data?.id
@@ -390,7 +440,8 @@ export default {
         return
       }
 
-      const Base_Stat = pokemonData.stats[statKey] || 0 // 종족값
+      const mega = getMegaData(pokemonIndex)
+      const Base_Stat = (mega ? mega.stats[statKey] : pokemonData.stats[statKey]) || 0 // 종족값(메가진화 중이면 메가 종족값)
       const Stat_Points = inputStats.value[pokemonIndex][statKey] || 0 // 노력치
       const Nature = selectedNature.value[pokemonIndex]?.replace(/\([^)]*\)/g, '') || '무보정' // 성격
       const Item = selectedTool.value[pokemonIndex] || '' // 도구
@@ -547,7 +598,10 @@ export default {
       return pokemonNames.value.filter(name => name.toLowerCase().includes(query))
     }
 
+    // 메가진화 중이면 특성 선택지를 고정 특성 하나로만 제한
     const abilityOptions = (i) => {
+      const mega = getMegaData(i)
+      if (mega) return [mega.ability]
       const name = selectedPokemon.value[i]
       return pokemonMap.value[name]?.abilities || []
     }
@@ -597,6 +651,9 @@ export default {
       pokemonImg,
       pokemonSprite,
       itemSprite,
+      displayName,
+      getMegaData,
+      onToolChange,
       updateSingleStat,
       calculateAllStats,
       toggleWeather,
