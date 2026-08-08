@@ -36,7 +36,7 @@
 </template>
 
 <script setup>
-const goSingle = () => navigateTo('/singleParty')
+const goSingle = () => navigateTo('/party')
 const goMulti = () => navigateTo('/multi')
 const goParty = () => navigateTo('/party')
 const goHelp = () => navigateTo('/help')
