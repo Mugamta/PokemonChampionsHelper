@@ -1,5 +1,5 @@
 <template>
-  <div style="display:flex; gap:8px; padding:8px; min-height: 300px;">
+  <div class="party-container">
     <div
       v-if="isLoading"
       style="display:flex; flex-direction:column; align-items:center; justify-content:center; width:100%; padding: 100px 0; gap:8px;"
@@ -13,44 +13,56 @@
       <span style="color:#ccc; font-size:14px;">포켓몬 데이터를 불러오는 중... ({{ loadedCount }} / {{ totalCount }})</span>
     </div>
 
-    <div
-      v-else
-      style="flex:1; display:grid; grid-template-columns: repeat(2, 1fr); gap:6px;"
-    >
+    <div v-else class="party-grid">
       <div
         v-for="index in 6"
         :key="'left' + index"
-        style="display:flex; border:2px solid #000; padding:12px; gap:6px; box-sizing: border-box; background: #666; overflow-x: auto;"
+        class="party-card"
       >
-        <div style="display:flex; flex-direction:column; gap:6px; align-items:center; flex-shrink:0;">
+        <!-- 사진 + 포켓몬 선택 + 특성 -->
+        <div class="card-block1">
           <img
             :src="pokemonSprite(index - 1)"
+            class="area-sprite"
             style="width:160px; height:160px; object-fit:cover; border: 2px solid #333; border-radius: 6px; background: #e8e8e8;"
             @error="$event.target.src = pokemonImg"
           >
-          <span
-            v-if="selectedPokemon[index - 1]"
-            style="font-size:12px; font-weight:bold; color:#ffeb3b;"
-          >
-            {{ displayName(index - 1) }}
-          </span>
           <v-autocomplete
             v-model="selectedPokemon[index - 1]"
             :items="pokemonNames"
             label="포켓몬 선택"
             density="compact"
             hide-details
+            class="area-select-pokemon"
             style="width: 160px;"
             :menu-props="{
               location: 'end top',
               offset: [0, 8]
             }"
-          />
+            @update:model-value="quickBlur"
+          >
+            <template #selection="{ item }">
+              <span
+                style="
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: block;
+      width: 100%;
+      line-height: 1.2;
+    "
+              >
+                {{ item }}
+              </span>
+            </template>
+          </v-autocomplete>
 
           <select 
             v-model="selectedAbility[index - 1]"
             :disabled="!selectedPokemon[index - 1] || !!getMegaData(index - 1)"
             :title="getMegaData(index - 1) ? '메가진화 중에는 특성이 고정됩니다' : ''"
+            class="area-select-ability"
             style="width:160px; font-size:12px; padding: 4px;"
           >
             <option
@@ -69,16 +81,19 @@
           </select>
         </div>
 
-        <div style="display:flex; flex-direction:column; justify-content:space-between; height: 160px; align-items:center; padding: 4px 0; margin-right: 6px; flex-shrink:0;">
-          <div style="display:flex; flex-direction:column; gap:4px; align-items:center;">
-            <div style="display:flex; align-items:center; gap:6px; width:260px;">
+        <!-- 도구 + 날씨/필드/상태이상 + 성격 -->
+        <div class="card-block2">
+          <div class="card-block2-top">
+            <div class="card-tool-row">
               <img
                 :src="itemSprite(index - 1)"
+                class="area-item"
                 style="width:80px; height:80px; object-fit:cover; border: 2px solid #333; border-radius: 6px; background: #e8e8e8; flex-shrink:0;"
                 @error="$event.target.src = pokemonImg"
               >
               <select 
                 v-model="selectedTool[index - 1]" 
+                class="area-select-tool"
                 style="width:144px; font-size:12px; padding: 4px;"
                 @change="onToolChange(index - 1)"
               >
@@ -98,7 +113,7 @@
               </select>
             </div>
 
-            <div style="display:flex; flex-direction:column; gap:1px; width:260px;">
+            <div class="card-weather-row" style="display:flex; flex-direction:column; gap:1px; width:260px;">
               <span style="font-size:10px; color:#ccc;">날씨</span>
               <div style="display:flex; flex-wrap:wrap; gap:2px;">
                 <button
@@ -121,7 +136,7 @@
               </div>
             </div>
 
-            <div style="display:flex; flex-direction:column; gap:1px; width:260px;">
+            <div class="card-field-row" style="display:flex; flex-direction:column; gap:1px; width:260px;">
               <span style="font-size:10px; color:#ccc;">필드</span>
               <div style="display:flex; flex-wrap:wrap; gap:2px;">
                 <button
@@ -144,7 +159,7 @@
               </div>
             </div>
 
-            <div style="display:flex; flex-direction:column; gap:1px; width:260px;">
+            <div class="card-status-row" style="display:flex; flex-direction:column; gap:1px; width:260px;">
               <span style="font-size:10px; color:#ccc;">상태이상</span>
               <div style="display:flex; flex-wrap:wrap; gap:2px;">
                 <button
@@ -168,11 +183,12 @@
             </div>
           </div>
 
-          <div style="display:flex; flex-direction:column; gap:2px;">
+          <div class="card-nature" style="display:flex; flex-direction:column; gap:2px;">
             <span style="font-size:11px; color:#ccc; text-align:center;">성격</span>
             <select 
               v-model="selectedNature[index - 1]"
               :disabled="!selectedPokemon[index - 1]"
+              class="area-select-nature"
               style="width:260px; font-size:12px; padding: 4px; font-family: monospace; text-align: center;"
               @change="calculateAllStats(index - 1)"
             >
@@ -188,11 +204,13 @@
           </div>
         </div>
 
-        <div style="width: 265px; flex-shrink:0;">
+        <!-- 노력치 / 실수치 / 내구력 -->
+        <div class="card-block3">
           <div style="display:flex; flex-direction:column; gap:6px;">
             <div
               v-for="(stat, j) in stats"
               :key="j"
+              class="stat-row"
               style="display:flex; align-items:center; gap:6px;"
             >
               <span style="font-size:12px; white-space:nowrap; width: 70px;">
@@ -209,7 +227,7 @@
                 @input="updateSingleStat(index - 1, stat.key)"
               >
 
-              <div style="display:flex; align-items:center; gap:4px; font-size:12px; flex-wrap: wrap; max-width: 136px;">
+              <div class="stat-result" style="display:flex; align-items:center; gap:4px; font-size:12px; flex-wrap: wrap; max-width: 136px;">
                 <span style="color: #666;">→</span>
                 <span 
                   style="font-weight: bold; width: 35px; text-align: right;"
@@ -239,10 +257,12 @@
           </div>
         </div>
 
-        <div style="display:flex; flex-direction:column; gap:6px; flex-shrink:0;">
+        <!-- 기술 + 결정력 -->
+        <div class="card-block4">
           <div
             v-for="k in 4"
             :key="k"
+            class="move-row"
             style="display:flex; align-items:center; gap:12px;"
           >
             <span style="color:#666;">→</span>
@@ -254,6 +274,7 @@
               density="compact"
               hide-details
               menu-icon=""
+              class="area-move-select"
               style="width:120px; font-size:12px;"
             />
 
@@ -270,6 +291,17 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- 모바일에서만 보이는 하단 배틀 버튼 -->
+    <div class="mobile-battle-bar">
+      <button
+        :disabled="!isPartyComplete"
+        class="mobile-battle-button"
+        @click="goToBattle"
+      >
+        배틀 화면으로
+      </button>
     </div>
   </div>
 </template>
@@ -415,8 +447,17 @@ export default {
       totalCount,
     } = useEligiblePokemon()
 
+    const quickBlur = () => {
+      // 선택하자마자 브라우저에서 포커싱된 input 요소를 즉시 해제
+      setTimeout(() => {
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur()
+        }
+      }, 50) // Vuetify 내부 포커스 유지 로직보다 한 발 늦게 실행되도록 지연시간 부여
+    }
+
     const search = ref(Array(6).fill(''))
-    const selectedPokemon = ref(Array(6).fill(''))
+    const { selectedPokemon, isPartyComplete } = useParty()
     const selectedAbility = ref(Array(6).fill('특성'))
     const selectedNature = ref(Array(6).fill('무보정'))
     
@@ -638,6 +679,12 @@ export default {
       '포켓몬 C가 포켓몬 D가 성격 무보정인 경우 확 1타로 잡는다.'
     ]
 
+    const router = useRouter()
+    const goToBattle = () => {
+      if (!isPartyComplete.value) return
+      router.push('/battle')
+    }
+
     // 전역 저장소가 아직 안 채워졌으면 로드 트리거 (이미 로드됐으면 내부적으로 아무 일도 안 함)
     // 포켓몬 데이터 로딩은 헤더(TitleBar)에서 레귤레이션 로딩 후 필요한 번호만 트리거함.
     // 여기서 파라미터 없이 부르면 레귤레이션 로딩보다 먼저 실행되어 전체 범위로 잠겨버릴 수 있어서 호출하지 않음.
@@ -686,18 +733,194 @@ export default {
       checkHpCondition,
       getBaseDamage,
       getInputClass,
+      isPartyComplete,
+      goToBattle,
+      quickBlur,
     }
   }
 }
 </script>
 <style>
 .v-autocomplete__selection-text {
-	font-size: 12px !important;
+  font-size: 12px !important;
+}
+
+.v-autocomplete .v-field__input {
+  flex-wrap: nowrap !important;
 }
 /* 합이 64일 때 적용할 스타일 */
 .red-input {
   border-color: red !important;
   color: red;
   background-color: #fff0f0; /* 배경색도 살짝 변경 예시 */
+}
+
+.party-container {
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  min-height: 300px;
+}
+
+.party-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+
+.party-card {
+  display: flex;
+  border: 2px solid #000;
+  padding: 12px;
+  gap: 6px;
+  box-sizing: border-box;
+  background: #666;
+  overflow-x: auto;
+}
+
+.card-block1,
+.card-block2,
+.card-block3,
+.card-block4 {
+  flex-shrink: 0;
+}
+
+.mobile-battle-bar {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .party-container {
+    flex-direction: column;
+  }
+
+  .party-grid {
+    grid-template-columns: 1fr; /* 카드 6개 세로로 쌓기 */
+  }
+
+  /* 카드 자체를 2열 grid로: 이미지 2개 → 선택박스 2개 → 특성/성격 2개 → 스탯/기술 2개 → 날씨/필드/상태이상 전체폭 */
+  .party-card {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "sprite item"
+      "select-pokemon select-tool"
+      "select-ability select-nature"
+      "stats moves"
+      "weather weather"
+      "field field"
+      "status status";
+    gap: 10px;
+    overflow-x: visible;
+    align-items: start;
+  }
+
+  /* 원래 그룹핑 wrapper들은 시각적 박스 없이, 자식들을 grid의 직속 아이템으로 승격 */
+  .card-block1,
+  .card-block2,
+  .card-block2-top,
+  .card-tool-row {
+    display: contents;
+  }
+
+  .area-sprite {
+    grid-area: sprite;
+    width: 100% !important;
+    max-width: 200px;
+    height: auto !important;
+    aspect-ratio: 1 / 1;
+    justify-self: center;
+  }
+
+  .area-item {
+    grid-area: item;
+    width: 100% !important;
+    max-width: 200px;
+    height: auto !important;
+    aspect-ratio: 1 / 1;
+    justify-self: center;
+  }
+
+  .area-select-pokemon {
+    grid-area: select-pokemon;
+    width: 100% !important;
+  }
+
+  .area-select-tool {
+    grid-area: select-tool;
+    width: 100% !important;
+  }
+
+  .area-select-ability {
+    grid-area: select-ability;
+    width: 100% !important;
+  }
+
+  .card-nature {
+    grid-area: select-nature;
+    width: 100% !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 8px !important;
+  }
+
+  .area-select-nature {
+    width: 100% !important;
+  }
+
+  .card-block3 {
+    grid-area: stats;
+  }
+
+  .card-block4 {
+    grid-area: moves;
+  }
+
+  .card-weather-row,
+  .card-field-row,
+  .card-status-row {
+    width: 100% !important;
+  }
+
+  .card-weather-row { grid-area: weather; }
+  .card-field-row { grid-area: field; }
+  .card-status-row { grid-area: status; }
+
+  /* 스탯/기술 줄이 컬럼 폭보다 넓어지면 줄바꿈 되도록 */
+  .stat-row,
+  .move-row {
+    flex-wrap: wrap;
+  }
+
+  .stat-result {
+    max-width: 100% !important;
+  }
+
+  .area-move-select {
+    width: auto !important;
+    flex: 1;
+  }
+
+  .mobile-battle-bar {
+    display: block;
+    padding: 12px 0;
+  }
+
+  .mobile-battle-button {
+    width: 100%;
+    padding: 12px;
+    font-size: 14px;
+    border: none;
+    border-radius: 6px;
+    background: #4caf50;
+    color: #fff;
+    cursor: pointer;
+  }
+
+  .mobile-battle-button:disabled {
+    background: #555;
+    cursor: not-allowed;
+  }
 }
 </style>
