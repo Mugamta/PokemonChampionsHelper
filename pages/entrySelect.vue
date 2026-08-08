@@ -491,7 +491,6 @@ watch(
 
 .mine-move-row {
   display: flex;
-  flex-direction: column;
   gap: 1px;
 }
 
