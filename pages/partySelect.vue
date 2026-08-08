@@ -13,7 +13,10 @@
       <span style="color:#ccc; font-size:14px;">포켓몬 데이터를 불러오는 중... ({{ loadedCount }} / {{ totalCount }})</span>
     </div>
 
-    <div v-else class="party-grid">
+    <div
+      v-else
+      class="party-grid"
+    >
       <div
         v-for="index in 6"
         :key="'left' + index"
@@ -113,7 +116,10 @@
               </select>
             </div>
 
-            <div class="card-weather-row" style="display:flex; flex-direction:column; gap:1px; width:260px;">
+            <div
+              class="card-weather-row"
+              style="display:flex; flex-direction:column; gap:1px; width:260px;"
+            >
               <span style="font-size:10px; color:#ccc;">날씨</span>
               <div style="display:flex; flex-wrap:wrap; gap:2px;">
                 <button
@@ -136,7 +142,10 @@
               </div>
             </div>
 
-            <div class="card-field-row" style="display:flex; flex-direction:column; gap:1px; width:260px;">
+            <div
+              class="card-field-row"
+              style="display:flex; flex-direction:column; gap:1px; width:260px;"
+            >
               <span style="font-size:10px; color:#ccc;">필드</span>
               <div style="display:flex; flex-wrap:wrap; gap:2px;">
                 <button
@@ -159,7 +168,10 @@
               </div>
             </div>
 
-            <div class="card-status-row" style="display:flex; flex-direction:column; gap:1px; width:260px;">
+            <div
+              class="card-status-row"
+              style="display:flex; flex-direction:column; gap:1px; width:260px;"
+            >
               <span style="font-size:10px; color:#ccc;">상태이상</span>
               <div style="display:flex; flex-wrap:wrap; gap:2px;">
                 <button
@@ -183,7 +195,10 @@
             </div>
           </div>
 
-          <div class="card-nature" style="display:flex; flex-direction:column; gap:2px;">
+          <div
+            class="card-nature"
+            style="display:flex; flex-direction:column; gap:2px;"
+          >
             <span style="font-size:11px; color:#ccc; text-align:center;">성격</span>
             <select 
               v-model="selectedNature[index - 1]"
@@ -227,7 +242,10 @@
                 @input="updateSingleStat(index - 1, stat.key)"
               >
 
-              <div class="stat-result" style="display:flex; align-items:center; gap:4px; font-size:12px; flex-wrap: wrap; max-width: 136px;">
+              <div
+                class="stat-result"
+                style="display:flex; align-items:center; gap:4px; font-size:12px; flex-wrap: wrap; max-width: 136px;"
+              >
                 <span style="color: #666;">→</span>
                 <span 
                   style="font-weight: bold; width: 35px; text-align: right;"
@@ -258,36 +276,30 @@
         </div>
 
         <!-- 기술 + 결정력 -->
+        <!-- 기술 + 결정력 -->
         <div class="card-block4">
           <div
             v-for="k in 4"
             :key="k"
             class="move-row"
-            style="display:flex; align-items:center; gap:12px;"
           >
-            <span style="color:#666;">→</span>
-
-            <v-autocomplete
-              v-model="selectedMoves[index - 1][k - 1]"
-              :disabled="!selectedPokemon[index - 1]"
-              :items="moveOptions(index - 1)"
-              density="compact"
-              hide-details
-              menu-icon=""
-              class="area-move-select"
-              style="width:120px; font-size:12px;"
-            />
-
-            <span
-              style="
-                width:40px;
-                text-align:right;
-                font-size:12px;
-                color:#ffeb3b;
-              "
-            >
-              {{ getBaseDamage(index - 1, k - 1) }}
-            </span>
+            <div class="move-select-row">
+              <span style="color:#666;">→</span>
+              <v-autocomplete
+                v-model="selectedMoves[index - 1][k - 1]"
+                :disabled="!selectedPokemon[index - 1]"
+                :items="moveOptions(index - 1)"
+                density="compact"
+                hide-details
+                menu-icon=""
+                class="area-move-select"
+                style="width:120px; font-size:12px;"
+              />
+            </div>
+            <div class="move-info-row">
+              <span class="move-info-text">{{ formatMoveInfo(selectedMoves[index - 1][k - 1]) }}</span>
+              <span class="move-damage">{{ getBaseDamage(index - 1, k - 1) }}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -300,7 +312,7 @@
         class="mobile-battle-button"
         @click="goToBattle"
       >
-        배틀 화면으로
+        선출 화면으로
       </button>
     </div>
   </div>
@@ -314,6 +326,7 @@ import { calculateBaseDamage } from '@/utils/move';
 import { moves } from '@/data/moves';
 import { Nature, NatureMap } from '@/data/nature';
 import { MegaEvolutionMap } from '@/data/mega-evolutions';
+import { formatMoveInfo } from '@/utils/move-info'
 
 export default {
   setup() {
@@ -456,13 +469,18 @@ export default {
       }, 50) // Vuetify 내부 포커스 유지 로직보다 한 발 늦게 실행되도록 지연시간 부여
     }
 
+    // 변경
     const search = ref(Array(6).fill(''))
-    const { selectedPokemon, isPartyComplete } = useParty()
-    const selectedAbility = ref(Array(6).fill('특성'))
-    const selectedNature = ref(Array(6).fill('무보정'))
-    
-    // 도구 및 기술의 상태 추적을 위한 상태 선언
-    const selectedTool = ref(Array(6).fill(''))
+    const {
+      selectedPokemon,
+      selectedAbility,
+      selectedNature,
+      selectedTool,
+      selectedMoves,
+      inputStats,
+      calcStats,
+      isPartyComplete,
+    } = useParty()
 
     // 날씨 / 필드 / 상태이상 (슬롯별 선택)
     const weatherOptions = ['쾌청', '큰가뭄', '비', '폭우', '모래바람', '눈', '난기류']
@@ -472,15 +490,6 @@ export default {
     const selectedWeather = ref(Array(6).fill('없음'))
     const selectedField = ref(Array(6).fill('없음'))
     const selectedStatus = ref(Array(6).fill('없음'))
-    const selectedMoves = ref(Array(6).fill(null).map(() => Array(4).fill('')))
-
-    const inputStats = ref(
-      Array(6).fill(null).map(() => ({ H: 0, A: 0, B: 0, C: 0, D: 0, S: 0 }))
-    )
-
-    const calcStats = ref(
-      Array(6).fill(null).map(() => ({ H: 0, A: 0, B: 0, C: 0, D: 0, S: 0 }))
-    )
 
     const getNatureMultiplier = (pokemonIndex, statKey) => {
       const natureName = selectedNature.value[pokemonIndex] || '무보정'
@@ -682,7 +691,7 @@ export default {
     const router = useRouter()
     const goToBattle = () => {
       if (!isPartyComplete.value) return
-      router.push('/battle')
+      router.push('/entrySelect')
     }
 
     // 전역 저장소가 아직 안 채워졌으면 로드 트리거 (이미 로드됐으면 내부적으로 아무 일도 안 함)
@@ -736,6 +745,7 @@ export default {
       isPartyComplete,
       goToBattle,
       quickBlur,
+      formatMoveInfo,
     }
   }
 }
@@ -813,8 +823,39 @@ export default {
       "status status";
     gap: 10px;
     overflow-x: visible;
-    align-items: start;
+    align-items: center; /* 실능치 블록과 기술 블록을 세로 중앙정렬 */
   }
+
+  .move-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.move-select-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.move-info-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 28px; /* 화살표 폭만큼 들여쓰기 */
+}
+
+.move-info-text {
+  font-size: 10px;
+  color: #ccc;
+  white-space: nowrap;
+}
+
+.move-damage {
+  font-size: 12px;
+  color: #ffeb3b;
+  white-space: nowrap;
+}
 
   /* 원래 그룹핑 wrapper들은 시각적 박스 없이, 자식들을 grid의 직속 아이템으로 승격 */
   .card-block1,

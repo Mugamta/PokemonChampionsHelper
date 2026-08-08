@@ -38,7 +38,9 @@
         </span>
       </div>
 
+
       <button
+        v-if="isPartyPage"
         :disabled="!isPartyComplete"
         :style="{
           fontSize: '12px',
@@ -52,7 +54,7 @@
         }"
         @click="goToBattle"
       >
-        배틀 화면으로
+        선출 화면으로
       </button>
 
       <!-- 현재 시각 -->
@@ -109,6 +111,7 @@ const { isLoadingPokemon, isLoadingRegulations, loadedCount, totalCount, loadPok
 const { regulations, selectedRegulationIndex, selectRegulation, useAutoRegulation, startClock, allowedDexIds } = useRegulations()
 const { isPartyComplete } = useParty()
 const router = useRouter()
+const route = useRoute()
 
 const pad = (n) => String(n).padStart(2, '0')
 
@@ -129,9 +132,11 @@ const onRegulationChange = (value) => {
   }
 }
 
+const isPartyPage = computed(() => route.path === '/partySelect')
+
 const goToBattle = () => {
   if (!isPartyComplete.value) return
-  router.push('/battle')
+  router.push('/entrySelect')
 }
 
 onMounted(async () => {
