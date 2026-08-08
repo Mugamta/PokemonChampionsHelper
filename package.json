@@ -11,7 +11,8 @@
     "printTree": "powershell -NoProfile -ExecutionPolicy Bypass -File ./tree.ps1",
     "download:sprites": "node scripts/download-sprites.js",
     "download:item-sprites": "node scripts/download-item-sprites.js",
-    "download:mega-sprites": "node scripts/download-mega-sprites.mjs"
+    "download:mega-sprites": "node scripts/download-mega-sprites.mjs",
+    "download:mega-stones": "node scripts/download-mega-stones.mjs"
   },
   "dependencies": {
     "nuxt": "^4.4.2",

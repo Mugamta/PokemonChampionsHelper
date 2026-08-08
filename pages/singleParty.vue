@@ -89,7 +89,7 @@
                   도구 선택
                 </option>
                 <option
-                  v-for="t in itemList"
+                  v-for="t in toolOptions(index - 1)"
                   :key="t"
                   :value="t"
                 >
@@ -289,13 +289,15 @@ export default {
     const config = useRuntimeConfig()
     const pokemonImg = (config.app.baseURL || '/') + 'pokemon.webp'
 
-    // 도구가 '메가스톤'이고 해당 포켓몬이 메가진화 가능하면 메가진화 데이터 반환
+    // 도구(선택된 메가스톤 이름)에 해당하는 메가진화 데이터 반환.
+    // 폼이 여러 개인 포켓몬(리자몽나이트X/Y 등)은 스톤 이름으로 정확히 어느 폼인지 구분한다.
     const getMegaData = (index) => {
       const name = selectedPokemon.value[index]
       const tool = selectedTool.value[index]
-      if (!name || tool !== '메가스톤') return null
+      if (!name || !tool) return null
       const list = MegaEvolutionMap[name]
-      return list && list.length > 0 ? list[0] : null
+      if (!list) return null
+      return list.find((m) => m.stoneName === tool) || null
     }
 
     // 표시용 이름: 메가진화 중이면 메가진화 이름, 아니면 원래 이름
@@ -340,12 +342,31 @@ export default {
         : pokemonImg
     }
 
-    // 선택된 도구의 스프라이트 (public/item_sprites/{한글이름}.png, download:item-sprites 스크립트로 준비)
+    // 선택된 도구의 스프라이트.
+    // 도구가 '메가스톤'이면 포켓몬별 실제 스톤 이미지(public/mega_stone_sprites/{stone}.png, download:mega-stones 스크립트로 준비)를,
+    // 그 외 도구는 기존처럼 공용 아이템 스프라이트(public/item_sprites/{한글이름}.png, download:item-sprites 스크립트로 준비)를 사용
     const itemSprite = (index) => {
       const tool = selectedTool.value[index]
-      return tool
-        ? `${config.app.baseURL || '/'}item_sprites/${encodeURIComponent(tool)}.png`
-        : pokemonImg
+      if (!tool) return pokemonImg
+
+      const mega = getMegaData(index)
+      if (mega) {
+        return mega.stone
+          ? `${config.app.baseURL || '/'}mega_stone_sprites/${mega.stone}.png`
+          : pokemonImg // 스톤명이 아직 확인 안 된 종(Champions 신규종 등)은 기본 이미지로 대체
+      }
+
+      return `${config.app.baseURL || '/'}item_sprites/${encodeURIComponent(tool)}.png`
+    }
+
+    // 선택된 포켓몬에게 메가진화가 있으면, 공용 '메가스톤' 항목 대신 실제 스톤 이름들(폼별로 여러 개일 수 있음)을 노출
+    const toolOptions = (index) => {
+      const name = selectedPokemon.value[index]
+      const megaList = name ? MegaEvolutionMap[name] : null
+      const base = itemList.filter((t) => t !== '메가스톤')
+      if (!megaList || megaList.length === 0) return base
+      const stoneNames = megaList.map((m) => m.stoneName)
+      return [...stoneNames, ...base]
     }
     const stats = [
       { key: 'H', name: '체력' },
@@ -651,6 +672,7 @@ export default {
       pokemonImg,
       pokemonSprite,
       itemSprite,
+      toolOptions,
       displayName,
       getMegaData,
       onToolChange,
