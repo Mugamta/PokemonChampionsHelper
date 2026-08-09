@@ -32,7 +32,7 @@
           >
           <v-autocomplete
             v-model="selectedPokemon[index - 1]"
-            :items="pokemonNames"
+            :items="availablePokemonNames(index - 1)"
             label="포켓몬 선택"
             density="compact"
             hide-details
@@ -221,6 +221,25 @@
 
         <!-- 노력치 / 실수치 / 내구력 -->
         <div class="card-block3">
+          <!-- 체력 % 슬라이더 -->
+          <div
+            class="hp-percent-block"
+            style="display:flex; gap:4px; margin-bottom:10px;"
+          >
+            <span style="font-size:10px; white-space:nowrap;">
+              체력 {{ selectedHpPercent[index - 1] }}% ({{ currentHp(index - 1) }} / {{ calcStats[index - 1]?.H || 0 }})
+            </span>
+            <input
+              v-model.number="selectedHpPercent[index - 1]"
+              type="range"
+              min="1"
+              max="100"
+              step="1"
+              :disabled="!selectedPokemon[index - 1]"
+              style="width:50%;"
+            >
+          </div>
+
           <div style="display:flex; flex-direction:column; gap:6px;">
             <div
               v-for="(stat, j) in stats"
@@ -275,7 +294,6 @@
           </div>
         </div>
 
-        <!-- 기술 + 결정력 -->
         <!-- 기술 + 결정력 -->
         <div class="card-block4">
           <div
@@ -404,15 +422,33 @@ export default {
       return `${config.app.baseURL || '/'}item_sprites/${encodeURIComponent(tool)}.png`
     }
 
-    // 선택된 포켓몬에게 메가진화가 있으면, 공용 '메가스톤' 항목 대신 실제 스톤 이름들(폼별로 여러 개일 수 있음)을 노출
+    // 선택된 포켓몬에게 메가진화가 있으면, 공용 '메가스톤' 항목 대신 실제 스톤 이름들(폼별로 여러 개일 수 있음)을 노출.
+    // 그리고 이미 다른 슬롯에서 선택된 도구는 목록에서 제외해 도구 중복 선출을 막는다(자기 자신이 이미 고른 값은 유지).
     const toolOptions = (index) => {
       const name = selectedPokemon.value[index]
       const megaList = name ? MegaEvolutionMap[name] : null
       const base = itemList.filter((t) => t !== '메가스톤')
-      if (!megaList || megaList.length === 0) return base
-      const stoneNames = megaList.map((m) => m.stoneName)
-      return [...stoneNames, ...base]
+      const all = !megaList || megaList.length === 0
+        ? base
+        : [...megaList.map((m) => m.stoneName), ...base]
+
+      const usedElsewhere = selectedTool.value.filter(
+        (t, i) => i !== index && t && t !== '없음'
+      )
+      return all.filter((t) => t === selectedTool.value[index] || !usedElsewhere.includes(t))
     }
+
+    // 이미 다른 슬롯에 선택된 포켓몬(종족 기준)은 후보에서 제외해 중복 선출을 막는다.
+    // selectedPokemon에는 메가진화 여부와 무관하게 항상 원래 종족명이 저장되므로
+    // (메가진화 여부는 selectedTool로 구분), 이 필터만으로 라이츄/메가라이츄X/메가라이츄Y처럼
+    // 실제로는 같은 종족인 조합의 중복도 함께 방지된다.
+    const availablePokemonNames = (index) => {
+      const selected = selectedPokemon.value
+      return pokemonNames.value.filter(
+        (name) => name === selected[index] || !selected.includes(name)
+      )
+    }
+
     const stats = [
       { key: 'H', name: '체력' },
       { key: 'A', name: '공격' },
@@ -490,6 +526,15 @@ export default {
     const selectedWeather = ref(Array(6).fill('없음'))
     const selectedField = ref(Array(6).fill('없음'))
     const selectedStatus = ref(Array(6).fill('없음'))
+
+    // 체력 % (1~100), 슬롯별로 현재 체력 비율을 표시/설정하기 위한 상태
+    const selectedHpPercent = ref(Array(6).fill(100))
+
+    const currentHp = (index) => {
+      const maxHp = calcStats.value[index]?.H || 0
+      const percent = selectedHpPercent.value[index] || 100
+      return Math.floor((maxHp * percent) / 100)
+    }
 
     const getNatureMultiplier = (pokemonIndex, statKey) => {
       const natureName = selectedNature.value[pokemonIndex] || '무보정'
@@ -640,12 +685,14 @@ export default {
               selectedNature.value[index] = '무보정'
               selectedTool.value[index] = ''
               selectedMoves.value[index] = Array(4).fill('')
+              selectedHpPercent.value[index] = 100
               calculateAllStats(index)
             } else {
               selectedAbility.value[index] = ''
               selectedNature.value[index] = '무보정'
               selectedTool.value[index] = ''
               selectedMoves.value[index] = Array(4).fill('')
+              selectedHpPercent.value[index] = 100
               inputStats.value[index] = { H: 0, A: 0, B: 0, C: 0, D: 0, S: 0 }
               calcStats.value[index] = { H: 0, A: 0, B: 0, C: 0, D: 0, S: 0 }
             }
@@ -715,8 +762,11 @@ export default {
       selectedWeather,
       selectedField,
       selectedStatus,
+      selectedHpPercent,
+      currentHp,
       selectedMoves,
       filteredPokemonNames,
+      availablePokemonNames,
       abilityOptions,
       moveOptions,
       centerTexts,
