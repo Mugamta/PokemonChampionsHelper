@@ -87,33 +87,31 @@
         <!-- 도구 + 날씨/필드/상태이상 + 성격 -->
         <div class="card-block2">
           <div class="card-block2-top">
-            <div class="card-tool-row">
+            <div
+              class="card-tool-row"
+              style="display:flex; align-items:center; gap:8px; flex-wrap:nowrap;"
+            >
               <img
                 :src="itemSprite(index - 1)"
                 class="area-item"
                 style="width:80px; height:80px; object-fit:cover; border: 2px solid #333; border-radius: 6px; background: #e8e8e8; flex-shrink:0;"
                 @error="$event.target.src = pokemonImg"
               >
-              <select 
-                v-model="selectedTool[index - 1]" 
-                class="area-select-tool"
-                style="width:144px; font-size:12px; padding: 4px;"
-                @change="onToolChange(index - 1)"
-              >
-                <option
-                  value=""
-                  disabled
-                >
-                  도구 선택
-                </option>
-                <option
-                  v-for="t in toolOptions(index - 1)"
-                  :key="t"
-                  :value="t"
-                >
-                  {{ t }}
-                </option>
-              </select>
+              <div style="width:150px; flex-shrink:0;">
+                <v-autocomplete
+                  v-model="selectedTool[index - 1]"
+                  :items="toolOptions(index - 1)"
+                  label="도구 선택"
+                  density="compact"
+                  hide-details
+                  class="area-select-tool"
+                  :menu-props="{
+                    location: 'end top',
+                    offset: [0, 8]
+                  }"
+                  @update:model-value="() => { onToolChange(index - 1); quickBlur() }"
+                />
+              </div>
             </div>
 
             <div
