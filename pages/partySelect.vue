@@ -56,7 +56,7 @@
       line-height: 1.2;
     "
               >
-                {{ item }}
+                {{ getMegaData(index - 1) ? displayName(index - 1) : item }}
               </span>
             </template>
           </v-autocomplete>
@@ -239,7 +239,7 @@
               style="width:50%;"
             >
           </div>
-
+          
           <div style="display:flex; flex-direction:column; gap:6px;">
             <div
               v-for="(stat, j) in stats"
