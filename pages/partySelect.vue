@@ -239,7 +239,7 @@
               style="width:50%;"
             >
           </div>
-          
+
           <div style="display:flex; flex-direction:column; gap:6px;">
             <div
               v-for="(stat, j) in stats"
@@ -846,37 +846,7 @@ export default {
   flex-shrink: 0;
 }
 
-.mobile-battle-bar {
-  display: none;
-}
-
-@media (max-width: 768px) {
-  .party-container {
-    flex-direction: column;
-  }
-
-  .party-grid {
-    grid-template-columns: 1fr; /* 카드 6개 세로로 쌓기 */
-  }
-
-  /* 카드 자체를 2열 grid로: 이미지 2개 → 선택박스 2개 → 특성/성격 2개 → 스탯/기술 2개 → 날씨/필드/상태이상 전체폭 */
-  .party-card {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    grid-template-areas:
-      "sprite item"
-      "select-pokemon select-tool"
-      "select-ability select-nature"
-      "stats moves"
-      "weather weather"
-      "field field"
-      "status status";
-    gap: 10px;
-    overflow-x: visible;
-    align-items: center; /* 실능치 블록과 기술 블록을 세로 중앙정렬 */
-  }
-
-  .move-row {
+.move-row {
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -906,6 +876,36 @@ export default {
   color: #ffeb3b;
   white-space: nowrap;
 }
+
+.mobile-battle-bar {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .party-container {
+    flex-direction: column;
+  }
+
+  .party-grid {
+    grid-template-columns: 1fr; /* 카드 6개 세로로 쌓기 */
+  }
+
+  /* 카드 자체를 2열 grid로: 이미지 2개 → 선택박스 2개 → 특성/성격 2개 → 스탯/기술 2개 → 날씨/필드/상태이상 전체폭 */
+  .party-card {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "sprite item"
+      "select-pokemon select-tool"
+      "select-ability select-nature"
+      "stats moves"
+      "weather weather"
+      "field field"
+      "status status";
+    gap: 10px;
+    overflow-x: visible;
+    align-items: center; /* 실능치 블록과 기술 블록을 세로 중앙정렬 */
+  }
 
   /* 원래 그룹핑 wrapper들은 시각적 박스 없이, 자식들을 grid의 직속 아이템으로 승격 */
   .card-block1,
