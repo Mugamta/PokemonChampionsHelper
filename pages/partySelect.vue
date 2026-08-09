@@ -863,6 +863,7 @@ export default {
   align-items: center;
   gap: 8px;
   padding-left: 28px; /* 화살표 폭만큼 들여쓰기 */
+  min-height: 16px; /* 기술 미선택 시에도 정보 텍스트 자리를 미리 확보해 레이아웃 밀림 방지 */
 }
 
 .move-info-text {
