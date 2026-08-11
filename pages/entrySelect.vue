@@ -156,7 +156,7 @@
               >
               <v-autocomplete
                 v-model="oppSelectedPokemon[index - 1]"
-                :items="pokemonNames"
+                :items="oppAvailablePokemonNames(index - 1)"
                 label="포켓몬 선택"
                 density="compact"
                 hide-details
@@ -166,12 +166,12 @@
             </div>
 
             <div>
-              <span style="display: inline-block; width: 64px; height: 64px;" />
               <select
                 v-model="oppSelectedAbility[index - 1]"
                 :disabled="!oppSelectedPokemon[index - 1] || !!getOppMegaData(index - 1)"
                 :title="abilityDescription(oppSelectedAbility[index - 1])"
                 class="opp-ability-select"
+                style="margin-left: 70px;"
               >
                 <option
                   value=""
@@ -191,12 +191,15 @@
             </div>
 
             <!-- 3행: 도구 사진, 도구 select -->
+            <!-- 3행: 도구 사진, 도구 select -->
             <div class="opp-row opp-row-tool">
-              <img
-                :src="opponentItemSprite(index - 1)"
-                class="opp-item-sprite-small"
-                @error="$event.target.src = pokemonImg"
-              >
+              <span class="opp-tool-icon-slot">
+                <img
+                  :src="opponentItemSprite(index - 1)"
+                  class="opp-item-sprite-small"
+                  @error="$event.target.src = pokemonImg"
+                >
+              </span>
               <select
                 v-model="oppSelectedTool[index - 1]"
                 class="opp-tool-select"
@@ -310,6 +313,13 @@ import { NatureMap } from '@/data/nature'
 import { MegaEvolutionMap } from '@/data/mega-evolutions'
 import { abilities } from '@/data/abilities'
 const abilityDescription = (name) => abilities[name] || ''
+
+const oppAvailablePokemonNames = (index) => {
+  const selected = oppSelectedPokemon.value
+  return pokemonNames.value.filter(
+    (name) => name === selected[index] || !selected.includes(name)
+  )
+}
 
 const config = useRuntimeConfig()
 const pokemonImg = (config.app.baseURL || '/') + 'pokemon.webp'
@@ -545,14 +555,19 @@ const oppToolOptions = (index) => {
   const name = oppSelectedPokemon.value[index]
   const megaList = name ? MegaEvolutionMap[name] : null
   const base = itemList.filter((t) => t !== '메가스톤')
-  if (!megaList || megaList.length === 0) return base
-  const stoneNames = megaList.map((m) => m.stoneName)
-  return [...stoneNames, ...base]
+  const allOptions = (!megaList || megaList.length === 0)
+    ? base
+    : [...megaList.map((m) => m.stoneName), ...base]
+
+  const usedTools = oppSelectedTool.value.filter((t, i) => i !== index && t)
+  return allOptions.filter((t) => t === oppSelectedTool.value[index] || !usedTools.includes(t))
 }
 
-const opponentMoveOptions = (index) => {
+const opponentMoveOptions = (index, moveIndex) => {
   const name = oppSelectedPokemon.value[index]
-  return pokemonMap.value[name]?.moves || []
+  const allMoves = pokemonMap.value[name]?.moves || []
+  const usedMoves = oppSelectedMoves.value[index]?.filter((m, i) => i !== moveIndex && m) || []
+  return allMoves.filter((m) => !usedMoves.includes(m))
 }
 
 const getOppNatureMultiplier = (index, statKey) => {
@@ -774,6 +789,13 @@ watch(
   cursor: pointer;
 }
 
+.opp-row-mega {
+  height: 18px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+
 .opp-item-sprite {
   width: 56px;
   height: 56px;
@@ -899,10 +921,6 @@ watch(
   width: 16px;
 }
 
-.mega-toggle-slot {
-  min-height: 25px; /* mega-toggle 한 줄 높이만큼 항상 확보 */
-}
-
 .ev-input {
   width: 44px;
   border: 1px solid #ccc;
@@ -998,6 +1016,13 @@ watch(
 }
 .opp-nature-select {
   font-size: 12px; /* 11px → 12px */
+}
+.opp-tool-icon-slot {
+  width: 64px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-shrink: 0;
 }
 
 .move-damage {
