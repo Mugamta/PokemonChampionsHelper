@@ -75,3 +75,47 @@ export const calculateBaseDamage = (
 
     return Math.floor(result)
 }
+
+// 실제 데미지 계산 (레벨 50 고정, 방어 실능치 반영, 난수 85~100%, 치명타 배율 포함)
+export const calculateDamage = (
+        power: number,
+        attack: number,
+        defense: number,
+        STAB: boolean,
+        type: string,
+        category: string,
+        ability?: string,
+        weather?: string,
+        item?: string,
+        status?: string,
+        field?: string,
+        level: number = 50) => 
+    {
+    // 결정력(공격 실능치 * 위력 * 각종 보정)은 기존 함수 그대로 사용
+    const modified = calculateBaseDamage(power, attack, STAB, type, category, ability, weather, item, status, field)
+
+    if (power <= 0 || modified <= 0 || defense <= 0) {
+      return { min: 0, max: 0, critMin: 0, critMax: 0 }
+    }
+
+    // (2 * 레벨 / 5 + 2) * 결정력 / 방어 실능치 / 50 + 2
+    const levelFactor = Math.floor((2 * level) / 5) + 2
+    const core = Math.floor((levelFactor * modified) / defense / 50) + 2
+
+    const CRIT_MULTIPLIER = 1.5 // 챔피언스 치명타 배율
+
+    const rangeOf = (base: number) => ({
+      min: Math.floor(base * 0.85),
+      max: Math.floor(base * 1.0),
+    })
+
+    const normalRange = rangeOf(core)
+    const critRange = rangeOf(Math.floor(core * CRIT_MULTIPLIER))
+
+    return {
+      min: normalRange.min,
+      max: normalRange.max,
+      critMin: critRange.min,
+      critMax: critRange.max,
+    }
+}

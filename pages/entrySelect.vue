@@ -109,8 +109,6 @@
               {{ w }}
             </button>
           </div>
-        </div>
-        <div class="field-control-row">
           <span class="field-control-label">필드</span>
           <div class="field-control-buttons">
             <button
@@ -127,10 +125,119 @@
         </div>
       </div>
 
-      <h3 class="battle-title">
-        계산 결과
-      </h3>
-      <!-- TODO: 배틀 계산 결과 표시 -->
+      <div class="matrix-header-row">
+        <h3 class="battle-title">
+          데미지 예상 표
+        </h3>
+        <label class="crit-toggle">
+          <input
+            v-model="showCrit"
+            type="checkbox"
+          >
+          급소(치명타)
+        </label>
+      </div>
+      <div class="dmg-matrix-wrap">
+        <!-- 좌측 → 우측 -->
+        <div
+          v-for="mIdx in selectedMineIndices"
+          :key="'atk-mine-' + mIdx"
+          class="matrix-block"
+        >
+          <h4 class="matrix-title">
+            {{ mineDisplayName(mIdx) || '미선택' }} → 상대
+          </h4>
+          <table class="dmg-table">
+            <thead>
+              <tr>
+                <th>기술</th>
+                <th
+                  v-for="oIdx in 6"
+                  :key="'opp-head-' + oIdx"
+                >
+                  {{ oppDisplayName(oIdx - 1) || ('상대' + oIdx) }}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="k in 4"
+                :key="'mine-move-' + k"
+              >
+                <td class="dmg-move-name">
+                  {{ selectedMoves[mIdx]?.[k - 1] || '-' }}
+                </td>
+                <td
+                  v-for="oIdx in 6"
+                  :key="'mine-cell-' + oIdx"
+                >
+                  <template v-if="getMineToOppCell(mIdx, oIdx - 1, k - 1, showCrit)">
+                    <div :class="['dmg-value', { 'dmg-value--crit': showCrit }]">
+                      {{ getMineToOppCell(mIdx, oIdx - 1, k - 1, showCrit).dmgMin }}~{{ getMineToOppCell(mIdx, oIdx - 1, k - 1, showCrit).dmgMax }}
+                    </div>
+                    <div class="dmg-percent">
+                      {{ getMineToOppCell(mIdx, oIdx - 1, k - 1, showCrit).pctMin }}~{{ getMineToOppCell(mIdx, oIdx - 1, k - 1, showCrit).pctMax }}%
+                    </div>
+                  </template>
+                  <template v-else>
+                    -
+                  </template>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- 우측 → 좌측 -->
+        <div
+          v-for="oIdx in 6"
+          :key="'atk-opp-' + oIdx"
+          class="matrix-block"
+        >
+          <h4 class="matrix-title">
+            {{ oppDisplayName(oIdx - 1) || ('상대' + oIdx) }} → 내 파티
+          </h4>
+          <table class="dmg-table">
+            <thead>
+              <tr>
+                <th>기술</th>
+                <th
+                  v-for="mIdx in selectedMineIndices"
+                  :key="'mine-head-' + mIdx"
+                >
+                  {{ mineDisplayName(mIdx) || '미선택' }}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="k in 4"
+                :key="'opp-move-' + k"
+              >
+                <td class="dmg-move-name">
+                  {{ oppSelectedMoves[oIdx - 1]?.[k - 1] || '-' }}
+                </td>
+                <td
+                  v-for="mIdx in selectedMineIndices"
+                  :key="'opp-cell-' + mIdx"
+                >
+                  <template v-if="getOppToMineCell(oIdx - 1, mIdx, k - 1, showCrit)">
+                    <div :class="['dmg-value', { 'dmg-value--crit': showCrit }]">
+                      {{ getOppToMineCell(oIdx - 1, mIdx, k - 1, showCrit).dmgMin }}~{{ getOppToMineCell(oIdx - 1, mIdx, k - 1, showCrit).dmgMax }}
+                    </div>
+                    <div class="dmg-percent">
+                      {{ getOppToMineCell(oIdx - 1, mIdx, k - 1, showCrit).pctMin }}~{{ getOppToMineCell(oIdx - 1, mIdx, k - 1, showCrit).pctMax }}%
+                    </div>
+                  </template>
+                  <template v-else>
+                    -
+                  </template>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
     </section>
 
     <!-- 우측: 상대 파티 (partySelect.vue처럼 입력 가능, 메가진화 지원) -->
@@ -330,7 +437,7 @@
 <script setup>
 import { items } from '@/data/item'
 import { calculateStat } from '@/utils/stat'
-import { calculateBaseDamage } from '@/utils/move'
+import { calculateBaseDamage, calculateDamage } from '@/utils/move'
 import { natureOptions, natureLabel } from '@/utils/nature-label'
 import { formatMoveInfo, getMoveData } from '@/utils/move-info'
 import { NatureMap } from '@/data/nature'
@@ -383,6 +490,7 @@ const fieldOptions = ['일렉트릭필드', '그래스필드', '미스트필드'
 
 const battleWeather = ref('없음')
 const battleField = ref('없음')
+const showCrit = ref(false)
 
 const toggleBattleWeather = (value) => {
   battleWeather.value = battleWeather.value === value ? '없음' : value
@@ -496,6 +604,74 @@ const getMineBaseDamage = (index, moveIndex) => {
 
   // 날씨/필드/상태이상은 이 화면에 없어 빈 값으로 전달
   return calculateBaseDamage(power, attack, stab, moveType, moveCategory, ability, battleWeather.value, item, '', battleField.value)
+}
+
+// ── 좌측(선택된 최대 3마리) → 우측 6마리 매트릭스 ─────────────
+const getMineToOppDamage = (mineIndex, oppIndex, moveIndex) => {
+  const moveName = selectedMoves.value[mineIndex]?.[moveIndex]
+  if (!moveName) return null
+  const move = getMoveData(moveName)
+  if (!move || move.Category === '변화') return null
+  if (!oppSelectedPokemon.value[oppIndex]) return null
+
+  const attackerStats = mineDisplayStats(mineIndex)
+  const defenderStats = oppDisplayStats(oppIndex)
+  const category = move.Category
+  const attack = category === '물리' ? attackerStats?.A || 0 : attackerStats?.C || 0
+  const defense = category === '물리' ? defenderStats?.B || 0 : defenderStats?.D || 0
+  const ability = selectedAbility.value[mineIndex]
+  const item = selectedTool.value[mineIndex]
+
+  return calculateDamage(
+    move.Power || 0, attack, defense, true, move.Type || '', category,
+    ability, battleWeather.value, item, '', battleField.value, 50
+  )
+}
+
+// ── 우측 6마리 → 좌측(선택된 최대 3마리) 매트릭스 ─────────────
+const getOppToMineDamage = (oppIndex, mineIndex, moveIndex) => {
+  const moveName = oppSelectedMoves.value[oppIndex]?.[moveIndex]
+  if (!moveName) return null
+  const move = getMoveData(moveName)
+  if (!move || move.Category === '변화') return null
+  if (!selectedPokemon.value[mineIndex]) return null
+
+  const attackerStats = oppDisplayStats(oppIndex)
+  const defenderStats = mineDisplayStats(mineIndex)
+  const category = move.Category
+  const attack = category === '물리' ? attackerStats?.A || 0 : attackerStats?.C || 0
+  const defense = category === '물리' ? defenderStats?.B || 0 : defenderStats?.D || 0
+  const ability = oppAbilityText(oppIndex)
+  const item = oppSelectedTool.value[oppIndex]
+
+  return calculateDamage(
+    move.Power || 0, attack, defense, true, move.Type || '', category,
+    ability, battleWeather.value, item, '', battleField.value, 50
+  )
+}
+
+// 좌측 → 우측 셀 (데미지 + 체력 퍼센트, 치명타 반영)
+const getMineToOppCell = (mineIndex, oppIndex, moveIndex, crit) => {
+  const dmg = getMineToOppDamage(mineIndex, oppIndex, moveIndex)
+  if (!dmg) return null
+  const defHp = oppDisplayStats(oppIndex)?.H || 0
+  const dmgMin = crit ? dmg.critMin : dmg.min
+  const dmgMax = crit ? dmg.critMax : dmg.max
+  const pctMin = defHp > 0 ? ((dmgMin / defHp) * 100).toFixed(1) : '0.0'
+  const pctMax = defHp > 0 ? ((dmgMax / defHp) * 100).toFixed(1) : '0.0'
+  return { dmgMin, dmgMax, pctMin, pctMax }
+}
+
+// 우측 → 좌측 셀 (데미지 + 체력 퍼센트, 치명타 반영)
+const getOppToMineCell = (oppIndex, mineIndex, moveIndex, crit) => {
+  const dmg = getOppToMineDamage(oppIndex, mineIndex, moveIndex)
+  if (!dmg) return null
+  const defHp = mineDisplayStats(mineIndex)?.H || 0
+  const dmgMin = crit ? dmg.critMin : dmg.min
+  const dmgMax = crit ? dmg.critMax : dmg.max
+  const pctMin = defHp > 0 ? ((dmgMin / defHp) * 100).toFixed(1) : '0.0'
+  const pctMax = defHp > 0 ? ((dmgMax / defHp) * 100).toFixed(1) : '0.0'
+  return { dmgMin, dmgMax, pctMin, pctMax }
 }
 
 // ── 상대 파티 (이 화면에서 직접 입력, 메가진화 지원) ─────────────
@@ -1116,8 +1292,10 @@ watch(
 }
 .field-control-row {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 .field-control-label {
   font-size: 10px;
@@ -1169,5 +1347,68 @@ watch(
     align-items: flex-start;
     width: 100%;
   }
+}
+.dmg-matrix-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-x: auto;
+}
+.matrix-block {
+  min-width: 0;
+}
+.matrix-title {
+  color: #fff;
+  font-size: 13px;
+  margin: 0 0 4px 0;
+}
+.dmg-table {
+  border-collapse: collapse;
+  font-size: 11px;
+  color: #fff;
+  width: 100%;
+}
+.dmg-table th,
+.dmg-table td {
+  border: 1px solid #555;
+  padding: 3px 6px;
+  text-align: center;
+  white-space: nowrap;
+}
+.dmg-table th {
+  background: #444;
+}
+.dmg-move-name {
+  text-align: left;
+  color: #ccc;
+}
+.matrix-header-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.matrix-header-row .battle-title {
+  margin: 0;
+}
+.crit-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #ffeb3b;
+  cursor: pointer;
+}
+
+.dmg-value {
+  font-weight: bold;
+  color: #fff;
+}
+.dmg-value--crit {
+  color: #ff5252; /* 급소 시 빨간색으로 강조 */
+}
+.dmg-percent {
+  font-size: 9px;
+  color: #aaa;
 }
 </style>
