@@ -1,3 +1,4 @@
+<!-- entrySelect.vue -->
 <template>
   <div class="battle-page">
     <!-- 좌측: 내 파티 (읽기 전용, 카드 하나로 묶음) -->
@@ -7,7 +8,15 @@
           v-for="index in 6"
           :key="'mine-' + index"
           class="mine-card"
+          :class="{ 'mine-card--selected': isMineSelected(index - 1) }"
+          @click="toggleMineSelect(index - 1)"
         >
+          <span
+            v-if="getMineOrder(index - 1)"
+            class="mine-order-badge"
+          >
+            {{ getMineOrder(index - 1) }}
+          </span>
           <div class="mine-name-box">
             <img
               :src="mySprite(index - 1)"
@@ -133,21 +142,7 @@
           class="opp-card"
         >
           <div class="opp-left-box">
-            <!-- 1행: 메가진화 반영 -->
-            <div class="opp-row opp-row-mega">
-              <label
-                v-if="getOppMegaData(index - 1)"
-                class="mega-toggle"
-              >
-                <input
-                  v-model="oppMegaToggle[index - 1]"
-                  type="checkbox"
-                >
-                메가진화 반영
-              </label>
-            </div>
-
-            <!-- 2행: 포켓몬 사진, 포켓몬 select, 특성 -->
+            <!-- 1행: 포켓몬 사진, 포켓몬 select -->
             <div class="opp-row opp-row-pokemon">
               <img
                 :src="opponentSprite(index - 1)"
@@ -161,17 +156,39 @@
                 density="compact"
                 hide-details
                 class="opp-field"
-                style="width: 140px;"
-              />
+                style="width: 154px;"
+                :menu-props="{
+                  location: 'bottom',
+                  offset: [0, 4]
+                }"
+              >
+                <template #selection="{ item }">
+                  <span class="opp-select-text">
+                    {{ getOppMegaData(index - 1) ? oppDisplayName(index - 1) : item }}
+                  </span>
+                </template>
+              </v-autocomplete>
             </div>
 
-            <div>
+            <!-- 2행: 메가진화 체크박스 + 특성 -->
+            <div class="opp-row opp-row-ability">
+              <span class="opp-mega-slot">
+                <label
+                  v-if="getOppMegaData(index - 1)"
+                  class="mega-toggle"
+                >
+                  <input
+                    v-model="oppMegaToggle[index - 1]"
+                    type="checkbox"
+                  >
+                  메가진화
+                </label>
+              </span>
               <select
                 v-model="oppSelectedAbility[index - 1]"
                 :disabled="!oppSelectedPokemon[index - 1] || !!getOppMegaData(index - 1)"
                 :title="abilityDescription(oppSelectedAbility[index - 1])"
                 class="opp-ability-select"
-                style="margin-left: 70px;"
               >
                 <option
                   value=""
@@ -190,7 +207,6 @@
               </select>
             </div>
 
-            <!-- 3행: 도구 사진, 도구 select -->
             <!-- 3행: 도구 사진, 도구 select -->
             <div class="opp-row opp-row-tool">
               <span class="opp-tool-icon-slot">
@@ -221,7 +237,7 @@
               </select>
             </div>
 
-            <!-- 4행: 성격 -->
+            <!-- 4행: 성격 (그리드 무시하고 전체 폭 사용) -->
             <div class="opp-row opp-row-nature">
               <select
                 v-model="oppSelectedNature[index - 1]"
@@ -259,7 +275,7 @@
                 max="32"
                 class="ev-input"
                 :class="getOppInputClass(index - 1)"
-                style="padding-top: 0px; padding-bottom: 0px; padding-right: 0px; margin: 0px;"
+                style="padding-top: 0px; padding-bottom: 0px; padding-right: 0px; margin: 0px; border: 0px"
                 @input="updateSingleOppStat(index - 1, stat.key)"
               >
               <span class="ev-arrow">→</span>
@@ -290,7 +306,15 @@
                 hide-details
                 menu-icon=""
                 class="opp-move-select"
-              />
+                :menu-props="{
+                  location: 'bottom',
+                  offset: [0, 4]
+                }"
+              >
+                <template #selection="{ item }">
+                  <span class="opp-move-select-text">{{ item }}</span>
+                </template>
+              </v-autocomplete>
               <div class="opp-move-info">
                 <span class="move-info-text">{{ formatMoveInfo(oppSelectedMoves[index - 1][k - 1]) }}</span>
                 <span class="move-damage">{{ getOppBaseDamage(index - 1, k - 1) }}</span>
@@ -312,6 +336,27 @@ import { formatMoveInfo, getMoveData } from '@/utils/move-info'
 import { NatureMap } from '@/data/nature'
 import { MegaEvolutionMap } from '@/data/mega-evolutions'
 import { abilities } from '@/data/abilities'
+
+const MAX_MINE_SELECT = 3
+const selectedMineIndices = ref([]) // 클릭한 순서대로 index(0~5) 저장
+
+const isMineSelected = (index) => selectedMineIndices.value.includes(index)
+
+const getMineOrder = (index) => {
+  const pos = selectedMineIndices.value.indexOf(index)
+  return pos === -1 ? null : pos + 1
+}
+
+const toggleMineSelect = (index) => {
+  const pos = selectedMineIndices.value.indexOf(index)
+  if (pos !== -1) {
+    selectedMineIndices.value.splice(pos, 1) // 다시 누르면 해제, 뒤 순서는 자동으로 당겨짐
+    return
+  }
+  if (selectedMineIndices.value.length >= MAX_MINE_SELECT) return // 3개 초과 선택 무시
+  selectedMineIndices.value.push(index)
+}
+
 const abilityDescription = (name) => abilities[name] || ''
 
 const oppAvailablePokemonNames = (index) => {
@@ -656,7 +701,7 @@ watch(
 .battle-page {
   display: flex;
   gap: 4px;
-  padding: 8px;
+  padding: 2px 8px;
   align-items: flex-start;
 }
 
@@ -681,14 +726,24 @@ watch(
   font-size: 16px;
 }
 
-/* ── 좌측 ─────────────────────────── */
+/* ── 좌/우 리스트 공통 ─────────────────────────── */
+/* 주의: right-list는 이 아래에서 다시 선언하지 말 것 (중복 선언이 gap을 덮어써서 버그의 원인이었음) */
 .left-list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px; /* 좌우 카드 세로 간격 통일 */
+  align-items: flex-start; /* 카드가 리스트 폭 방향으로 늘어나지 않도록 */
+}
+.right-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px; /* 좌우 카드 세로 간격 통일 */
+  align-items: flex-start; /* 카드가 리스트 폭 방향으로 늘어나지 않도록 */
 }
 
 .mine-card {
+  position: relative;
+  min-height: 140px;
   min-width: 600px;
   display: flex;
   align-items: center;
@@ -698,6 +753,31 @@ watch(
   border-radius: 6px;
   background: #666;
   width: fit-content;
+  flex: 0 0 auto; /* 남는 세로 공간을 차지하며 늘어나지 않도록 고정 */
+  cursor: pointer;
+  outline: 2px solid transparent;
+  transition: outline-color 0.15s ease;
+}
+
+.mine-card--selected {
+  outline: 3px solid #4caf50;
+}
+
+.mine-order-badge {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #4caf50;
+  color: #fff;
+  font-size: 11px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
 }
 
 .mine-name-box {
@@ -753,9 +833,6 @@ watch(
   min-height: 14px; /* 기술 선택 전/후 레이아웃 동일하게 유지 */
 }
 
-/* ── 도구 표시 / 메가 토글 (mine & opp 공통) ─────────────── */
-/* 아래 블록을 스타일시트에서 찾아서 통째로 이걸로 교체하세요 */
-
 /* ── 도구 표시 / 메가 토글 (mine 전용) ─────────────── */
 .mine-tool-box {
   display: flex;
@@ -789,13 +866,6 @@ watch(
   cursor: pointer;
 }
 
-.opp-row-mega {
-  height: 18px;
-  display: flex;
-  align-items: center;
-  overflow: hidden;
-}
-
 .opp-item-sprite {
   width: 56px;
   height: 56px;
@@ -805,67 +875,64 @@ watch(
   background: #e8e8e8;
 }
 
-.opp-nature-select {
-  width: 160px;
-  font-size: 11px;
-  padding: 4px;
-  font-family: monospace;
-}
-
 /* ── 우측: 상대 파티 카드 ─────────────────────────── */
-.right-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
 .opp-card {
-  min-width: 800px;
+  min-height: 140px;
+  min-width: 600px;
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 2px 8px;
-  border: 2px solid #000;
+  padding: 1px 4px;
   border-radius: 6px;
   background: #666;
   width: fit-content;
   flex-wrap: wrap; /* 좁은 화면에서 줄바꿈 허용 */
+  flex: 0 0 auto; /* 남는 세로 공간을 차지하며 늘어나지 않도록 고정 */
 }
 
+/* 좌측 블록: 사진/select열 + 특성/도구/성격select열이 세로로 정렬되도록 grid 사용 */
 .opp-left-box {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  flex-shrink: 0;
-}
-
-.opp-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 54px 1fr; /* 좌측열 고정폭 = 사진/체크박스/도구아이콘과 동일 */
   align-items: center;
-  gap: 6px;
+  align-content: start; /* 핵심 수정: 카드 세로 공간이 남아도 grid 행 사이를 stretch로 벌리지 않도록 고정 */
+  row-gap: 2px;
+  column-gap: 6px;
 }
 
-.opp-row-mega {
-  min-height: 18px; /* 메가진화 없는 포켓몬도 행 높이 유지 */
+/* opp-row는 실제 박스를 만들지 않고 자식들을 그대로 grid 아이템으로 노출 */
+.opp-row {
+  display: contents;
+}
+
+.opp-row-nature {
+  display: flex;             /* contents 대신 실제 박스로 */
+  grid-column: 1 / -1;       /* 그리드 두 칼럼 전체를 차지 */
+  align-items: center;
+}
+
+.opp-nature-select {
+  width: 100%;                /* 확보된 전체 폭을 그대로 사용 */
+  font-size: 12px;
+  padding: 4px;
+  font-family: monospace;
+}
+
+.opp-sprite,
+.opp-mega-slot,
+.opp-tool-icon-slot,
+.opp-nature-slot {
+  justify-self: center; /* 좌측 열 안에서 가운데 정렬 */
 }
 
 .opp-row-pokemon .opp-sprite {
-  width: 64px;
-  height: 64px;
-}
-
-.opp-name-box {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-  width: 140px;
+  width: 54px;
+  height: 54px;
 }
 
 .opp-sprite {
-  width: 64px;
-  height: 64px;
+  width: 54px;
+  height: 54px;
   object-fit: cover;
   border: 2px solid #333;
   border-radius: 6px;
@@ -873,26 +940,23 @@ watch(
 }
 
 .opp-field {
-  width: 140px;
+  width: 100%;
+  min-width: 0;      /* flex/grid 자식이 내용 크기만큼 커지는 걸 방지 */
   font-size: 12px;
 }
+.opp-field :deep(.v-field__input) {
+  min-width: 0;
+}
 
-.opp-ability-text {
-  font-size: 11px;
-  color: #ffeb3b;
+.opp-mega-slot {
+  display: inline-flex;
+  align-items: center;
 }
 
 .text-line {
   font-size: 12px;
   color: #fff;
   white-space: nowrap;
-}
-
-.opp-tool-nature-box {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  flex-shrink: 0;
 }
 
 /* 성격 select: 라벨이 안 잘리게 넓게 */
@@ -906,27 +970,16 @@ watch(
 .opp-evs-box {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 0px;
   flex-shrink: 0;
-}
-
-.ev-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.ev-label {
-  font-size: 12px;
-  width: 16px;
 }
 
 .ev-input {
   width: 44px;
   border: 1px solid #ccc;
   padding: 2px;
+  font-size: 12px; /* 원하는 크기로 조절 */
 }
-
 .red-input {
   border-color: red !important;
   color: red;
@@ -934,54 +987,89 @@ watch(
 }
 
 .ev-arrow {
+  height: 20px;
   color: #666;
-}
-
-.ev-result {
-  font-size: 12px;
-  font-weight: bold;
-  width: 32px;
-  text-align: right;
 }
 
 .opp-moves-box {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 1px;
   flex-shrink: 0;
 }
 
-/* 기술 select 오른쪽에 위력/명중률/PP → 결정력이 나오도록 가로 배치 */
 .opp-move-row {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1px;
 }
 
 .opp-move-select {
-  width: 95px;
-  font-size: 12px;
+  width: 130px !important;
+  max-width: 130px !important;
+  min-width: 0 !important;
 }
+
+.opp-move-select :deep(.v-field) {
+  min-width: 0 !important;
+  min-height: 20px !important;
+  height: 20px !important;
+  overflow: hidden;
+}
+
+.opp-move-select :deep(.v-field__field) {
+  min-width: 0 !important;
+  min-height: 20px !important;
+  height: 20px !important;
+}
+
+.opp-move-select :deep(.v-field__input) {
+  min-width: 0 !important;
+  min-height: 20px !important;
+  height: 20px !important;
+
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  padding-left: 6px !important;
+  padding-right: 2px !important;
+
+  flex-wrap: nowrap !important;
+  overflow: hidden;
+}
+
 .opp-move-select :deep(.v-field__input) {
   padding-left: 6px;
   padding-right: 2px;
   padding-top: 0px;
   padding-bottom: 0px;
-  min-height: 30px;
+  min-height: 20px;
+  height: 20px;
+  flex-wrap: nowrap !important;
+}
+
+.opp-move-select-text {
+  display: block;
+  font-size: 12px;
+  line-height: 24px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .opp-move-info {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 14px; /* 기술 선택 전/후 행 높이 동일하게 유지 */
+  min-height: 10px;
+  line-height: 10px;
 }
 
 .move-info-text {
-  font-size: 10px;
+  font-size: 9px;
   color: #ccc;
   white-space: nowrap;
+  line-height: 10px;
 }
 
 .opp-item-sprite-small {
@@ -993,32 +1081,20 @@ watch(
   background: #e8e8e8;
   flex-shrink: 0;
 }
-.opp-tool-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.opp-tool-box {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
 
 .opp-ability-select {
   font-size: 12px;
-  width: 140px;
+  width: 100%;
 }
+
 .opp-tool-select {
-  width: 100px;
+  width: 100%; /* 100px → 130px, 7글자까지 안 잘리도록 */
   font-size: 12px;
   padding: 3px;
 }
-.opp-nature-select {
-  font-size: 12px; /* 11px → 12px */
-}
+
 .opp-tool-icon-slot {
-  width: 64px;
+  width: 54px;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -1026,9 +1102,10 @@ watch(
 }
 
 .move-damage {
-  font-size: 12px;
+  font-size: 9px;
   color: #ffeb3b;
   white-space: nowrap;
+  line-height: 10px;
 }
 
 .battle-field-controls {
@@ -1063,17 +1140,25 @@ watch(
 .field-control-btn.active {
   background: #4caf50;
 }
+.opp-select-text {
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  min-width: 0;
+  line-height: 1.2;
+}
 
 .stats-header-row-left { display:flex; align-items:center; gap:4px; }
 .stats-header-row-right { display:flex; align-items:center; gap:45px; }
-.stats-header-name-left { width: 60px; }
+.stats-header-name-left { width: 54px; }
 .stats-header-name-right { width: 10px; }
 .stats-header-label { width: 32px; font-size: 9px; color: #888; text-align: right; }
 .mine-stat-row { display:flex; align-items:center; gap:4px; }
-.stat-name-label { width: 60px; font-size: 12px; color: #fff; white-space: nowrap; }
+.stat-name-label { width: 54px; font-size: 10px; color: #fff; white-space: nowrap; }
 .stat-value { width: 32px; text-align: right; font-weight: bold; font-size: 12px; }
-.ev-header-row { display:flex; align-items:center; gap:4px; }
-.ev-header-label { font-size: 9px; color: #888; width: 44px; text-align: center; }
+
 @media (max-width: 768px) {
   .battle-page {
     flex-direction: column;

@@ -1,3 +1,4 @@
+<!-- partySelect.vue -->
 <template>
   <div class="party-container">
     <div
@@ -260,7 +261,7 @@
                 type="number"
                 min="0"
                 max="32"
-                style="width:50px; border: 1px solid #ccc; padding: 2px;"
+                style="width:50px; border: 1px solid #ccc; padding: 2px; font-size:12px;"
                 :class="getInputClass(index)"
                 @input="updateSingleStat(index - 1, stat.key)"
               >
@@ -316,11 +317,30 @@
                 menu-icon=""
                 class="area-move-select"
                 style="width:120px; font-size:12px;"
-              />
+              >
+                <template #selection="{ item }">
+                  <span
+                    style="
+            font-size: 12px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: block;
+            width: 100%;
+            line-height: 1.2;
+          "
+                  >
+                    {{ item }}
+                  </span>
+                </template>
+              </v-autocomplete>
+              <span class="move-damage">{{ getBaseDamage(index - 1, k - 1) }}</span>
             </div>
             <div class="move-info-row">
-              <span class="move-info-text">{{ formatMoveInfo(selectedMoves[index - 1][k - 1]) }}</span>
-              <span class="move-damage">{{ getBaseDamage(index - 1, k - 1) }}</span>
+              <span
+                class="move-info-text"
+                :title="formatMoveInfo(selectedMoves[index - 1][k - 1])"
+              >{{ formatMoveInfo(selectedMoves[index - 1][k - 1]) }}</span>
             </div>
           </div>
         </div>
@@ -839,15 +859,44 @@ export default {
 
 .party-container {
   display: flex;
-  gap: 8px;
-  padding: 8px;
+  padding: 6px;
   min-height: 300px;
+}
+
+.move-select-row {
+  min-width: 0;
+}
+
+.area-move-select {
+  width: 120px !important;
+  max-width: 120px !important;
+  min-width: 0 !important;
+  flex: 0 0 120px;
+}
+
+.area-move-select .v-field,
+.area-move-select .v-field__field,
+.area-move-select .v-field__input,
+.area-move-select .v-select__selection,
+.area-move-select .v-autocomplete__selection {
+  min-width: 0 !important;
+  overflow: hidden;
+}
+
+.area-move-select .v-select__selection-text,
+.area-move-select .v-autocomplete__selection-text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
 }
 
 .party-grid {
   flex: 1;
   display: grid;
   grid-template-columns: repeat(2, 1fr);
+  grid-auto-rows: 1fr;   /* 추가: 같은 행끼리도 높이 동일하게 */
   gap: 6px;
 }
 
@@ -855,10 +904,12 @@ export default {
   display: flex;
   border: 2px solid #000;
   padding: 12px;
-  gap: 6px;
+  gap: 4px;
   box-sizing: border-box;
   background: #666;
   overflow-x: auto;
+  height: 272px;         /* 추가: 카드 전체 높이 고정 → 6장 모두 동일 */
+  overflow-y: auto;      /* 추가: 혹시 내용이 넘칠 경우 대비한 안전장치 */
 }
 
 .card-block1,
@@ -877,27 +928,34 @@ export default {
 .move-select-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
+  min-width: 0;
 }
 
 .move-info-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding-left: 28px; /* 화살표 폭만큼 들여쓰기 */
-  min-height: 16px; /* 기술 미선택 시에도 정보 텍스트 자리를 미리 확보해 레이아웃 밀림 방지 */
+  gap: 6px;
+  padding-left: 24px;
+  min-height: 16px;
+  min-width: 0; /* 자식이 flex 안에서 제대로 줄어들도록 */
 }
 
 .move-info-text {
   font-size: 10px;
   color: #ccc;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 210px; /* 필요에 따라 조정 */
+  cursor: default;
 }
 
 .move-damage {
   font-size: 12px;
   color: #ffeb3b;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .mobile-battle-bar {

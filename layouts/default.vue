@@ -1,38 +1,50 @@
-<!-- eslint-disable vue/multi-word-component-names -->
 <!-- default.vue -->
 <template>
-  <div
-    style="
-      display: flex;
-      flex-direction: column;
-      min-height: 100vh;
-    "
-  >
-    <!-- 공통 타이틀바 -->
-    <!-- 컴포넌트 파일명이 `titleBar.vue` 이더라도 템플릿에서는 케이스에 민감하므로 PascalCase나 kebab-case를 사용해야 합니다. -->
+  <div class="page">
     <TitleBar />
 
-    <!-- 페이지 내용 -->
-    <slot />
+    <main class="content">
+      <slot />
+    </main>
 
-    <!-- 공통 푸터 -->
     <footer
-      style="
-        padding: 8px;
-        text-align: center;
-        background: #f5f5f5;
-
-              display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 0px 16px;
-      background: #333;
-      color: #fff;
-      flex-wrap: wrap;
-      gap: 4px;
-      "
+      class="footer"
+      style="display: flex; justify-content: space-between; align-items: center; width: 100%;"
     >
-      <p>© 2026 Pokemon Champions Helper</p>
+      <p style="margin: 0; height: 36px;">
+        © 2026 Pokemon Champions Helper. All rights reserved.
+      </p>
+
+      <span style="margin: 0; text-align: right; font-size: 10px">
+        Pokémon and Pokémon character names are trademarks of Nintendo. <br>
+        Pokémon content and materials are trademarks and copyrights of Nintendo or its licensors.
+      </span>
     </footer>
   </div>
 </template>
+
+<style>
+html,
+body,
+#__nuxt {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+}
+
+.page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.content {
+  flex: 1;
+}
+
+.footer {
+  padding: 0 16px;
+  background: #333;
+  color: #fff;
+}
+</style>
