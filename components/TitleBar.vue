@@ -52,9 +52,63 @@
           color: '#fff',
           whiteSpace: 'nowrap'
         }"
-        @click="goToBattle"
+        @click="goToEntrySelect"
       >
         선출 화면으로
+      </button>
+
+      <button
+        v-if="isEntryPage"
+        :disabled="!isPartyComplete"
+        :style="{
+          fontSize: '12px',
+          padding: '6px 12px',
+          border: 'none',
+          borderRadius: '4px',
+          cursor: isPartyComplete ? 'pointer' : 'not-allowed',
+          background: isPartyComplete ? '#4caf50' : '#555',
+          color: '#fff',
+          whiteSpace: 'nowrap'
+        }"
+        @click="goToPartySelect"
+      >
+        파티 선택 화면으로
+      </button>
+
+      <button
+        v-if="isEntryPage"
+        :disabled="!isPartyComplete"
+        :style="{
+          fontSize: '12px',
+          padding: '6px 12px',
+          border: 'none',
+          borderRadius: '4px',
+          cursor: isPartyComplete ? 'pointer' : 'not-allowed',
+          background: isPartyComplete ? '#4caf50' : '#555',
+          color: '#fff',
+          whiteSpace: 'nowrap'
+        }"
+        @click="goToSingleBattle"
+      >
+        싱글 배틀 시작
+      </button>
+
+      <button
+        v-if="isEntryPage"
+        :disabled="!isPartyComplete"
+        :style="{
+          fontSize: '12px',
+          padding: '6px 12px',
+          border: 'none',
+          borderRadius: '4px',
+          cursor: isPartyComplete ? 'pointer' : 'not-allowed',
+          background: isPartyComplete ? '#4caf50' : '#555',
+          color: '#fff',
+          whiteSpace: 'nowrap'
+        }"
+        @click="goToDoubleBattle"
+      >
+        더블 배틀 시작
       </button>
 
       <!-- 현재 시각 -->
@@ -133,10 +187,26 @@ const onRegulationChange = (value) => {
 }
 
 const isPartyPage = computed(() => route.path === '/partySelect')
+const isEntryPage = computed(() => route.path === '/entrySelect')
 
-const goToBattle = () => {
+const goToPartySelect = () => {
+  if (!isPartyComplete.value) return
+  router.push('/partySelect')
+}
+
+const goToEntrySelect = () => {
   if (!isPartyComplete.value) return
   router.push('/entrySelect')
+}
+
+const goToSingleBattle = () => {
+  if (!isPartyComplete.value) return
+  router.push('/singleBattle')
+}
+
+const goToDoubleBattle = () => {
+  if (!isPartyComplete.value) return
+  router.push('/doubleBattle')
 }
 
 onMounted(async () => {

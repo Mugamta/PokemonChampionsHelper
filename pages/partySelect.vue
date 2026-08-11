@@ -99,7 +99,7 @@
                 style="width:80px; height:80px; object-fit:cover; border: 2px solid #333; border-radius: 6px; background: #e8e8e8; flex-shrink:0;"
                 @error="$event.target.src = pokemonImg"
               >
-              <div style="width:144px; flex-shrink:0;">
+              <div style="width:150px; flex-shrink:0;">
                 <v-autocomplete
                   v-model="selectedTool[index - 1]"
                   :items="toolOptions(index - 1)"
@@ -908,8 +908,9 @@ export default {
   box-sizing: border-box;
   background: #666;
   overflow-x: auto;
-  height: 272px;         /* 추가: 카드 전체 높이 고정 → 6장 모두 동일 */
+  height: 280px;         /* 추가: 카드 전체 높이 고정 → 6장 모두 동일 */
   overflow-y: auto;      /* 추가: 혹시 내용이 넘칠 경우 대비한 안전장치 */
+  border-radius: 6px;
 }
 
 .card-block1,
