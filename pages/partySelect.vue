@@ -64,7 +64,7 @@
           <select 
             v-model="selectedAbility[index - 1]"
             :disabled="!selectedPokemon[index - 1] || !!getMegaData(index - 1)"
-            :title="getMegaData(index - 1) ? '메가진화 중에는 특성이 고정됩니다' : ''"
+            :title="abilityDescription(selectedAbility[index - 1])"
             class="area-select-ability"
             style="width:160px; font-size:12px; padding: 4px;"
           >
@@ -78,6 +78,7 @@
               v-for="a in abilityOptions(index - 1)"
               :key="a"
               :value="a"
+              :title="abilityDescription(a)"
             >
               {{ a }}
             </option>
@@ -97,7 +98,7 @@
                 style="width:80px; height:80px; object-fit:cover; border: 2px solid #333; border-radius: 6px; background: #e8e8e8; flex-shrink:0;"
                 @error="$event.target.src = pokemonImg"
               >
-              <div style="width:150px; flex-shrink:0;">
+              <div style="width:144px; flex-shrink:0;">
                 <v-autocomplete
                   v-model="selectedTool[index - 1]"
                   :items="toolOptions(index - 1)"
@@ -239,6 +240,11 @@
           </div>
 
           <div style="display:flex; flex-direction:column; gap:6px;">
+            <div>
+              <span style="width:50px; font-size:10px; color:#888; text-align:center;">능력포인트</span>
+              <span style="font-size:10px; color:#888; margin-left: 100px;">실수치</span>
+            </div>
+            
             <div
               v-for="(stat, j) in stats"
               :key="j"
@@ -304,7 +310,7 @@
               <v-autocomplete
                 v-model="selectedMoves[index - 1][k - 1]"
                 :disabled="!selectedPokemon[index - 1]"
-                :items="moveOptions(index - 1)"
+                :items="moveOptions(index - 1, k - 1)"
                 density="compact"
                 hide-details
                 menu-icon=""
@@ -343,6 +349,7 @@ import { moves } from '@/data/moves';
 import { Nature, NatureMap } from '@/data/nature';
 import { MegaEvolutionMap } from '@/data/mega-evolutions';
 import { formatMoveInfo } from '@/utils/move-info'
+import { abilities } from '@/data/abilities'
 
 export default {
   setup() {
@@ -361,6 +368,9 @@ export default {
       return list.find((m) => m.stoneName === tool) || null
     }
 
+    // 특성 설명 (data/abilities.ts, op.gg 크롤링 결과)
+    const abilityDescription = (name) => abilities[name] || ''
+
     // 표시용 이름: 메가진화 중이면 메가진화 이름, 아니면 원래 이름
     const displayName = (index) => {
       const mega = getMegaData(index)
@@ -377,10 +387,10 @@ export default {
       }
       const name = selectedPokemon.value[index]
       if (!name) return
-      const abilities = pokemonMap.value[name]?.abilities || []
+      const abilityList = pokemonMap.value[name]?.abilities || []
       // 지금 선택된 특성이 메가진화 전용 특성이었거나(=원래 목록에 없음) 비어있으면 기본 특성으로 복귀
-      if (!selectedAbility.value[index] || !abilities.includes(selectedAbility.value[index])) {
-        selectedAbility.value[index] = abilities[0] || ''
+      if (!selectedAbility.value[index] || !abilityList.includes(selectedAbility.value[index])) {
+        selectedAbility.value[index] = abilityList[0] || ''
       }
     }
 
@@ -618,7 +628,12 @@ export default {
         return ''
       }
 
-      const move = moves[moveName] || {} 
+      const move = moves[moveName] || {}
+
+      if (move.Category === '변화') {
+        return '' // 변화 기술은 결정력을 표시하지 않음
+      }
+
       const power = move.Power || 0
       const moveType = move.Type || ''
       const moveCategory = move.Category || ''
@@ -640,7 +655,7 @@ export default {
 
       const ability = selectedAbility.value[pokemonIndex]
       const tool = selectedTool.value[pokemonIndex]
-      const moves = selectedMoves.value[pokemonIndex] || []
+      const moveList = selectedMoves.value[pokemonIndex] || []
 
       // 1순위: 특성 [재생력] 검사
       if (ability === '재생력') {
@@ -658,12 +673,12 @@ export default {
       }
 
       // 4순위: 기술 리스트 중 [대타출동] 검사
-      if (moves.includes('대타출동')) {
+      if (moveList.includes('대타출동')) {
         return hp % 16 === 1 ? '16n+1' : ''
       }
 
       // 5순위: 기술 리스트 중 [씨뿌리기] 검사
-      if (moves.includes('씨뿌리기')) {
+      if (moveList.includes('씨뿌리기')) {
         return (hp + 1) % 8 === 0 ? '8n-1 O' : '8n-1 X'
       }
 
@@ -678,8 +693,8 @@ export default {
         newVal.forEach((pokemon, index) => {
           if (pokemon !== oldVal[index]) {
             if (pokemon) {
-              const abilities = pokemonMap.value[pokemon]?.abilities || []
-              selectedAbility.value[index] = abilities[0] || ''
+              const abilityList = pokemonMap.value[pokemon]?.abilities || []
+              selectedAbility.value[index] = abilityList[0] || ''
               selectedNature.value[index] = '무보정'
               selectedTool.value[index] = ''
               selectedMoves.value[index] = Array(4).fill('')
@@ -702,6 +717,11 @@ export default {
     // 레귤레이션이 바뀌어 선택 가능한 포켓몬 목록(pokemonNames)이 바뀌면,
     // 이미 골라둔 포켓몬이 새 목록에 없으면 선택 해제 (위 watch가 능력치/기술 등도 같이 초기화해줌)
     watch(pokemonNames, (newNames) => {
+      // 로딩 중이거나 목록이 일시적으로 비어있는 전환 상태에서는 초기화하지 않음
+      // (레귤레이션이 실제로 바뀌어서 목록이 갱신된 경우에만 정리해야 함)
+      if (isLoading.value) return
+      if (!newNames || newNames.length === 0) return
+
       selectedPokemon.value.forEach((name, index) => {
         if (name && !newNames.includes(name)) {
           selectedPokemon.value[index] = ''
@@ -722,9 +742,12 @@ export default {
       return pokemonMap.value[name]?.abilities || []
     }
 
-    const moveOptions = (i) => {
+    // 슬롯 인덱스(k)를 받아서 같은 포켓몬의 다른 슬롯에서 이미 쓴 기술은 후보에서 제외 (중복 배치 방지)
+    const moveOptions = (i, k) => {
       const name = selectedPokemon.value[i]
-      return pokemonMap.value[name]?.moves || []
+      const allMoves = pokemonMap.value[name]?.moves || []
+      const usedElsewhere = (selectedMoves.value[i] || []).filter((m, idx) => idx !== k && m)
+      return allMoves.filter((m) => m === selectedMoves.value[i][k] || !usedElsewhere.includes(m))
     }
 
     const centerTexts = [
@@ -766,6 +789,7 @@ export default {
       filteredPokemonNames,
       availablePokemonNames,
       abilityOptions,
+      abilityDescription,
       moveOptions,
       centerTexts,
       calcStats,

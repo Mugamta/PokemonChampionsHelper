@@ -2,7 +2,6 @@
   <div class="battle-page">
     <!-- 좌측: 내 파티 (읽기 전용, 카드 하나로 묶음) -->
     <section class="battle-left">
-      <h3 class="battle-title">내 파티</h3>
       <div class="left-list">
         <div
           v-for="index in 6"
@@ -15,23 +14,56 @@
               class="mine-sprite"
               @error="$event.target.src = pokemonImg"
             >
-            <span class="text-line">{{ selectedPokemon[index - 1] || '미선택' }}</span>
+            <span class="text-line">{{ mineDisplayName(index - 1) || '미선택' }}</span>
+
+            <div
+              v-if="selectedTool[index - 1]"
+              class="mine-tool-box"
+            >
+              <img
+                :src="mineItemSprite(index - 1)"
+                class="mine-tool-sprite"
+                @error="$event.target.src = pokemonImg"
+              >
+              <span class="text-line-small">{{ selectedTool[index - 1] }}</span>
+            </div>
+
+            <label
+              v-if="getMineMegaData(index - 1)"
+              class="mega-toggle"
+            >
+              <input
+                v-model="mineMegaToggle[index - 1]"
+                type="checkbox"
+              >
+              메가진화 반영
+            </label>
           </div>
 
           <div class="mine-stats">
-            <span
+            <div class="stats-header-row-left">
+              <span class="stats-header-name-left" />
+              <span class="stats-header-label">실능치</span>
+              <span class="stats-header-label">노력치</span>
+            </div>
+            <div
               v-for="stat in statKeys"
               :key="stat.key"
-              class="text-line"
-              :style="{
-                color: stat.key === 'H' ? '#fff' :
-                  getMineNatureMultiplier(index - 1, stat.key) === 1.1 ? 'red' :
-                  getMineNatureMultiplier(index - 1, stat.key) === 0.9 ? 'blue' : '#fff'
-              }"
+              class="mine-stat-row"
             >
-              {{ stat.name }} {{ calcStats[index - 1]?.[stat.key] ?? 0 }}
-              <span class="ev-tag">(+{{ inputStats[index - 1]?.[stat.key] ?? 0 }})</span>
-            </span>
+              <span class="stat-name-label">{{ stat.name }}</span>
+              <span
+                class="stat-value"
+                :style="{
+                  color: stat.key === 'H' ? '#fff' :
+                    getMineNatureMultiplier(index - 1, stat.key) === 1.1 ? 'red' :
+                    getMineNatureMultiplier(index - 1, stat.key) === 0.9 ? 'blue' : '#fff'
+                }"
+              >
+                {{ mineDisplayStats(index - 1)[stat.key] ?? 0 }}
+              </span>
+              <span class="ev-tag">+{{ inputStats[index - 1]?.[stat.key] ?? 0 }}</span>
+            </div>
           </div>
 
           <div class="mine-moves">
@@ -40,11 +72,11 @@
               :key="k"
               class="mine-move-row"
             >
-              <span class="text-line">{{ move || '-' }}</span>
-              <div v-if="move" class="mine-move-info-row">
-                <span class="move-info-text">{{ formatMoveInfo(move) }}</span>
+              <div class="move-name-line">
+                <span class="text-line">{{ move || '-' }}</span>
                 <span class="move-damage">{{ getMineBaseDamage(index - 1, k) }}</span>
               </div>
+              <span class="move-info-text">{{ formatMoveInfo(move) }}</span>
             </div>
           </div>
         </div>
@@ -53,42 +85,116 @@
 
     <!-- 가운데: 계산 결과 (추후 채울 영역) -->
     <section class="battle-center">
-      <h3 class="battle-title">계산 결과</h3>
+      <div class="battle-field-controls">
+        <div class="field-control-row">
+          <span class="field-control-label">날씨</span>
+          <div class="field-control-buttons">
+            <button
+              v-for="w in weatherOptions"
+              :key="w"
+              type="button"
+              class="field-control-btn"
+              :class="{ active: battleWeather === w }"
+              @click="toggleBattleWeather(w)"
+            >
+              {{ w }}
+            </button>
+          </div>
+        </div>
+        <div class="field-control-row">
+          <span class="field-control-label">필드</span>
+          <div class="field-control-buttons">
+            <button
+              v-for="f in fieldOptions"
+              :key="f"
+              type="button"
+              class="field-control-btn"
+              :class="{ active: battleField === f }"
+              @click="toggleBattleField(f)"
+            >
+              {{ f }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <h3 class="battle-title">
+        계산 결과
+      </h3>
       <!-- TODO: 배틀 계산 결과 표시 -->
     </section>
 
     <!-- 우측: 상대 파티 (partySelect.vue처럼 입력 가능, 메가진화 지원) -->
     <section class="battle-right">
-      <h3 class="battle-title">상대 파티</h3>
-      <div class="right-grid">
-        <template v-for="index in 6" :key="'opponent-' + index">
-          <div class="cell cell-name">
-            <img
-              :src="opponentSprite(index - 1)"
-              class="opp-sprite"
-              @error="$event.target.src = pokemonImg"
-            >
-            <v-autocomplete
-              v-model="oppSelectedPokemon[index - 1]"
-              :items="pokemonNames"
-              label="포켓몬 선택"
-              density="compact"
-              hide-details
-              class="opp-field"
-            />
-            <span
-              v-if="oppSelectedPokemon[index - 1]"
-              class="opp-ability-text"
-            >
-              {{ oppAbilityText(index - 1) }}
-            </span>
-          </div>
+      <div class="right-list">
+        <div
+          v-for="index in 6"
+          :key="'opponent-' + index"
+          class="opp-card"
+        >
+          <div class="opp-left-box">
+            <!-- 1행: 메가진화 반영 -->
+            <div class="opp-row opp-row-mega">
+              <label
+                v-if="getOppMegaData(index - 1)"
+                class="mega-toggle"
+              >
+                <input
+                  v-model="oppMegaToggle[index - 1]"
+                  type="checkbox"
+                >
+                메가진화 반영
+              </label>
+            </div>
 
-          <div class="cell cell-tool-nature">
-            <div class="tool-row">
+            <!-- 2행: 포켓몬 사진, 포켓몬 select, 특성 -->
+            <div class="opp-row opp-row-pokemon">
+              <img
+                :src="opponentSprite(index - 1)"
+                class="opp-sprite"
+                @error="$event.target.src = pokemonImg"
+              >
+              <v-autocomplete
+                v-model="oppSelectedPokemon[index - 1]"
+                :items="pokemonNames"
+                label="포켓몬 선택"
+                density="compact"
+                hide-details
+                class="opp-field"
+                style="width: 140px;"
+              />
+            </div>
+
+            <div>
+              <span style="display: inline-block; width: 64px; height: 64px;" />
+              <select
+                v-model="oppSelectedAbility[index - 1]"
+                :disabled="!oppSelectedPokemon[index - 1] || !!getOppMegaData(index - 1)"
+                :title="abilityDescription(oppSelectedAbility[index - 1])"
+                class="opp-ability-select"
+              >
+                <option
+                  value=""
+                  disabled
+                >
+                  특성
+                </option>
+                <option
+                  v-for="a in oppAbilityOptions(index - 1)"
+                  :key="a"
+                  :value="a"
+                  :title="abilityDescription(a)"
+                >
+                  {{ a }}
+                </option>
+              </select>
+            </div>
+
+            <!-- 3행: 도구 사진, 도구 select -->
+            <div class="opp-row opp-row-tool">
               <img
                 :src="opponentItemSprite(index - 1)"
-                class="opp-item-sprite"
+                class="opp-item-sprite-small"
                 @error="$event.target.src = pokemonImg"
               >
               <select
@@ -96,30 +202,53 @@
                 class="opp-tool-select"
                 @change="oppOnToolChange(index - 1)"
               >
-                <option value="" disabled>도구</option>
-                <option v-for="t in oppToolOptions(index - 1)" :key="t" :value="t">{{ t }}</option>
+                <option
+                  value=""
+                  disabled
+                >
+                  도구
+                </option>
+                <option
+                  v-for="t in oppToolOptions(index - 1)"
+                  :key="t"
+                  :value="t"
+                >
+                  {{ t }}
+                </option>
               </select>
             </div>
 
-            <select
-              v-model="oppSelectedNature[index - 1]"
-              :disabled="!oppSelectedPokemon[index - 1]"
-              class="opp-nature-select"
-              @change="calculateAllOppStats(index - 1)"
-            >
-              <option v-for="n in natureOptions" :key="n" :value="n">
-                {{ natureLabel(n) }}
-              </option>
-            </select>
+            <!-- 4행: 성격 -->
+            <div class="opp-row opp-row-nature">
+              <select
+                v-model="oppSelectedNature[index - 1]"
+                :disabled="!oppSelectedPokemon[index - 1]"
+                class="opp-nature-select"
+                @change="calculateAllOppStats(index - 1)"
+              >
+                <option
+                  v-for="n in natureOptions"
+                  :key="n"
+                  :value="n"
+                >
+                  {{ natureLabel(n) }}
+                </option>
+              </select>
+            </div>
           </div>
 
-          <div class="cell cell-evs">
+          <div class="opp-evs-box">
+            <div class="stats-header-row-right">
+              <span class="stats-header-name-right" />
+              <span class="stats-header-label">노력치</span>
+              <span class="stats-header-label">실능치</span>
+            </div>
             <div
               v-for="stat in statKeys"
               :key="stat.key"
-              class="ev-row"
+              class="mine-stat-row"
             >
-              <span class="ev-label">{{ stat.key }}</span>
+              <span class="stat-name-label">{{ stat.name }}</span>
               <input
                 v-model.number="oppInputStats[index - 1][stat.key]"
                 type="number"
@@ -127,31 +256,33 @@
                 max="32"
                 class="ev-input"
                 :class="getOppInputClass(index - 1)"
+                style="padding-top: 0px; padding-bottom: 0px; padding-right: 0px; margin: 0px;"
                 @input="updateSingleOppStat(index - 1, stat.key)"
               >
               <span class="ev-arrow">→</span>
               <span
-                class="ev-result"
+                class="stat-value"
                 :style="{
                   color: getOppNatureMultiplier(index - 1, stat.key) === 1.1 ? 'red' :
                     getOppNatureMultiplier(index - 1, stat.key) === 0.9 ? 'blue' : 'white'
                 }"
               >
-                {{ oppCalcStats[index - 1]?.[stat.key] || 0 }}
+                {{ oppDisplayStats(index - 1)[stat.key] ?? 0 }}
               </span>
             </div>
           </div>
 
-          <div class="cell cell-opp-moves">
+          <div class="opp-moves-box">
             <div
               v-for="k in 4"
               :key="k"
               class="opp-move-row"
+              style="align-items: start;"
             >
               <v-autocomplete
                 v-model="oppSelectedMoves[index - 1][k - 1]"
                 :disabled="!oppSelectedPokemon[index - 1]"
-                :items="opponentMoveOptions(index - 1)"
+                :items="opponentMoveOptions(index - 1, k - 1)"
                 density="compact"
                 hide-details
                 menu-icon=""
@@ -163,7 +294,7 @@
               </div>
             </div>
           </div>
-        </template>
+        </div>
       </div>
     </section>
   </div>
@@ -177,6 +308,8 @@ import { natureOptions, natureLabel } from '@/utils/nature-label'
 import { formatMoveInfo, getMoveData } from '@/utils/move-info'
 import { NatureMap } from '@/data/nature'
 import { MegaEvolutionMap } from '@/data/mega-evolutions'
+import { abilities } from '@/data/abilities'
+const abilityDescription = (name) => abilities[name] || ''
 
 const config = useRuntimeConfig()
 const pokemonImg = (config.app.baseURL || '/') + 'pokemon.webp'
@@ -190,6 +323,28 @@ const statKeys = [
   { key: 'D', name: '특수방어' },
   { key: 'S', name: '스피드' },
 ]
+const weatherOptions = ['쾌청', '큰가뭄', '비', '폭우', '모래바람', '눈', '난기류']
+const fieldOptions = ['일렉트릭필드', '그래스필드', '미스트필드', '사이코필드']
+
+const battleWeather = ref('없음')
+const battleField = ref('없음')
+
+const toggleBattleWeather = (value) => {
+  battleWeather.value = battleWeather.value === value ? '없음' : value
+}
+const toggleBattleField = (value) => {
+  battleField.value = battleField.value === value ? '없음' : value
+}
+
+// ── 메가진화 반영 시 실능치 재계산 공용 함수 (mine/opp 둘 다 사용) ─────────────
+const computeStatsFromBase = (baseStats, evs, natureName, itemName, statusName) => {
+  const keys = ['H', 'A', 'B', 'C', 'D', 'S']
+  const result = {}
+  keys.forEach((key) => {
+    result[key] = calculateStat(key, baseStats?.[key] || 0, evs?.[key] || 0, natureName, itemName, statusName)
+  })
+  return result
+}
 
 // ── 내 파티 (partySelect.vue에서 고른 값, 읽기 전용) ─────────────
 const {
@@ -204,12 +359,59 @@ const {
 
 const { pokemonMap, pokemonNames } = useEligiblePokemon()
 
+// 메가스톤을 지닌 경우 "메가진화 반영" 체크박스로 실능치/스프라이트를 토글 (기본 true = 기존 동작 유지)
+const mineMegaToggle = ref(Array(6).fill(true))
+
+const getMineMegaData = (index) => {
+  const name = selectedPokemon.value[index]
+  const tool = selectedTool.value[index]
+  if (!name || !tool) return null
+  const list = MegaEvolutionMap[name]
+  if (!list) return null
+  return list.find((m) => m.stoneName === tool) || null
+}
+
+const mineDisplayName = (index) => {
+  const mega = getMineMegaData(index)
+  return mega && mineMegaToggle.value[index] ? mega.megaName : (selectedPokemon.value[index] || '')
+}
+
+const mineDisplayStats = (index) => {
+  const mega = getMineMegaData(index)
+  if (mega && mineMegaToggle.value[index]) {
+    return calcStats.value[index] || {} // partySelect.vue에서 이미 메가 종족값으로 계산해 둔 값
+  }
+  const name = selectedPokemon.value[index]
+  const data = name ? pokemonMap.value[name] : null
+  if (!data || !data.stats) return calcStats.value[index] || {}
+  const natureName = selectedNature.value[index]?.replace(/\([^)]*\)/g, '') || '무보정'
+  const itemName = selectedTool.value[index] || ''
+  return computeStatsFromBase(data.stats, inputStats.value[index], natureName, itemName, '')
+}
+
 const mySprite = (index) => {
+  const mega = getMineMegaData(index)
+  if (mega && mineMegaToggle.value[index]) {
+    return `${config.app.baseURL || '/'}pokemon_sprites/${mega.id}.png`
+  }
   const name = selectedPokemon.value[index]
   const data = name ? pokemonMap.value[name] : null
   return data?.id
     ? `${config.app.baseURL || '/'}pokemon_sprites/${data.id}.png`
     : pokemonImg
+}
+
+// 지닌 도구 사진 (토글과 무관하게 실제 지닌 도구를 그대로 표시)
+const mineItemSprite = (index) => {
+  const tool = selectedTool.value[index]
+  if (!tool) return pokemonImg
+  const mega = getMineMegaData(index)
+  if (mega) {
+    return mega.stone
+      ? `${config.app.baseURL || '/'}mega_stone_sprites/${mega.stone}.png`
+      : pokemonImg
+  }
+  return `${config.app.baseURL || '/'}item_sprites/${encodeURIComponent(tool)}.png`
 }
 
 const getMineNatureMultiplier = (index, statKey) => {
@@ -226,19 +428,19 @@ const getMineBaseDamage = (index, moveIndex) => {
   if (!moveName) return ''
   const move = getMoveData(moveName)
   if (!move) return ''
+  if (move.Category === '변화') return '' // 변화 기술은 결정력 표시 안 함
 
   const power = move.Power || 0
   const moveType = move.Type || ''
   const moveCategory = move.Category || ''
   const stab = true
-  const attack = moveCategory === '물리'
-    ? calcStats.value[index]?.A || 0
-    : calcStats.value[index]?.C || 0
+  const stats = mineDisplayStats(index)
+  const attack = moveCategory === '물리' ? stats?.A || 0 : stats?.C || 0
   const ability = selectedAbility.value[index]
   const item = selectedTool.value[index]
 
   // 날씨/필드/상태이상은 이 화면에 없어 빈 값으로 전달
-  return calculateBaseDamage(power, attack, stab, moveType, moveCategory, ability, '', item, '', '')
+  return calculateBaseDamage(power, attack, stab, moveType, moveCategory, ability, battleWeather.value, item, '', battleField.value)
 }
 
 // ── 상대 파티 (이 화면에서 직접 입력, 메가진화 지원) ─────────────
@@ -252,6 +454,8 @@ const {
   calcStats: oppCalcStats,
 } = useOpponentParty()
 
+const oppMegaToggle = ref(Array(6).fill(true))
+
 const getOppMegaData = (index) => {
   const name = oppSelectedPokemon.value[index]
   const tool = oppSelectedTool.value[index]
@@ -261,9 +465,29 @@ const getOppMegaData = (index) => {
   return list.find((m) => m.stoneName === tool) || null
 }
 
+const oppDisplayStats = (index) => {
+  const mega = getOppMegaData(index)
+  if (mega && oppMegaToggle.value[index]) {
+    return oppCalcStats.value[index] || {}
+  }
+  const name = oppSelectedPokemon.value[index]
+  const data = name ? pokemonMap.value[name] : null
+  if (!data || !data.stats) return oppCalcStats.value[index] || {}
+  const natureName = oppSelectedNature.value[index]?.replace(/\([^)]*\)/g, '') || '무보정'
+  const itemName = oppSelectedTool.value[index] || ''
+  return computeStatsFromBase(data.stats, oppInputStats.value[index], natureName, itemName, '')
+}
+
 const oppDisplayName = (index) => {
   const mega = getOppMegaData(index)
-  return mega ? mega.megaName : (oppSelectedPokemon.value[index] || '')
+  return mega && oppMegaToggle.value[index] ? mega.megaName : (oppSelectedPokemon.value[index] || '')
+}
+
+const oppAbilityOptions = (index) => {
+  const mega = getOppMegaData(index)
+  if (mega) return [mega.ability]
+  const name = oppSelectedPokemon.value[index]
+  return pokemonMap.value[name]?.abilities || []
 }
 
 const oppAbilityText = (index) => {
@@ -293,7 +517,7 @@ const oppOnToolChange = (index) => {
 
 const opponentSprite = (index) => {
   const mega = getOppMegaData(index)
-  if (mega) {
+  if (mega && oppMegaToggle.value[index]) {
     return `${config.app.baseURL || '/'}pokemon_sprites/${mega.id}.png`
   }
   const name = oppSelectedPokemon.value[index]
@@ -374,21 +598,21 @@ const getOppBaseDamage = (index, moveIndex) => {
   if (!moveName) return ''
   const move = getMoveData(moveName)
   if (!move) return ''
+  if (move.Category === '변화') return '' // 변화 기술은 결정력 표시 안 함
 
   const power = move.Power || 0
   const moveType = move.Type || ''
   const moveCategory = move.Category || ''
   const stab = true
-  const attack = moveCategory === '물리'
-    ? oppCalcStats.value[index]?.A || 0
-    : oppCalcStats.value[index]?.C || 0
+  const stats = oppDisplayStats(index)
+  const attack = moveCategory === '물리' ? stats?.A || 0 : stats?.C || 0
   const ability = oppAbilityText(index)
   const item = oppSelectedTool.value[index]
 
-  return calculateBaseDamage(power, attack, stab, moveType, moveCategory, ability, '', item, '', '')
+  return calculateBaseDamage(power, attack, stab, moveType, moveCategory, ability, battleWeather.value, item, '', battleField.value)
 }
 
-// 상대 포켓몬이 바뀌면 나머지 입력값 초기화 (특성은 종족 첫 특성으로)
+// 상대 포켓몬이 바뀌면 나머지 입력값 초기화 (특성은 종족 첫 특성으로) + 실능치 정상 계산
 watch(
   () => [...oppSelectedPokemon.value],
   (newVal, oldVal) => {
@@ -399,13 +623,14 @@ watch(
         oppSelectedTool.value[index] = ''
         oppSelectedMoves.value[index] = Array(4).fill('')
         oppInputStats.value[index] = { H: 0, A: 0, B: 0, C: 0, D: 0, S: 0 }
-        oppCalcStats.value[index] = { H: 0, A: 0, B: 0, C: 0, D: 0, S: 0 }
+        oppMegaToggle.value[index] = true
         if (name) {
           const abilities = pokemonMap.value[name]?.abilities || []
           oppSelectedAbility.value[index] = abilities[0] || ''
         } else {
           oppSelectedAbility.value[index] = ''
         }
+        calculateAllOppStats(index) // ← 하드코딩된 0 대신 정상 계산 호출 (버그 수정)
       }
     })
   }
@@ -415,22 +640,21 @@ watch(
 <style scoped>
 .battle-page {
   display: flex;
-  gap: 16px;
-  padding: 16px;
+  gap: 4px;
+  padding: 8px;
   align-items: flex-start;
 }
 
 .battle-left {
-  flex: 2;
+  flex: 1;
 }
 
 .battle-right {
-  flex: 3;
+  flex: 1;
 }
 
 .battle-center {
-  flex: 1;
-  min-width: 120px;
+  flex: 10;
   border: 2px dashed #555;
   border-radius: 6px;
   min-height: 300px;
@@ -446,18 +670,23 @@ watch(
 .left-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 2px;
 }
 
 .mine-card {
+  min-width: 600px;
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 8px 12px;
+  gap: 12px;
+  padding: 2px 12px;
   border: 2px solid #000;
   border-radius: 6px;
   background: #666;
   width: fit-content;
+}
+
+.mine-name-box {
+  min-width: 100px;
 }
 
 .mine-name-box,
@@ -465,13 +694,7 @@ watch(
 .mine-moves {
   display: flex;
   flex-direction: column;
-  gap: 2px;
   flex-shrink: 0;
-}
-
-.mine-name-box {
-  align-items: center;
-  width: 64px;
 }
 
 .mine-sprite {
@@ -491,36 +714,131 @@ watch(
 
 .mine-move-row {
   display: flex;
+  flex-direction: column;
   gap: 1px;
+}
+
+.move-name-line {
+  min-width: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.move-info-text {
+  white-space: normal; /* 설명이 길어도 줄바꿈 허용 */
+  min-height: 12px; /* 설명 없을 때도 높이 유지 */
 }
 
 .mine-move-info-row {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-height: 14px; /* 기술 선택 전/후 레이아웃 동일하게 유지 */
 }
 
-/* ── 우측 ─────────────────────────── */
-.right-grid {
-  display: grid;
-  grid-template-columns: auto auto auto 1fr;
-  gap: 6px;
-  align-items: stretch; /* 셀들이 같은 행 높이에 맞춰 늘어나야 justify-content:center가 먹힘 */
-}
+/* ── 도구 표시 / 메가 토글 (mine & opp 공통) ─────────────── */
+/* 아래 블록을 스타일시트에서 찾아서 통째로 이걸로 교체하세요 */
 
-.cell {
-  padding: 6px;
-  border: 2px solid #000;
-  border-radius: 6px;
-  background: #666;
+/* ── 도구 표시 / 메가 토글 (mine 전용) ─────────────── */
+.mine-tool-box {
   display: flex;
-  flex-direction: column;
-  justify-content: center; /* 실능치 블록 vs 기술 블록 세로 중앙정렬 */
+  align-items: center;
   gap: 4px;
 }
 
-.cell-name {
+.mine-tool-sprite {
+  width: 24px;
+  height: 24px;
+  object-fit: cover;
+  border: 1px solid #333;
+  border-radius: 4px;
+  background: #e8e8e8;
+  flex-shrink: 0;
+}
+
+.text-line-small {
+  font-size: 10px;
+  color: #ccc;
+  white-space: nowrap;
+}
+
+.mega-toggle {
+  display: flex;
   align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: #ffeb3b;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.opp-item-sprite {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border: 2px solid #333;
+  border-radius: 6px;
+  background: #e8e8e8;
+}
+
+.opp-nature-select {
+  width: 160px;
+  font-size: 11px;
+  padding: 4px;
+  font-family: monospace;
+}
+
+/* ── 우측: 상대 파티 카드 ─────────────────────────── */
+.right-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.opp-card {
+  min-width: 800px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 2px 8px;
+  border: 2px solid #000;
+  border-radius: 6px;
+  background: #666;
+  width: fit-content;
+  flex-wrap: wrap; /* 좁은 화면에서 줄바꿈 허용 */
+}
+
+.opp-left-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.opp-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.opp-row-mega {
+  min-height: 18px; /* 메가진화 없는 포켓몬도 행 높이 유지 */
+}
+
+.opp-row-pokemon .opp-sprite {
+  width: 64px;
+  height: 64px;
+}
+
+.opp-name-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  width: 140px;
 }
 
 .opp-sprite {
@@ -548,27 +866,11 @@ watch(
   white-space: nowrap;
 }
 
-.tool-row {
+.opp-tool-nature-box {
   display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.opp-item-sprite {
-  width: 40px;
-  height: 40px;
-  object-fit: cover;
-  border: 2px solid #333;
-  border-radius: 6px;
-  background: #e8e8e8;
+  flex-direction: column;
+  gap: 4px;
   flex-shrink: 0;
-}
-
-/* 도구 select: 짧게 */
-.opp-tool-select {
-  width: 90px;
-  font-size: 11px;
-  padding: 3px;
 }
 
 /* 성격 select: 라벨이 안 잘리게 넓게 */
@@ -577,6 +879,13 @@ watch(
   font-size: 12px;
   padding: 4px;
   font-family: monospace;
+}
+
+.opp-evs-box {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
 }
 
 .ev-row {
@@ -588,6 +897,10 @@ watch(
 .ev-label {
   font-size: 12px;
   width: 16px;
+}
+
+.mega-toggle-slot {
+  min-height: 25px; /* mega-toggle 한 줄 높이만큼 항상 확보 */
 }
 
 .ev-input {
@@ -613,26 +926,38 @@ watch(
   text-align: right;
 }
 
-.cell-opp-moves {
+.opp-moves-box {
+  display: flex;
+  flex-direction: column;
   gap: 6px;
+  flex-shrink: 0;
 }
 
+/* 기술 select 오른쪽에 위력/명중률/PP → 결정력이 나오도록 가로 배치 */
 .opp-move-row {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 1px;
 }
 
-/* 기술 select: 짧게 다듬기 */
 .opp-move-select {
-  width: 90px;
+  width: 95px;
   font-size: 12px;
+}
+.opp-move-select :deep(.v-field__input) {
+  padding-left: 6px;
+  padding-right: 2px;
+  padding-top: 0px;
+  padding-bottom: 0px;
+  min-height: 30px;
 }
 
 .opp-move-info {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-height: 14px; /* 기술 선택 전/후 행 높이 동일하게 유지 */
 }
 
 .move-info-text {
@@ -641,19 +966,98 @@ watch(
   white-space: nowrap;
 }
 
+.opp-item-sprite-small {
+  width: 24px;
+  height: 24px;
+  object-fit: cover;
+  border: 1px solid #333;
+  border-radius: 4px;
+  background: #e8e8e8;
+  flex-shrink: 0;
+}
+.opp-tool-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.opp-tool-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.opp-ability-select {
+  font-size: 12px;
+  width: 140px;
+}
+.opp-tool-select {
+  width: 100px;
+  font-size: 12px;
+  padding: 3px;
+}
+.opp-nature-select {
+  font-size: 12px; /* 11px → 12px */
+}
+
 .move-damage {
   font-size: 12px;
   color: #ffeb3b;
   white-space: nowrap;
 }
 
+.battle-field-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.field-control-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.field-control-label {
+  font-size: 10px;
+  color: #ccc;
+}
+.field-control-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+.field-control-btn {
+  font-size: 10px;
+  padding: 2px 6px;
+  border: 1px solid #999;
+  border-radius: 4px;
+  cursor: pointer;
+  background: #444;
+  color: #fff;
+}
+.field-control-btn.active {
+  background: #4caf50;
+}
+
+.stats-header-row-left { display:flex; align-items:center; gap:4px; }
+.stats-header-row-right { display:flex; align-items:center; gap:45px; }
+.stats-header-name-left { width: 60px; }
+.stats-header-name-right { width: 10px; }
+.stats-header-label { width: 32px; font-size: 9px; color: #888; text-align: right; }
+.mine-stat-row { display:flex; align-items:center; gap:4px; }
+.stat-name-label { width: 60px; font-size: 12px; color: #fff; white-space: nowrap; }
+.stat-value { width: 32px; text-align: right; font-weight: bold; font-size: 12px; }
+.ev-header-row { display:flex; align-items:center; gap:4px; }
+.ev-header-label { font-size: 9px; color: #888; width: 44px; text-align: center; }
 @media (max-width: 768px) {
   .battle-page {
     flex-direction: column;
   }
 
-  .right-grid {
-    grid-template-columns: 1fr;
+  .opp-card {
+    flex-direction: column;
+    align-items: flex-start;
+    width: 100%;
   }
 }
 </style>

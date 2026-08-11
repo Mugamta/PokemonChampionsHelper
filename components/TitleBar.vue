@@ -1,3 +1,4 @@
+<!-- Title Bar -->
 <template>
   <header
     style="

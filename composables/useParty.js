@@ -13,7 +13,12 @@ export const useParty = () => {
     Array(6).fill(null).map(() => ({ H: 0, A: 0, B: 0, C: 0, D: 0, S: 0 }))
   )
 
-  const isPartyComplete = computed(() => selectedPokemon.value.every((name) => !!name))
+  // 포켓몬이 6마리 모두 선택되어 있고, 각 포켓몬이 기술을 1개 이상 갖고 있어야 완료로 간주
+  const isPartyComplete = computed(() =>
+    selectedPokemon.value.every(
+      (name, i) => !!name && (selectedMoves.value[i] || []).some((m) => !!m)
+    )
+  )
 
   return {
     selectedPokemon,
