@@ -134,7 +134,7 @@
             v-model="showCrit"
             type="checkbox"
           >
-          급소(치명타)
+          급소
         </label>
       </div>
       <div class="dmg-matrix-wrap">
@@ -826,7 +826,7 @@ const getOppInputClass = (index) => {
   if (!rowData) return ''
   const totalSum = Object.values(rowData).reduce((sum, value) => sum + (Number(value) || 0), 0)
   const maxValue = Math.max(...Object.values(rowData))
-  return totalSum >= 66 || maxValue > 32 ? 'red-input' : ''
+  return totalSum > 66 || maxValue > 32 ? 'red-input' : ''
 }
 
 const getOppBaseDamage = (index, moveIndex) => {

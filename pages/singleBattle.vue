@@ -1,502 +1,547 @@
+<!-- pages/singleBattle.vue -->
 <template>
-  <div style="display:flex; gap:16px; padding:16px; min-height: 300px;">
-    <div
-      v-if="isLoading"
-      style="display:flex; flex-direction:column; align-items:center; justify-content:center; width:100%; padding: 100px 0; gap:16px;"
-    >
-      <v-progress-circular
-        indeterminate
-        color="primary"
-        size="64"
-        width="6"
-      />
-      <span style="color:#ccc; font-size:14px;">포켓몬 데이터를 불러오는 중... ({{ loadedCount }} / {{ totalCount }})</span>
-    </div>
+  <div class="sb-page">
+    <div class="sb-row">
+      <!-- 좌상단: 내 기술 목록 + 데미지 -->
+      <section class="sb-panel sb-panel--moves">
+        <h4 class="sb-panel-title">
+          포켓몬 기술 목록과 데미지
+        </h4>
 
-    <div
-      v-else
-      style="flex:1; display:grid; grid-template-columns: repeat(2, 1fr); gap:16px;"
-    >
-      <div
-        v-for="index in 6"
-        :key="'left' + index"
-        style="display:flex; border:2px solid #000; padding:12px; gap:16px; box-sizing: border-box; background: #666;"
-      >
-        <div style="display:flex; flex-direction:column; gap:6px; align-items:center;">
-          <img
-            src="/public/pokemon.webp"
-            style="width:160px; height:160px; object-fit:cover;"
+        <div
+          v-if="activeMineIndex === null"
+          class="sb-select-row"
+        >
+          <button
+            v-for="i in 6"
+            :key="'mine-pick-' + i"
+            type="button"
+            class="sb-pick-btn"
+            :disabled="!selectedPokemon[i - 1]"
+            @click="activeMineIndex = i - 1"
           >
-          <v-autocomplete
-            v-model="selectedPokemon[index - 1]"
-            :items="pokemonNames"
-            label="포켓몬 선택"
-            density="compact"
-            hide-details
-            style="width: 160px;"
-            :menu-props="{
-              location: 'end top',
-              offset: [0, 8]
-            }"
-          />
-          
-          <select 
-            v-model="selectedAbility[index - 1]"
-            :disabled="!selectedPokemon[index - 1]"
-            style="width:160px; font-size:12px; padding: 4px;"
-          >
-            <option
-              value=""
-              disabled
-            >
-              특성
-            </option>
-            <option
-              v-for="a in abilityOptions(index - 1)"
-              :key="a"
-              :value="a"
-            >
-              {{ a }}
-            </option>
-          </select>
-        </div>
-
-        <div style="display:flex; flex-direction:column; justify-content:space-between; height: 160px; align-items:center; padding: 4px 0; margin-right: 32px;">
-          <div style="display:flex; flex-direction:column; gap:4px; align-items:center;">
             <img
-              src="/public/pokemon.webp"
-              style="width:80px; height:80px; object-fit:cover;"
+              :src="mySprite(i - 1)"
+              class="sb-pick-sprite"
+              @error="$event.target.src = pokemonImg"
             >
-            <select 
-              v-model="selectedTool[index - 1]" 
-              style="width:90px; font-size:12px; padding: 4px;"
-              @change="calculateAllStats(index - 1)"
-            >
-              <option
-                value=""
-                disabled
-              >
-                도구 선택
-              </option>
-              <option
-                v-for="t in itemList"
-                :key="t"
-                :value="t"
-              >
-                {{ t }}
-              </option>
-            </select>
-          </div>
-
-          <div style="display:flex; flex-direction:column; gap:2px;">
-            <span style="font-size:11px; color:#555; text-align:center;">성격</span>
-            <select 
-              v-model="selectedNature[index - 1]"
-              :disabled="!selectedPokemon[index - 1]"
-              style="width:190px; font-size:12px; padding: 4px;"
-              @change="calculateAllStats(index - 1)"
-            >
-              <option
-                v-for="n in natureOptions"
-                :key="n"
-                :value="n"
-              >
-                {{ n }}
-              </option>
-            </select>
-          </div>
+            <span class="sb-pick-name">{{ selectedPokemon[i - 1] || '-' }}</span>
+          </button>
         </div>
 
-        <div style="flex;">
-          <div style="display:flex; flex-direction:column; gap:6px;">
-            <div
-              v-for="(stat, j) in stats"
-              :key="j"
-              style="display:flex; align-items:center; gap:6px;"
-            >
-              <span style="font-size:12px; white-space:nowrap; width: 70px;">
-                {{ stat.key }} ({{ stat.name }})
-              </span>
-
-              <input
-                v-model.number="inputStats[index - 1][stat.key]"
-                type="number"
-                min="0"
-                max="32"
-                style="width:50px; border: 1px solid #ccc; padding: 2px;"
-                :class="getInputClass(index)"
-                @input="updateSingleStat(index - 1, stat.key)"
-              >
-
-              <div style="display:flex; align-items:center; gap:4px; font-size:12px;">
-                <span style="color: #666;">→</span>
-                <span 
-                  style="font-weight: bold; width: 35px; text-align: right;"
-                  :style="{ 
-                    color: getNatureMultiplier(index - 1, stat.key) === 1.1 ? 'red' : 
-                      getNatureMultiplier(index - 1, stat.key) === 0.9 ? 'blue' : 'white' 
-                  }"
-                >
-                  {{ calcStats[index - 1]?.[stat.key] || 0 }}
-                </span>
-
-                <span 
-                  v-if="stat.key === 'H'" 
-                  style="font-size: 11px; color: #ffeb3b; margin-left: 8px; white-space: nowrap;"
-                >
-                  {{ checkHpCondition(index - 1) }}
-                </span>
-
-                <span 
-                  v-if="stat.key === 'B' || stat.key === 'D'" 
-                  style="font-size: 11px; color: #ddd; margin-left: 8px; white-space: nowrap;"
-                >
-                  [{{ stat.key === 'B' ? '물리' : '특수' }}: {{ calcDurability(index - 1, stat.key) }}]
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div style="display:flex; flex-direction:column; gap:16px;">
+        <div
+          v-else
+          class="sb-move-list"
+        >
+          <button
+            type="button"
+            class="sb-change-btn"
+            @click="activeMineIndex = null"
+          >
+            교체
+          </button>
           <div
             v-for="k in 4"
-            :key="k"
-            style="display:flex; align-items:center; gap:12px;"
+            :key="'mine-atk-' + k"
+            class="sb-move-row"
           >
-            <span style="color:#666;">→</span>
-
-            <v-autocomplete
-              v-model="selectedMoves[index - 1][k - 1]"
-              :disabled="!selectedPokemon[index - 1]"
-              :items="moveOptions(index - 1)"
-              density="compact"
-              hide-details
-              menu-icon=""
-              style="width:120px; font-size:12px;"
-            />
-
+            <span class="sb-move-name">{{ selectedMoves[activeMineIndex]?.[k - 1] || '-' }}</span>
+            <template v-if="activeOppIndex !== null && mineCell(k - 1)">
+              <span :class="['sb-dmg', { 'sb-dmg--crit': showCrit }]">
+                {{ mineCell(k - 1).dmgMin }}~{{ mineCell(k - 1).dmgMax }}
+              </span>
+              <span class="sb-pct">
+                {{ mineCell(k - 1).pctMin }}~{{ mineCell(k - 1).pctMax }}%
+              </span>
+            </template>
             <span
-              style="
-                width:40px;
-                text-align:right;
-                font-size:12px;
-                color:#ffeb3b;
-              "
-            >
-              {{ getBaseDamage(index - 1, k - 1) }}
-            </span>
+              v-else
+              class="sb-dmg-empty"
+            >-</span>
           </div>
         </div>
-      </div>
+      </section>
+
+      <!-- 중상단: 날씨, 필드 -->
+      <section class="sb-panel sb-panel--field">
+        <div class="sb-field-row">
+          <span class="sb-field-label">날씨</span>
+          <div class="sb-field-buttons">
+            <button
+              v-for="w in weatherOptions"
+              :key="w"
+              type="button"
+              class="sb-field-btn"
+              :class="{ active: battleWeather === w }"
+              @click="toggleBattleWeather(w)"
+            >
+              {{ w }}
+            </button>
+          </div>
+          <span class="sb-field-label">필드</span>
+          <div class="sb-field-buttons">
+            <button
+              v-for="f in fieldOptions"
+              :key="f"
+              type="button"
+              class="sb-field-btn"
+              :class="{ active: battleField === f }"
+              @click="toggleBattleField(f)"
+            >
+              {{ f }}
+            </button>
+          </div>
+        </div>
+        <label class="sb-crit-toggle">
+          <input
+            v-model="showCrit"
+            type="checkbox"
+          >
+          급소(치명타)
+        </label>
+      </section>
+
+      <!-- 우상단: 상대 카드 + 랭크업 상태 -->
+      <section class="sb-panel sb-panel--opp-status">
+        <div
+          v-if="activeOppIndex === null"
+          class="sb-select-row"
+        >
+          <button
+            v-for="i in 6"
+            :key="'opp-pick-' + i"
+            type="button"
+            class="sb-pick-btn"
+            :disabled="!oppSelectedPokemon[i - 1]"
+            @click="activeOppIndex = i - 1"
+          >
+            <img
+              :src="opponentSprite(i - 1)"
+              class="sb-pick-sprite"
+              @error="$event.target.src = pokemonImg"
+            >
+            <span class="sb-pick-name">{{ oppSelectedPokemon[i - 1] || '-' }}</span>
+          </button>
+        </div>
+
+        <template v-else>
+          <div class="sb-status-card">
+            <img
+              :src="opponentSprite(activeOppIndex)"
+              class="sb-status-sprite"
+              @error="$event.target.src = pokemonImg"
+            >
+            <div class="sb-status-info">
+              <div class="sb-status-name-row">
+                <span class="sb-status-name">{{ oppDisplayName(activeOppIndex) }}</span>
+                <button
+                  type="button"
+                  class="sb-change-btn"
+                  @click="activeOppIndex = null"
+                >
+                  교체
+                </button>
+              </div>
+              <div class="sb-hp-bar-bg">
+                <div
+                  class="sb-hp-bar-fill"
+                  :style="{ width: oppHpPercent + '%' }"
+                />
+              </div>
+              <span class="sb-hp-text">{{ oppHpPercent }}%</span>
+            </div>
+          </div>
+
+          <div class="sb-rank-box">
+            <div
+              v-for="stat in rankStatKeys"
+              :key="'opp-rank-' + stat.key"
+              class="sb-rank-row"
+            >
+              <span class="sb-rank-name">{{ stat.name }}</span>
+              <span class="sb-rank-arrows">
+                <span
+                  v-for="n in 6"
+                  :key="'up-' + n"
+                  class="sb-arrow sb-arrow--up"
+                  :class="{ 'sb-arrow--filled': n <= Math.max(oppRanks[stat.key], 0) }"
+                >▲</span>
+                <span
+                  v-for="n in 6"
+                  :key="'down-' + n"
+                  class="sb-arrow sb-arrow--down"
+                  :class="{ 'sb-arrow--filled': n <= Math.max(-oppRanks[stat.key], 0) }"
+                >▼</span>
+              </span>
+              <span class="sb-rank-value">{{ oppRanks[stat.key] >= 0 ? '+' : '' }}{{ oppRanks[stat.key] }}</span>
+              <span class="sb-rank-btns">
+                <button
+                  type="button"
+                  class="sb-rank-btn"
+                  @click="changeRank(oppRanks, stat.key, 1)"
+                >
+                  ▲
+                </button>
+                <button
+                  type="button"
+                  class="sb-rank-btn"
+                  @click="changeRank(oppRanks, stat.key, -1)"
+                >
+                  ▼
+                </button>
+              </span>
+            </div>
+          </div>
+        </template>
+      </section>
+    </div>
+
+    <div class="sb-row">
+      <!-- 좌하단: 내 랭크업 상태 + 내 카드 -->
+      <section class="sb-panel sb-panel--mine-status">
+        <template v-if="activeMineIndex !== null">
+          <div class="sb-rank-box">
+            <div
+              v-for="stat in rankStatKeys"
+              :key="'mine-rank-' + stat.key"
+              class="sb-rank-row"
+            >
+              <span class="sb-rank-name">{{ stat.name }}</span>
+              <span class="sb-rank-arrows">
+                <span
+                  v-for="n in 6"
+                  :key="'up-' + n"
+                  class="sb-arrow sb-arrow--up"
+                  :class="{ 'sb-arrow--filled': n <= Math.max(mineRanks[stat.key], 0) }"
+                >▲</span>
+                <span
+                  v-for="n in 6"
+                  :key="'down-' + n"
+                  class="sb-arrow sb-arrow--down"
+                  :class="{ 'sb-arrow--filled': n <= Math.max(-mineRanks[stat.key], 0) }"
+                >▼</span>
+              </span>
+              <span class="sb-rank-value">{{ mineRanks[stat.key] >= 0 ? '+' : '' }}{{ mineRanks[stat.key] }}</span>
+              <span class="sb-rank-btns">
+                <button
+                  type="button"
+                  class="sb-rank-btn"
+                  @click="changeRank(mineRanks, stat.key, 1)"
+                >
+                  ▲
+                </button>
+                <button
+                  type="button"
+                  class="sb-rank-btn"
+                  @click="changeRank(mineRanks, stat.key, -1)"
+                >
+                  ▼
+                </button>
+              </span>
+            </div>
+          </div>
+
+          <div class="sb-status-card">
+            <img
+              :src="mySprite(activeMineIndex)"
+              class="sb-status-sprite"
+              @error="$event.target.src = pokemonImg"
+            >
+            <div class="sb-status-info">
+              <span class="sb-status-name">{{ mineDisplayName(activeMineIndex) }}</span>
+              <div class="sb-hp-bar-bg">
+                <div
+                  class="sb-hp-bar-fill"
+                  :style="{ width: mineHpPercent + '%' }"
+                />
+              </div>
+              <span class="sb-hp-text">{{ mineHpPercent }}%</span>
+            </div>
+          </div>
+        </template>
+        <div
+          v-else
+          class="sb-placeholder"
+        >
+          왼쪽 위에서 내 포켓몬을 선택하세요
+        </div>
+      </section>
+
+      <div class="sb-panel sb-panel--empty" />
+
+      <!-- 우하단: 상대 기술 목록 + 데미지 -->
+      <section class="sb-panel sb-panel--moves">
+        <h4 class="sb-panel-title">
+          포켓몬 기술 목록과 데미지
+        </h4>
+        <div
+          v-if="activeOppIndex === null"
+          class="sb-placeholder"
+        >
+          오른쪽 위에서 상대 포켓몬을 선택하세요
+        </div>
+        <div
+          v-else
+          class="sb-move-list"
+        >
+          <div
+            v-for="k in 4"
+            :key="'opp-atk-' + k"
+            class="sb-move-row"
+          >
+            <span class="sb-move-name">{{ oppSelectedMoves[activeOppIndex]?.[k - 1] || '-' }}</span>
+            <template v-if="activeMineIndex !== null && oppCell(k - 1)">
+              <span :class="['sb-dmg', { 'sb-dmg--crit': showCrit }]">
+                {{ oppCell(k - 1).dmgMin }}~{{ oppCell(k - 1).dmgMax }}
+              </span>
+              <span class="sb-pct">
+                {{ oppCell(k - 1).pctMin }}~{{ oppCell(k - 1).pctMax }}%
+              </span>
+            </template>
+            <span
+              v-else
+              class="sb-dmg-empty"
+            >-</span>
+          </div>
+        </div>
+      </section>
     </div>
   </div>
 </template>
 
-<script>
-import { ref, onMounted, watch, computed } from 'vue'
-import { items } from '@/data/item';
-import { calculateStat } from '@/utils/stat';
-import { calculateBaseDamage } from '@/utils/move';
-import { moves } from '@/data/moves';
+<script setup>
+import { calculateStat } from '@/utils/stat'
+import { calculateDamage } from '@/utils/move'
+import { MegaEvolutionMap } from '@/data/mega-evolutions'
+import { getMoveData } from '@/utils/move-info'
 
-export default {
-  setup() {
-    const stats = [
-      { key: 'H', name: '체력' },
-      { key: 'A', name: '공격' },
-      { key: 'B', name: '방어' },
-      { key: 'C', name: '특수공격' },
-      { key: 'D', name: '특수방어' },
-      { key: 'S', name: '스피드' }
-    ]
+const config = useRuntimeConfig()
+const pokemonImg = (config.app.baseURL || '/') + 'pokemon.webp'
 
-    const itemList = [...items]
+const { pokemonMap } = useEligiblePokemon()
 
-    const natureOptions = [
-      '무보정',
-      '외로움(공격↑ 방어↓)', '고집(공격↑ 특공↓)', '개구쟁이(공격↑ 특방↓)', '용감(공격↑ 스피드↓)', '------------------------------',
-      '대담(방어↑ 공격↓)', '장난꾸러기(방어↑ 특공↓)', '촐랑(방어↑ 특방↓)', '무사태평(방어↑ 스피드↓)', '------------------------------',
-      '조심(특공↑ 공격↓)', '의젓(특공↑ 방어↓)', '덜렁(특공↑ 특방↓)', '냉정(특공↑ 스피드↓)', '------------------------------',
-      '차분(특방↑ 공격↓)', '얌전(특방↑ 방어↓)', '신중(특방↑ 특공↓)', '건방(특방↑ 스피드↓)', '------------------------------',
-      '겁쟁이(스피드↑ 공격↓)', '성급(스피드↑ 방어↓)', '명랑(스피드↑ 특공↓)', '천진난만(스피드↑ 특방↓)'
-    ]
+const {
+  selectedPokemon,
+  selectedAbility,
+  selectedNature,
+  selectedTool,
+  selectedMoves,
+  inputStats,
+  calcStats,
+} = useParty()
 
-    const natures = {
-      '무보정': {},
-      '외로움(공격↑ 방어↓)': { up: 'A', down: 'B' }, '고집(공격↑ 특공↓)': { up: 'A', down: 'C' }, '개구쟁이(공격↑ 특방↓)': { up: 'A', down: 'D' }, '용감(공격↑ 스피드↓)': { up: 'A', down: 'S' },
-      '대담(방어↑ 공격↓)': { up: 'B', down: 'A' }, '장난꾸러기(방어↑ 특공↓)': { up: 'B', down: 'C' }, '촐랑(방어↑ 특방↓)': { up: 'B', down: 'D' }, '무사태평(스피드↑ 방어↓)': { up: 'B', down: 'S' },
-      '조심(특공↑ 공격↓)': { up: 'C', down: 'A' }, '의젓(특공↑ 방어↓)': { up: 'C', down: 'B' }, '덜렁(특공↑ 특방↓)': { up: 'C', down: 'D' }, '냉정(특공↑ 스피드↓)': { up: 'C', down: 'S' },
-      '차분(특공↑ 공격↓)': { up: 'D', down: 'A' }, '얌전(특방↑ 방어↓)': { up: 'D', down: 'B' }, '신중(특방↑ 특공↓)': { up: 'D', down: 'C' }, '건방(특방↑ 스피드↓)': { up: 'D', down: 'S' },
-      '겁쟁이(스피드↑ 공격↓)': { up: 'S', down: 'A' }, '성급(스피드↑ 방어↓)': { up: 'S', down: 'B' }, '명랑(스피드↑ 특공↓)': { up: 'S', down: 'B' }, '천진난만(스피드↑ 특방↓)': { up: 'S', down: 'C' },
-    }
+const {
+  selectedPokemon: oppSelectedPokemon,
+  selectedAbility: oppSelectedAbility,
+  selectedNature: oppSelectedNature,
+  selectedTool: oppSelectedTool,
+  selectedMoves: oppSelectedMoves,
+  inputStats: oppInputStats,
+  calcStats: oppCalcStats,
+} = useOpponentParty()
 
-    const pokemons = ref([])
-    const pokemonMap = ref({})
-    const pokemonNames = ref([])
-    const isLoading = ref(true)
-    const loadedCount = ref(0)
-    const totalCount = ref(0)
+const activeMineIndex = ref(null)
+const activeOppIndex = ref(null)
+const showCrit = ref(false)
 
-    const search = ref(Array(6).fill(''))
-    const selectedPokemon = ref(Array(6).fill(''))
-    const selectedAbility = ref(Array(6).fill('특성'))
-    const selectedNature = ref(Array(6).fill('무보정'))
-    
-    // 도구 및 기술의 상태 추적을 위한 상태 선언
-    const selectedTool = ref(Array(6).fill(''))
-    const selectedMoves = ref(Array(6).fill(null).map(() => Array(4).fill('')))
+const weatherOptions = ['쾌청', '큰가뭄', '비', '폭우', '모래바람', '눈', '난기류']
+const fieldOptions = ['일렉트릭필드', '그래스필드', '미스트필드', '사이코필드']
+const battleWeather = ref('없음')
+const battleField = ref('없음')
+const toggleBattleWeather = (v) => { battleWeather.value = battleWeather.value === v ? '없음' : v }
+const toggleBattleField = (v) => { battleField.value = battleField.value === v ? '없음' : v }
 
-    const START_ID = 1 // 987
-    const END_ID = 1023 // 1010
+const rankStatKeys = [
+  { key: 'A', name: '공격' },
+  { key: 'B', name: '방어' },
+  { key: 'C', name: '특수공격' },
+  { key: 'D', name: '특수방어' },
+]
+const mineRanks = reactive({ A: 0, B: 0, C: 0, D: 0 })
+const oppRanks = reactive({ A: 0, B: 0, C: 0, D: 0 })
 
-    const inputStats = ref(
-      Array(6).fill(null).map(() => ({ H: 0, A: 0, B: 0, C: 0, D: 0, S: 0 }))
-    )
+const changeRank = (target, key, delta) => {
+  target[key] = Math.min(6, Math.max(-6, target[key] + delta))
+}
 
-    const calcStats = ref(
-      Array(6).fill(null).map(() => ({ H: 0, A: 0, B: 0, C: 0, D: 0, S: 0 }))
-    )
+const rankMultiplier = (stage) => (stage >= 0 ? (2 + stage) / 2 : 2 / (2 - stage))
 
-    const getNatureMultiplier = (pokemonIndex, statKey) => {
-      const natureName = selectedNature.value[pokemonIndex] || '노력'
-      const natureEffect = natures[natureName]
-      if (!natureEffect) return 1.0
+// ── 메가진화 판정 (entrySelect.vue와 동일 로직) ─────────────
+const getMineMegaData = (index) => {
+  const name = selectedPokemon.value[index]
+  const tool = selectedTool.value[index]
+  if (!name || !tool) return null
+  const list = MegaEvolutionMap[name]
+  if (!list) return null
+  return list.find((m) => m.stoneName === tool) || null
+}
+const getOppMegaData = (index) => {
+  const name = oppSelectedPokemon.value[index]
+  const tool = oppSelectedTool.value[index]
+  if (!name || !tool) return null
+  const list = MegaEvolutionMap[name]
+  if (!list) return null
+  return list.find((m) => m.stoneName === tool) || null
+}
 
-      if (natureEffect.up === statKey) return 1.1
-      if (natureEffect.down === statKey) return 0.9
-      return 1.0
-    }
+const mineDisplayName = (index) => {
+  const mega = getMineMegaData(index)
+  return mega ? mega.megaName : (selectedPokemon.value[index] || '')
+}
+const oppDisplayName = (index) => {
+  const mega = getOppMegaData(index)
+  return mega ? mega.megaName : (oppSelectedPokemon.value[index] || '')
+}
 
-    const updateSingleStat = (pokemonIndex, statKey) => {
-      const pokemonName = selectedPokemon.value[pokemonIndex]
-      if (!pokemonName) return
+const mySprite = (index) => {
+  const mega = getMineMegaData(index)
+  if (mega) return `${config.app.baseURL || '/'}pokemon_sprites/${mega.id}.png`
+  const data = pokemonMap.value[selectedPokemon.value[index]]
+  return data?.id ? `${config.app.baseURL || '/'}pokemon_sprites/${data.id}.png` : pokemonImg
+}
+const opponentSprite = (index) => {
+  const mega = getOppMegaData(index)
+  if (mega) return `${config.app.baseURL || '/'}pokemon_sprites/${mega.id}.png`
+  const data = pokemonMap.value[oppSelectedPokemon.value[index]]
+  return data?.id ? `${config.app.baseURL || '/'}pokemon_sprites/${data.id}.png` : pokemonImg
+}
 
-      const pokemonData = pokemonMap.value[pokemonName]
-      if (!pokemonData || !pokemonData.stats) {
-        calcStats.value[pokemonIndex][statKey] = 0
-        return
-      }
+const buildDisplayStats = (name, mega, calcStatsRef, index, natureRef, itemRef, evsRef) => {
+  if (mega) return calcStatsRef.value[index] || {}
+  const data = name ? pokemonMap.value[name] : null
+  if (!data?.stats) return calcStatsRef.value[index] || {}
+  const natureName = natureRef.value[index]?.replace(/\([^)]*\)/g, '') || '무보정'
+  const itemName = itemRef.value[index] || ''
+  const keys = ['H', 'A', 'B', 'C', 'D', 'S']
+  const result = {}
+  keys.forEach((k) => {
+    result[k] = calculateStat(k, data.stats[k] || 0, evsRef.value[index]?.[k] || 0, natureName, itemName, '')
+  })
+  return result
+}
 
-      const Base_Stat = pokemonData.stats[statKey] || 0 // 종족값
-      const Stat_Points = inputStats.value[pokemonIndex][statKey] || 0 // 노력치
-      const Nature = selectedNature.value[pokemonIndex]?.replace(/\([^)]*\)/g, '') || '노력' // 성격
-      const Item = selectedTool.value[pokemonIndex] || '' // 도구
+const mineDisplayStats = (index) => buildDisplayStats(
+  selectedPokemon.value[index], getMineMegaData(index), calcStats, index, selectedNature, selectedTool, inputStats,
+)
+const oppDisplayStats = (index) => buildDisplayStats(
+  oppSelectedPokemon.value[index], getOppMegaData(index), oppCalcStats, index, oppSelectedNature, oppSelectedTool, oppInputStats,
+)
 
-      const result = calculateStat(statKey, Base_Stat, Stat_Points, Nature, Item)
-      calcStats.value[pokemonIndex][statKey] = result
-    }
+// 현재는 턴 진행/HP 소모 로직이 없어 항상 100%로 표시 (실제 배틀 진행 기능은 후속 작업)
+const mineHpPercent = computed(() => 100)
+const oppHpPercent = computed(() => 100)
 
-    const calculateAllStats = (pokemonIndex) => {
-      const keys = ['H', 'A', 'B', 'C', 'D', 'S']
-      keys.forEach(key => updateSingleStat(pokemonIndex, key))
-    }
-
-    const getInputClass = (index) => {
-      const rowData = inputStats.value[index - 1];
-  
-      if (!rowData) return '';
-
-      // 객체의 모든 Value('A', 'B' 등의 숫자 값)를 더함 -> 노력치의 합
-      const totalSum = Object.values(rowData).reduce((sum, value) => {
-        return sum + (Number(value) || 0); // 숫자가 아닐 경우를 대비해 예외 처리
-      }, 0);
-      
-      const maxValue = Math.max(...Object.values(rowData))
-
-      // 합이 66을 넘으면 'red-input' 클래스 반환, 아니면 빈 문자열
-      return totalSum > 66 || maxValue > 32 ? 'red-input' : '';
-    };
-
-    // 내구력 계산 함수
-    const calcDurability = (pokemonIndex, statKey) => {
-      const hp = calcStats.value[pokemonIndex]?.H || 0
-      const defense = calcStats.value[pokemonIndex]?.[statKey] || 0
-      
-      if (hp === 0 || defense === 0) return 0
-      return Math.floor((hp * defense) / 0.411)
-    }
-
-    const getBaseDamage = (pokemonIndex, moveIndex) => {
-      const moveName = selectedMoves.value[pokemonIndex]?.[moveIndex]
-
-      if (!moveName) {
-        return ''
-      }
-
-      const move = moves[moveName] || {} 
-      const power = move.Power || 0
-      const moveType = move.Type || ''
-      const stab = true // 자속보정 수정필
-      const attack = move.Category === '물리' ? calcStats.value[pokemonIndex]?.A || 0 : calcStats.value[pokemonIndex]?.C || 0
-      const ability = selectedAbility.value[pokemonIndex]
-      const weather = '쾌청' // 날씨는 일단 고정, 나중에 선택지 추가 가능
-      const item = selectedTool.value[pokemonIndex]
-
-      return calculateBaseDamage(power, attack, stab, moveType, ability, weather, item)
-    }
-
-    // HP 조정 배수 순차 판정 함수
-    const checkHpCondition = (pokemonIndex) => {
-      const hp = calcStats.value[pokemonIndex]?.H || 0
-      if (hp === 0) return ''
-
-      const ability = selectedAbility.value[pokemonIndex]
-      const tool = selectedTool.value[pokemonIndex]
-      const moves = selectedMoves.value[pokemonIndex] || []
-
-      // 1순위: 특성 [재생력] 검사
-      if (ability === '재생력') {
-        return hp % 3 === 0 ? '3n O' : '3n X'
-      }
-
-      // 2순위: 특성 [포이즌힐] 검사
-      if (ability === '포이즌힐') {
-        return hp % 8 === 1 ? '8n+1 O' : '8n+1 X'
-      }
-
-      // 3순위: 도구 [먹다남은음식], [검은진흙] 검사
-      if (tool === '먹다남은음식' || tool === '검은진흙') {
-        return hp % 16 === 0 ? '16n O' : '16n X'
-      }
-
-      // 4순위: 기술 리스트 중 [대타출동] 검사
-      if (moves.includes('대타출동')) {
-        return hp % 16 === 1 ? '16n+1 O' : '16n+1 X'
-      }
-
-      // 5순위: 기술 리스트 중 [씨뿌리기] 검사
-      if (moves.includes('씨뿌리기')) {
-        return (hp + 1) % 8 === 0 ? '8n-1 O' : '8n-1 X'
-      }
-
-      // 6순위: 위 조건에 모두 충족되지 않을 때의 기본값
-      return (hp + 1) % 16 === 0 ? '16n-1 O' : '16n-1 X'
-    }
-
-    watch(
-      () => [...selectedPokemon.value],
-      (newVal, oldVal) => {
-        if (!oldVal) return
-        newVal.forEach((pokemon, index) => {
-          if (pokemon !== oldVal[index]) {
-            if (pokemon) {
-              const abilities = pokemonMap.value[pokemon]?.abilities || []
-              selectedAbility.value[index] = abilities[0] || ''
-              selectedNature.value[index] = '노력'
-              selectedTool.value[index] = ''
-              selectedMoves.value[index] = Array(4).fill('')
-              calculateAllStats(index)
-            } else {
-              selectedAbility.value[index] = ''
-              selectedNature.value[index] = '노력'
-              selectedTool.value[index] = ''
-              selectedMoves.value[index] = Array(4).fill('')
-              inputStats.value[index] = { H: 0, A: 0, B: 0, C: 0, D: 0, S: 0 }
-              calcStats.value[index] = { H: 0, A: 0, B: 0, C: 0, D: 0, S: 0 }
-            }
-          }
-        })
-      }
-    )
-
-    const loadPokemon = async () => {
-      isLoading.value = true
-      loadedCount.value = 0
-      totalCount.value = END_ID - START_ID + 1
-
-      const fetchOne = async (id) => {
-        try {
-          const res = await fetch(`/pokemon_list/${id}.json`)
-          if (res.ok) {
-            return await res.json()
-          }
-          return null
-        } catch {
-          return null
-        } finally {
-          loadedCount.value += 1
-        }
-      }
-
-      try {
-        const ids = []
-        for (let i = START_ID; i <= END_ID; i++) ids.push(i)
-
-        // 24개 요청을 동시에 병렬로 실행 (순차 대기 X)
-        const results = await Promise.all(ids.map(fetchOne))
-        const validResults = results.filter(Boolean)
-
-        pokemons.value = validResults
-        pokemonMap.value = Object.fromEntries(validResults.map(p => [p.name, p]))
-        pokemonNames.value = validResults.map(p => p.name)
-      } finally {
-        isLoading.value = false
-      }
-    }
-
-    const filteredPokemonNames = (i) => {
-      const query = search.value[i]?.toLowerCase() || ''
-      return pokemonNames.value.filter(name => name.toLowerCase().includes(query))
-    }
-
-    const abilityOptions = (i) => {
-      const name = selectedPokemon.value[i]
-      return pokemonMap.value[name]?.abilities || []
-    }
-
-    const moveOptions = (i) => {
-      const name = selectedPokemon.value[i]
-      return pokemonMap.value[name]?.moves || []
-    }
-
-    const centerTexts = [
-      '포켓몬 A가 포켓몬 B를 반드시 선제 공격으로 난수 1타로 잡는다.',
-      '포켓몬 B가 포켓몬 C가 스피드 노력치 22 이하인 경우 선제 공격으로 확 1타로 잡는다.',
-      '포켓몬 C가 포켓몬 D가 성격 무보정인 경우 확 1타로 잡는다.'
-    ]
-
-    onMounted(loadPokemon)
-
-    return {
-      stats,
-      itemList,
-      natureOptions,
-      selectedNature,
-      pokemonNames,
-      search,
-      selectedPokemon,
-      selectedAbility,
-      selectedTool,
-      selectedMoves,
-      filteredPokemonNames,
-      abilityOptions,
-      moveOptions,
-      centerTexts,
-      calcStats,
-      inputStats,
-      isLoading,
-      loadedCount,
-      totalCount,
-      updateSingleStat,
-      calculateAllStats,
-      getNatureMultiplier,
-      calcDurability,
-      checkHpCondition,
-      getBaseDamage,
-      getInputClass,
-    }
+const buildCell = (move, atkStats, defStats, atkKey, defKey, atkRank, defRank, ability, item) => {
+  const category = move.Category
+  const attack = (atkStats?.[atkKey] || 0) * rankMultiplier(atkRank)
+  const defense = (defStats?.[defKey] || 0) * rankMultiplier(defRank)
+  const dmg = calculateDamage(move.Power || 0, attack, defense, true, move.Type || '', category, ability, battleWeather.value, item, '', battleField.value, 50)
+  const defHp = defStats?.H || 0
+  const dmgMin = showCrit.value ? dmg.critMin : dmg.min
+  const dmgMax = showCrit.value ? dmg.critMax : dmg.max
+  return {
+    dmgMin,
+    dmgMax,
+    pctMin: defHp > 0 ? ((dmgMin / defHp) * 100).toFixed(1) : '0.0',
+    pctMax: defHp > 0 ? ((dmgMax / defHp) * 100).toFixed(1) : '0.0',
   }
 }
+
+const mineCell = (moveIndex) => {
+  if (activeMineIndex.value === null || activeOppIndex.value === null) return null
+  const moveName = selectedMoves.value[activeMineIndex.value]?.[moveIndex]
+  if (!moveName) return null
+  const move = getMoveData(moveName)
+  if (!move || move.Category === '변화') return null
+  const atkKey = move.Category === '물리' ? 'A' : 'C'
+  const defKey = move.Category === '물리' ? 'B' : 'D'
+  return buildCell(
+    move,
+    mineDisplayStats(activeMineIndex.value),
+    oppDisplayStats(activeOppIndex.value),
+    atkKey, defKey,
+    mineRanks[atkKey], oppRanks[defKey],
+    selectedAbility.value[activeMineIndex.value],
+    selectedTool.value[activeMineIndex.value],
+  )
+}
+
+const oppCell = (moveIndex) => {
+  if (activeMineIndex.value === null || activeOppIndex.value === null) return null
+  const moveName = oppSelectedMoves.value[activeOppIndex.value]?.[moveIndex]
+  if (!moveName) return null
+  const move = getMoveData(moveName)
+  if (!move || move.Category === '변화') return null
+  const atkKey = move.Category === '물리' ? 'A' : 'C'
+  const defKey = move.Category === '물리' ? 'B' : 'D'
+  const mega = getOppMegaData(activeOppIndex.value)
+  const ability = mega ? mega.ability : oppSelectedAbility.value[activeOppIndex.value]
+  return buildCell(
+    move,
+    oppDisplayStats(activeOppIndex.value),
+    mineDisplayStats(activeMineIndex.value),
+    atkKey, defKey,
+    oppRanks[atkKey], mineRanks[defKey],
+    ability,
+    oppSelectedTool.value[activeOppIndex.value],
+  )
+}
 </script>
-<style>
-.v-autocomplete__selection-text {
-    font-size: 12px !important;
-}
-/* 합이 64일 때 적용할 스타일 */
-.red-input {
-  border-color: red !important;
-  color: red;
-  background-color: #fff0f0; /* 배경색도 살짝 변경 예시 */
-}
+
+<style scoped>
+.sb-page { display:flex; flex-direction:column; gap:12px; padding:8px; }
+.sb-row { display:flex; gap:12px; align-items:flex-start; }
+.sb-panel { background:#555; border-radius:6px; padding:8px; color:#fff; min-height:60px; }
+.sb-panel--moves { flex:1; min-width:280px; }
+.sb-panel--field { width:260px; display:flex; flex-direction:column; gap:8px; }
+.sb-panel--opp-status,
+.sb-panel--mine-status { flex:1; min-width:280px; display:flex; flex-direction:column; gap:8px; }
+.sb-panel--empty { width:260px; background:transparent; }
+
+.sb-panel-title { margin:0 0 6px 0; font-size:13px; }
+
+.sb-select-row { display:flex; flex-wrap:wrap; gap:6px; }
+.sb-pick-btn { display:flex; flex-direction:column; align-items:center; gap:2px; background:#444; border:1px solid #777; border-radius:6px; padding:4px; cursor:pointer; color:#fff; width:60px; }
+.sb-pick-btn:disabled { opacity:0.3; cursor:default; }
+.sb-pick-sprite { width:40px; height:40px; object-fit:cover; }
+.sb-pick-name { font-size:9px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:56px; }
+
+.sb-change-btn { font-size:10px; background:#333; color:#fff; border:1px solid #888; border-radius:4px; padding:2px 6px; cursor:pointer; }
+
+.sb-move-list { display:flex; flex-direction:column; gap:6px; }
+.sb-move-row { display:flex; align-items:center; gap:8px; }
+.sb-move-name { flex:1; font-size:12px; }
+.sb-dmg { font-weight:bold; font-size:12px; }
+.sb-dmg--crit { color:#ff5252; }
+.sb-pct { font-size:9px; color:#aaa; }
+.sb-dmg-empty { color:#888; }
+
+.sb-field-row { display:flex; align-items:center; flex-wrap:wrap; gap:6px; }
+.sb-field-label { font-size:10px; color:#ccc; }
+.sb-field-buttons { display:flex; flex-wrap:wrap; gap:2px; }
+.sb-field-btn { font-size:10px; padding:2px 6px; border:1px solid #999; border-radius:4px; cursor:pointer; background:#444; color:#fff; }
+.sb-field-btn.active { background:#4caf50; }
+.sb-crit-toggle { display:flex; align-items:center; gap:4px; font-size:12px; color:#ffeb3b; cursor:pointer; }
+
+.sb-status-card { display:flex; align-items:center; gap:8px; }
+.sb-status-sprite { width:56px; height:56px; object-fit:cover; border:2px solid #333; border-radius:6px; background:#e8e8e8; }
+.sb-status-info { display:flex; flex-direction:column; gap:2px; flex:1; }
+.sb-status-name-row { display:flex; align-items:center; justify-content:space-between; gap:6px; }
+.sb-status-name { font-size:13px; font-weight:bold; }
+.sb-hp-bar-bg { width:100%; height:8px; background:#222; border-radius:4px; overflow:hidden; }
+.sb-hp-bar-fill { height:100%; background:linear-gradient(90deg,#8bc34a,#4caf50); }
+.sb-hp-text { font-size:10px; color:#ccc; }
+
+.sb-rank-box { display:flex; flex-direction:column; gap:4px; }
+.sb-rank-row { display:flex; align-items:center; gap:4px; }
+.sb-rank-name { width:60px; font-size:11px; }
+.sb-rank-arrows { display:flex; gap:1px; font-size:9px; }
+.sb-arrow { color:#555; }
+.sb-arrow--filled.sb-arrow--up { color:#f44336; }
+.sb-arrow--filled.sb-arrow--down { color:#2196f3; }
+.sb-rank-value { width:24px; text-align:right; font-size:11px; }
+.sb-rank-btns { display:flex; flex-direction:column; }
+.sb-rank-btn { font-size:8px; line-height:8px; padding:0 3px; border:1px solid #888; background:#444; color:#fff; cursor:pointer; }
+
+.sb-placeholder { font-size:12px; color:#aaa; padding:12px; }
 </style>

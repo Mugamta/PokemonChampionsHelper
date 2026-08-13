@@ -100,6 +100,30 @@
                 @error="$event.target.src = pokemonImg"
               >
               <div style="width:150px; flex-shrink:0;">
+                <label
+                  :style="{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    fontSize: '11px',
+                    color: '#fff',
+                    marginBottom: '4px',
+                    width: '238px',
+                    cursor: isMegaAvailable(index - 1) ? 'pointer' : 'not-allowed',
+                    opacity: 1,
+                    visibility: isMegaAvailable(index - 1) ? 'visible' : 'hidden'
+                  }"
+                >
+                  <input
+                    type="checkbox"
+                    :checked="selectedMegaToggle[index - 1]"
+                    :disabled="!isMegaAvailable(index - 1)"
+                    style="cursor: pointer;"
+                    @change="toggleMega(index - 1)"
+                  >
+                  메가진화
+                </label>
+                
                 <v-autocomplete
                   v-model="selectedTool[index - 1]"
                   :items="toolOptions(index - 1)"
@@ -379,13 +403,34 @@ export default {
 
     // 도구(선택된 메가스톤 이름)에 해당하는 메가진화 데이터 반환.
     // 폼이 여러 개인 포켓몬(리자몽나이트X/Y 등)은 스톤 이름으로 정확히 어느 폼인지 구분한다.
-    const getMegaData = (index) => {
+    // 기존 getMegaData를 findMegaByTool로 이름 변경 (토글과 무관하게 '가능 여부'만 판단)
+    const findMegaByTool = (index) => {
       const name = selectedPokemon.value[index]
       const tool = selectedTool.value[index]
       if (!name || !tool) return null
       const list = MegaEvolutionMap[name]
       if (!list) return null
       return list.find((m) => m.stoneName === tool) || null
+    }
+
+    // 슬롯별 메가진화 토글 상태
+    const selectedMegaToggle = ref(Array(6).fill(false))
+
+    // 실제로 메가진화가 적용된 상태: 스톤을 들고 있고 + 토글이 켜져 있어야 함
+    const getMegaData = (index) => {
+      if (!selectedMegaToggle.value[index]) return null
+      return findMegaByTool(index)
+    }
+
+    // 지금 도구가 메가스톤이라 토글이 의미 있는 상태인지 (버튼 활성/비활성 판정용)
+    const isMegaAvailable = (index) => !!findMegaByTool(index)
+
+    // 토글 클릭 핸들러
+    const toggleMega = (index) => {
+      if (!isMegaAvailable(index)) return
+      selectedMegaToggle.value[index] = !selectedMegaToggle.value[index]
+      syncMegaAbility(index)
+      calculateAllStats(index)
     }
 
     // 특성 설명 (data/abilities.ts, op.gg 크롤링 결과)
@@ -416,6 +461,9 @@ export default {
 
     // 도구 선택 변경 핸들러: 메가진화 여부가 바뀔 수 있으므로 특성 동기화 후 능력치 재계산
     const onToolChange = (index) => {
+      if (!isMegaAvailable(index)) {
+        selectedMegaToggle.value[index] = false
+      }
       syncMegaAbility(index)
       calculateAllStats(index)
     }
@@ -440,7 +488,7 @@ export default {
       const tool = selectedTool.value[index]
       if (!tool) return pokemonImg
 
-      const mega = getMegaData(index)
+      const mega = findMegaByTool(index)
       if (mega) {
         return mega.stone
           ? `${config.app.baseURL || '/'}mega_stone_sprites/${mega.stone}.png`
@@ -717,8 +765,9 @@ export default {
               selectedAbility.value[index] = abilityList[0] || ''
               selectedNature.value[index] = '무보정'
               selectedTool.value[index] = ''
-              selectedMoves.value[index] = Array(4).fill('')
+              selectedMoves.value[index] = Array(4).fill('')  
               selectedHpPercent.value[index] = 100
+              selectedMegaToggle.value[index] = false
               calculateAllStats(index)
             } else {
               selectedAbility.value[index] = ''
@@ -726,6 +775,7 @@ export default {
               selectedTool.value[index] = ''
               selectedMoves.value[index] = Array(4).fill('')
               selectedHpPercent.value[index] = 100
+              selectedMegaToggle.value[index] = false
               inputStats.value[index] = { H: 0, A: 0, B: 0, C: 0, D: 0, S: 0 }
               calcStats.value[index] = { H: 0, A: 0, B: 0, C: 0, D: 0, S: 0 }
             }
@@ -787,6 +837,9 @@ export default {
     // 여기서 파라미터 없이 부르면 레귤레이션 로딩보다 먼저 실행되어 전체 범위로 잠겨버릴 수 있어서 호출하지 않음.
 
     return {
+      selectedMegaToggle,
+      isMegaAvailable,
+      toggleMega,
       stats,
       itemList,
       natureOptions,

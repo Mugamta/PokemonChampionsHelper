@@ -40,7 +40,7 @@
 
 
       <button
-        v-if="isPartyPage"
+        v-if="isNotEntryPage"
         :disabled="!isPartyComplete"
         :style="{
           fontSize: '12px',
@@ -186,7 +186,7 @@ const onRegulationChange = (value) => {
   }
 }
 
-const isPartyPage = computed(() => route.path === '/partySelect')
+const isNotEntryPage = computed(() => route.path !== '/entrySelect')
 const isEntryPage = computed(() => route.path === '/entrySelect')
 
 const goToPartySelect = () => {
