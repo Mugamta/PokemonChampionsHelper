@@ -38,6 +38,23 @@
         </span>
       </div>
 
+      <button
+        v-if="isPartyPage"
+        :style="{
+          fontSize: '12px',
+          padding: '6px 12px',
+          border: 'none',
+          borderRadius: '4px',
+          cursor: 'pointer',
+          background: '#c0392b',
+          color: '#fff',
+          whiteSpace: 'nowrap'
+        }"
+        @click="onResetParty"
+      >
+        파티 초기화
+      </button>
+
 
       <button
         v-if="isNotEntryPage"
@@ -163,9 +180,15 @@ import { computed, onMounted, onUnmounted } from 'vue'
 
 const { isLoadingPokemon, isLoadingRegulations, loadedCount, totalCount, loadPokemonList, loadRegulations, currentTime } = useEligiblePokemon()
 const { regulations, selectedRegulationIndex, selectRegulation, useAutoRegulation, startClock, allowedDexIds } = useRegulations()
-const { isPartyComplete } = useParty()
 const router = useRouter()
 const route = useRoute()
+
+const { isPartyComplete, resetParty } = useParty()
+const onResetParty = () => {
+  if (window.confirm('파티를 초기화할까요? 저장된 선택 내용이 모두 사라집니다.')) {
+    resetParty()
+  }
+}
 
 const pad = (n) => String(n).padStart(2, '0')
 
@@ -187,6 +210,7 @@ const onRegulationChange = (value) => {
 }
 
 const isNotEntryPage = computed(() => route.path !== '/entrySelect')
+const isPartyPage = computed(() => route.path === '/partySelect')
 const isEntryPage = computed(() => route.path === '/entrySelect')
 
 const goToPartySelect = () => {

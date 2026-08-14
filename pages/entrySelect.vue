@@ -137,105 +137,107 @@
           급소
         </label>
       </div>
-      <div class="dmg-matrix-wrap">
-        <!-- 좌측 → 우측 -->
-        <div
-          v-for="mIdx in selectedMineIndices"
-          :key="'atk-mine-' + mIdx"
-          class="matrix-block"
-        >
-          <h4 class="matrix-title">
-            {{ mineDisplayName(mIdx) || '미선택' }} → 상대
-          </h4>
-          <table class="dmg-table">
-            <thead>
-              <tr>
-                <th>기술</th>
-                <th
-                  v-for="oIdx in 6"
-                  :key="'opp-head-' + oIdx"
+      <div class="dmg-scroll-area">
+        <div class="dmg-matrix-wrap">
+          <!-- 좌측 → 우측 -->
+          <div
+            v-for="mIdx in selectedMineIndices"
+            :key="'atk-mine-' + mIdx"
+            class="matrix-block"
+          >
+            <h4 class="matrix-title">
+              {{ mineDisplayName(mIdx) || '미선택' }} → 상대
+            </h4>
+            <table class="dmg-table">
+              <thead>
+                <tr>
+                  <th>기술</th>
+                  <th
+                    v-for="oIdx in 6"
+                    :key="'opp-head-' + oIdx"
+                  >
+                    {{ oppDisplayName(oIdx - 1) || ('상대' + oIdx) }}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="k in 4"
+                  :key="'mine-move-' + k"
                 >
-                  {{ oppDisplayName(oIdx - 1) || ('상대' + oIdx) }}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="k in 4"
-                :key="'mine-move-' + k"
-              >
-                <td class="dmg-move-name">
-                  {{ selectedMoves[mIdx]?.[k - 1] || '-' }}
-                </td>
-                <td
-                  v-for="oIdx in 6"
-                  :key="'mine-cell-' + oIdx"
-                >
-                  <template v-if="getMineToOppCell(mIdx, oIdx - 1, k - 1, showCrit)">
-                    <div :class="['dmg-value', { 'dmg-value--crit': showCrit }]">
-                      {{ getMineToOppCell(mIdx, oIdx - 1, k - 1, showCrit).dmgMin }}~{{ getMineToOppCell(mIdx, oIdx - 1, k - 1, showCrit).dmgMax }}
-                    </div>
-                    <div class="dmg-percent">
-                      {{ getMineToOppCell(mIdx, oIdx - 1, k - 1, showCrit).pctMin }}~{{ getMineToOppCell(mIdx, oIdx - 1, k - 1, showCrit).pctMax }}%
-                    </div>
-                  </template>
-                  <template v-else>
-                    -
-                  </template>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+                  <td class="dmg-move-name">
+                    {{ selectedMoves[mIdx]?.[k - 1] || '-' }}
+                  </td>
+                  <td
+                    v-for="oIdx in 6"
+                    :key="'mine-cell-' + oIdx"
+                  >
+                    <template v-if="getMineToOppCell(mIdx, oIdx - 1, k - 1, showCrit)">
+                      <div :class="['dmg-value', { 'dmg-value--crit': showCrit }]">
+                        {{ getMineToOppCell(mIdx, oIdx - 1, k - 1, showCrit).dmgMin }}~{{ getMineToOppCell(mIdx, oIdx - 1, k - 1, showCrit).dmgMax }}
+                      </div>
+                      <div class="dmg-percent">
+                        {{ getMineToOppCell(mIdx, oIdx - 1, k - 1, showCrit).pctMin }}~{{ getMineToOppCell(mIdx, oIdx - 1, k - 1, showCrit).pctMax }}%
+                      </div>
+                    </template>
+                    <template v-else>
+                      -
+                    </template>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
 
-        <!-- 우측 → 좌측 -->
-        <div
-          v-for="oIdx in 6"
-          :key="'atk-opp-' + oIdx"
-          class="matrix-block"
-        >
-          <h4 class="matrix-title">
-            {{ oppDisplayName(oIdx - 1) || ('상대' + oIdx) }} → 내 파티
-          </h4>
-          <table class="dmg-table">
-            <thead>
-              <tr>
-                <th>기술</th>
-                <th
-                  v-for="mIdx in selectedMineIndices"
-                  :key="'mine-head-' + mIdx"
+          <!-- 우측 → 좌측 -->
+          <div
+            v-for="oIdx in 6"
+            :key="'atk-opp-' + oIdx"
+            class="matrix-block"
+          >
+            <h4 class="matrix-title">
+              {{ oppDisplayName(oIdx - 1) || ('상대' + oIdx) }} → 내 파티
+            </h4>
+            <table class="dmg-table">
+              <thead>
+                <tr>
+                  <th>기술</th>
+                  <th
+                    v-for="mIdx in selectedMineIndices"
+                    :key="'mine-head-' + mIdx"
+                  >
+                    {{ mineDisplayName(mIdx) || '미선택' }}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="k in 4"
+                  :key="'opp-move-' + k"
                 >
-                  {{ mineDisplayName(mIdx) || '미선택' }}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="k in 4"
-                :key="'opp-move-' + k"
-              >
-                <td class="dmg-move-name">
-                  {{ oppSelectedMoves[oIdx - 1]?.[k - 1] || '-' }}
-                </td>
-                <td
-                  v-for="mIdx in selectedMineIndices"
-                  :key="'opp-cell-' + mIdx"
-                >
-                  <template v-if="getOppToMineCell(oIdx - 1, mIdx, k - 1, showCrit)">
-                    <div :class="['dmg-value', { 'dmg-value--crit': showCrit }]">
-                      {{ getOppToMineCell(oIdx - 1, mIdx, k - 1, showCrit).dmgMin }}~{{ getOppToMineCell(oIdx - 1, mIdx, k - 1, showCrit).dmgMax }}
-                    </div>
-                    <div class="dmg-percent">
-                      {{ getOppToMineCell(oIdx - 1, mIdx, k - 1, showCrit).pctMin }}~{{ getOppToMineCell(oIdx - 1, mIdx, k - 1, showCrit).pctMax }}%
-                    </div>
-                  </template>
-                  <template v-else>
-                    -
-                  </template>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                  <td class="dmg-move-name">
+                    {{ oppSelectedMoves[oIdx - 1]?.[k - 1] || '-' }}
+                  </td>
+                  <td
+                    v-for="mIdx in selectedMineIndices"
+                    :key="'opp-cell-' + mIdx"
+                  >
+                    <template v-if="getOppToMineCell(oIdx - 1, mIdx, k - 1, showCrit)">
+                      <div :class="['dmg-value', { 'dmg-value--crit': showCrit }]">
+                        {{ getOppToMineCell(oIdx - 1, mIdx, k - 1, showCrit).dmgMin }}~{{ getOppToMineCell(oIdx - 1, mIdx, k - 1, showCrit).dmgMax }}
+                      </div>
+                      <div class="dmg-percent">
+                        {{ getOppToMineCell(oIdx - 1, mIdx, k - 1, showCrit).pctMin }}~{{ getOppToMineCell(oIdx - 1, mIdx, k - 1, showCrit).pctMax }}%
+                      </div>
+                    </template>
+                    <template v-else>
+                      -
+                    </template>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </section>
@@ -444,25 +446,7 @@ import { NatureMap } from '@/data/nature'
 import { MegaEvolutionMap } from '@/data/mega-evolutions'
 import { abilities } from '@/data/abilities'
 
-const MAX_MINE_SELECT = 3
-const selectedMineIndices = ref([]) // 클릭한 순서대로 index(0~5) 저장
-
-const isMineSelected = (index) => selectedMineIndices.value.includes(index)
-
-const getMineOrder = (index) => {
-  const pos = selectedMineIndices.value.indexOf(index)
-  return pos === -1 ? null : pos + 1
-}
-
-const toggleMineSelect = (index) => {
-  const pos = selectedMineIndices.value.indexOf(index)
-  if (pos !== -1) {
-    selectedMineIndices.value.splice(pos, 1) // 다시 누르면 해제, 뒤 순서는 자동으로 당겨짐
-    return
-  }
-  if (selectedMineIndices.value.length >= MAX_MINE_SELECT) return // 3개 초과 선택 무시
-  selectedMineIndices.value.push(index)
-}
+const { selectedMineIndices, isMineSelected, getMineOrder, toggleMineSelect } = useMineOrderSelection()
 
 const abilityDescription = (name) => abilities[name] || ''
 
@@ -893,7 +877,18 @@ watch(
   flex: 10;
   border: 2px dashed #555;
   border-radius: 6px;
-  min-height: 300px;
+  min-height: 850px;
+  max-height: 850px;       /* 원하는 높이로 조절 */
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  box-sizing: border-box;
+}
+.dmg-scroll-area {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: auto;
+  min-height: 0;   /* flex 자식이 내용만큼 늘어나지 않고 스크롤되게 하는 핵심 */
 }
 
 .battle-title {
