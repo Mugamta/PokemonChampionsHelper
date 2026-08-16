@@ -39,7 +39,7 @@
       </div>
 
       <button
-        v-if="isPartyPage"
+        v-if="showPartyResetButton"
         :style="{
           fontSize: '12px',
           padding: '6px 12px',
@@ -57,7 +57,7 @@
 
 
       <button
-        v-if="isNotEntryPage"
+        v-if="showEntryButton"
         :disabled="!isPartyComplete"
         :style="{
           fontSize: '12px',
@@ -75,7 +75,7 @@
       </button>
 
       <button
-        v-if="isEntryPage"
+        v-if="showPartyButton"
         :disabled="!isPartyComplete"
         :style="{
           fontSize: '12px',
@@ -93,7 +93,7 @@
       </button>
 
       <button
-        v-if="isEntryPage"
+        v-if="showBattleButton"
         :disabled="!isPartyComplete"
         :style="{
           fontSize: '12px',
@@ -111,7 +111,7 @@
       </button>
 
       <button
-        v-if="isEntryPage"
+        v-if="showBattleButton"
         :disabled="!isPartyComplete"
         :style="{
           fontSize: '12px',
@@ -209,9 +209,13 @@ const onRegulationChange = (value) => {
   }
 }
 
-const isNotEntryPage = computed(() => route.path !== '/entrySelect')
-const isPartyPage = computed(() => route.path === '/partySelect')
-const isEntryPage = computed(() => route.path === '/entrySelect')
+// 파티 화면은 메인, 선출 화면에서 가능
+const showPartyButton = computed(() => route.path === '/' || route.path === '/entrySelect')
+const showPartyResetButton = computed(() => route.path === '/partySelect')
+// 선출 화면은 파티, 배틀 화면에서 가능
+const showEntryButton = computed(() => route.path === '/partySelect' || route.path === '/singleBattle' || route.path === '/doubleBattle')
+// 배틀 화면은 선출 화면에서만 가능
+const showBattleButton = computed(() => route.path === '/entrySelect')
 
 const goToPartySelect = () => {
   if (!isPartyComplete.value) return
