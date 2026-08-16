@@ -119,3 +119,89 @@ export const calculateDamage = (
       critMax: critRange.max,
     }
 }
+
+// 포켓몬 데미지 난수 16종(85%~100%, 1%씩 증가)을 그대로 배열로 반환
+export const calculateDamageRolls = (
+        power: number,
+        attack: number,
+        defense: number,
+        STAB: boolean,
+        type: string,
+        category: string,
+        ability?: string,
+        weather?: string,
+        item?: string,
+        status?: string,
+        field?: string,
+        level: number = 50,
+        crit: boolean = false) => 
+    {
+    const modified = calculateBaseDamage(power, attack, STAB, type, category, ability, weather, item, status, field)
+
+    if (power <= 0 || modified <= 0 || defense <= 0) {
+      return Array.from({ length: 16 }, () => 0)
+    }
+
+    const levelFactor = Math.floor((2 * level) / 5) + 2
+    let core = Math.floor((levelFactor * modified) / defense / 50) + 2
+    if (crit) core = Math.floor(core * 1.5)
+
+    return Array.from({ length: 16 }, (_, i) => Math.floor((core * (85 + i)) / 100))
+}
+
+// 난수 N타(N회 공격 시 쓰러뜨릴 확률) 계산. 16개 난수의 조합을 컨볼루션하여
+// 정확한 확률을 구하고, 가장 먼저 확률이 0을 넘는 히트 수를 반환한다.
+// 반환: { hits, guaranteed, percent } | null (maxHits 안에 못 쓰러뜨리면 null)
+export const calculateKoInfo = (rolls: number[], hp: number, maxHits: number = 4) => {
+    if (!hp || hp <= 0) return null
+    if (!rolls || !rolls.length || rolls[rolls.length - 1] <= 0) return null
+
+    const n = rolls.length
+    let dist: Record<number, number> = { 0: 1 }
+
+    for (let hit = 1; hit <= maxHits; hit++) {
+      const newDist: Record<number, number> = {}
+      for (const sumKeyRaw in dist) {
+        const sum = Number(sumKeyRaw)
+        const cnt = dist[sumKeyRaw]
+        for (const r of rolls) {
+          const ns = sum + r
+          newDist[ns] = (newDist[ns] || 0) + cnt
+        }
+      }
+      dist = newDist
+
+      const total = Math.pow(n, hit)
+      let koCount = 0
+      for (const sumKeyRaw in dist) {
+        if (Number(sumKeyRaw) >= hp) koCount += dist[sumKeyRaw]
+      }
+
+      if (koCount > 0) {
+        return {
+          hits: hit,
+          guaranteed: koCount === total,
+          percent: (koCount / total) * 100,
+        }
+      }
+    }
+    return null
+}
+
+// "확정 1타" / "난수 2타 (43.2%)" 형태의 표시용 라벨 생성
+export const formatKoLabel = (rolls: number[], hp: number, maxHits: number = 4) => {
+    const info = calculateKoInfo(rolls, hp, maxHits)
+    if (!info) return ''
+    if (info.guaranteed) return `확정 ${info.hits}타`
+    return `난수 ${info.hits}타 (${info.percent.toFixed(1)}%)`
+}
+
+// 상태이상으로 인한 매 턴 잔여 데미지 계산 (독/화상/맹독)
+// toxicTurn: 맹독에 걸린 뒤 경과 턴(1부터 시작, 1턴째 1/16, 2턴째 2/16 ...)
+export const calculateStatusDamage = (maxHp: number, status: string, ability?: string, toxicTurn: number = 1) => {
+    if (!maxHp || maxHp <= 0) return 0
+    if (status === '독') return Math.floor(maxHp / 8)
+    if (status === '화상') return Math.floor(maxHp / (ability === '내열' ? 32 : 16))
+    if (status === '맹독') return Math.floor((maxHp * Math.max(1, toxicTurn)) / 16)
+    return 0
+}

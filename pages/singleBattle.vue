@@ -5,7 +5,7 @@
     <section class="sb-panel sb-panel--moves sb-cell-mine-moves">
       <div class="sb-panel-header-row">
         <h4 class="sb-panel-title">
-          내 기술 목록과 상대별 데미지
+          예상 데미지{{ previewMineName ? ` (${previewMineName} 공격)` : '' }}
         </h4>
         <label class="sb-crit-toggle">
           <input
@@ -17,7 +17,7 @@
       </div>
 
       <div
-        v-if="activeMineIndex === null"
+        v-if="previewMineIndex === null"
         class="sb-placeholder"
       >
         아래에서 내 포켓몬을 선택하세요
@@ -49,7 +49,7 @@
               :key="'mine-row-' + k"
             >
               <td class="sb-move-name">
-                {{ selectedMoves[activeMineIndex]?.[k] || '-' }}
+                {{ selectedMoves[previewMineIndex]?.[k] || '-' }}
               </td>
               <td
                 v-for="i in 6"
@@ -63,8 +63,18 @@
                   >
                     <span class="sb-scenario-label">{{ scenarioLabel(sc) }}</span>
                     <template v-if="mineCellScenario(k, i - 1, sc, showCritMine)">
-                      <span class="sb-dmg">{{ mineCellScenario(k, i - 1, sc, showCritMine).dmgMin }}~{{ mineCellScenario(k, i - 1, sc, showCritMine).dmgMax }}</span>
-                      <span class="sb-pct">({{ mineCellScenario(k, i - 1, sc, showCritMine).pctMin }}~{{ mineCellScenario(k, i - 1, sc, showCritMine).pctMax }}%)</span>
+                      <span
+                        class="sb-dmg"
+                        :class="{ 'sb-dmg--lethal': mineCellScenario(k, i - 1, sc, showCritMine).isLethalRange }"
+                      >{{ mineCellScenario(k, i - 1, sc, showCritMine).dmgMin }}~{{ mineCellScenario(k, i - 1, sc, showCritMine).dmgMax }}</span>
+                      <span
+                        class="sb-pct"
+                        :class="{ 'sb-pct--lethal': mineCellScenario(k, i - 1, sc, showCritMine).isLethalRange }"
+                      >({{ mineCellScenario(k, i - 1, sc, showCritMine).pctMin }}~{{ mineCellScenario(k, i - 1, sc, showCritMine).pctMax }}%)</span>
+                      <span
+                        v-if="mineCellScenario(k, i - 1, sc, showCritMine).koLabel"
+                        class="sb-ko-label"
+                      >{{ mineCellScenario(k, i - 1, sc, showCritMine).koLabel }}</span>
                     </template>
                     <span
                       v-else
@@ -262,7 +272,7 @@
 
     <!-- 우상단: 상태이상 + 상대 카드 + 실능치 + 랭크업 상태 + 확정/후보 목록 -->
     <section class="sb-panel sb-panel--opp-status sb-cell-opp-status">
-      <!-- 상태이상 / 특수 상태이상 (상대) — 확정/후보 목록보다 위 -->
+      <!-- 상태이상 / 특수 상태이상 (상대) — 항상 표시 -->
       <div class="sb-status-conditions">
         <div class="sb-condition-row">
           <span class="sb-condition-group-label">상태이상</span>
@@ -291,7 +301,7 @@
             :class="{ active: !!oppSpecialConditions[s] }"
             @click="toggleOppSpecialCondition(s)"
           >
-            {{ s }}
+            {{ specialConditionLabel(s, !!oppSpecialConditions[s], oppSpecialTurns) }}
           </button>
         </div>
       </div>
@@ -304,17 +314,13 @@
             @error="$event.target.src = pokemonImg"
           >
           <div class="sb-status-info">
-            <span class="sb-status-name">{{ oppDisplayName(activeOppIndex) }}</span>
-            <label
-              v-if="getOppMegaData(activeOppIndex) && oppMegaToggle[activeOppIndex] !== true"
-              class="sb-mega-toggle"
-            >
-              <input
-                v-model="oppMegaToggle[activeOppIndex]"
-                type="checkbox"
-              >
-              메가진화
-            </label>
+            <span class="sb-status-name">
+              {{ oppDisplayName(activeOppIndex) }}
+              <span
+                v-if="oppStatusSummary"
+                class="sb-status-summary"
+              >{{ oppStatusSummary }}</span>
+            </span>
             <div class="sb-hp-bar-bg">
               <div
                 class="sb-hp-bar-fill"
@@ -322,6 +328,23 @@
               />
             </div>
             <span class="sb-hp-text">{{ oppHpRange.min }}~{{ oppHpRange.max }}/{{ oppMaxHp }} ({{ Math.round(oppHpBarPercent) }}%)</span>
+          </div>
+          <div class="sb-status-right">
+            <span
+              class="sb-status-ability"
+              :title="abilityDescription(oppAbilityForCalc(activeOppIndex))"
+            >{{ oppAbilityForCalc(activeOppIndex) || '-' }}</span>
+            <label
+              v-if="getOppMegaData(activeOppIndex) && oppMegaToggle[activeOppIndex] !== true"
+              class="sb-mega-toggle"
+            >
+              <input
+                :checked="oppMegaToggle[activeOppIndex]"
+                type="checkbox"
+                @change="onOppMegaCheckboxChange(activeOppIndex, $event.target.checked)"
+              >
+              메가진화
+            </label>
           </div>
         </div>
 
@@ -447,14 +470,14 @@
 
     <!-- 좌하단: 내 파티(entrySelect 카드 스타일) + 현재 포켓몬 상태카드 + 상태이상 + 랭크업 -->
     <section class="sb-panel sb-panel--mine-status sb-cell-mine-status">
-      <!-- 내 파티 (entrySelect.vue 카드 스타일, 항상 표시, 가로 배치) -->
+      <!-- 내 파티 (entrySelect.vue 카드 스타일, 현재 나와있는 포켓몬은 제외, 가로 배치) -->
       <div class="sb-mine-team">
         <div
-          v-for="idx in orderedMineIndices"
+          v-for="idx in benchMineIndices"
           :key="'mine-card-' + idx"
           class="sb-mine-card"
-          :class="{ 'sb-mine-card--active': idx === activeMineIndex, 'sb-mine-card--fainted': isMineFainted(idx) }"
-          @click="selectMine(idx)"
+          :class="{ 'sb-mine-card--fainted': isMineFainted(idx), 'sb-mine-card--previewing': idx === previewMineIndex }"
+          @click="previewMineIndex = idx"
         >
           <img
             :src="mySprite(idx)"
@@ -471,6 +494,18 @@
               />
             </div>
             <span class="sb-hp-text">{{ Math.round(mineCurrentHp[idx] ?? mineDisplayStats(idx)?.H ?? 0) }}/{{ mineDisplayStats(idx)?.H ?? 0 }} ({{ mineHpPercentFor(idx) }}%)</span>
+            <label
+              v-if="getMineMegaData(idx) && mineMegaToggle[idx] !== true"
+              class="sb-mega-toggle"
+              @click.stop
+            >
+              <input
+                :checked="mineMegaToggle[idx]"
+                type="checkbox"
+                @change="onMineMegaCheckboxChange(idx, $event.target.checked)"
+              >
+              메가진화
+            </label>
           </div>
 
           <div class="sb-mine-card-stats">
@@ -507,9 +542,13 @@
             </div>
           </div>
         </div>
+        <span
+          v-if="!benchMineIndices.length"
+          class="sb-placeholder-small"
+        >대기 중인 포켓몬 없음</span>
       </div>
 
-      <!-- 현재 활성 포켓몬 요약 카드 (사진/HP/메가진화) -->
+      <!-- 현재 활성 포켓몬 요약 카드 (사진/HP/특성/메가진화) -->
       <div
         v-if="activeMineIndex !== null"
         class="sb-status-card"
@@ -520,17 +559,13 @@
           @error="$event.target.src = pokemonImg"
         >
         <div class="sb-status-info">
-          <span class="sb-status-name">{{ mineDisplayName(activeMineIndex) }}</span>
-          <label
-            v-if="getMineMegaData(activeMineIndex) && mineMegaToggle[activeMineIndex] !== true"
-            class="sb-mega-toggle"
-          >
-            <input
-              v-model="mineMegaToggle[activeMineIndex]"
-              type="checkbox"
-            >
-            메가진화
-          </label>
+          <span class="sb-status-name">
+            {{ mineDisplayName(activeMineIndex) }}
+            <span
+              v-if="mineStatusSummary"
+              class="sb-status-summary"
+            >{{ mineStatusSummary }}</span>
+          </span>
           <div class="sb-hp-bar-bg">
             <div
               class="sb-hp-bar-fill"
@@ -539,9 +574,26 @@
           </div>
           <span class="sb-hp-text">{{ Math.round(mineCurrentHp[activeMineIndex] || 0) }}/{{ mineMaxHp }} ({{ mineHpPercent }}%)</span>
         </div>
+        <div class="sb-status-right">
+          <span
+            class="sb-status-ability"
+            :title="abilityDescription(mineAbilityForCalc(activeMineIndex))"
+          >{{ mineAbilityForCalc(activeMineIndex) || '-' }}</span>
+          <label
+            v-if="getMineMegaData(activeMineIndex) && mineMegaToggle[activeMineIndex] !== true"
+            class="sb-mega-toggle"
+          >
+            <input
+              :checked="mineMegaToggle[activeMineIndex]"
+              type="checkbox"
+              @change="onMineMegaCheckboxChange(activeMineIndex, $event.target.checked)"
+            >
+            메가진화
+          </label>
+        </div>
       </div>
 
-      <!-- 상태이상 / 특수 상태이상 (내) -->
+      <!-- 상태이상 / 특수 상태이상 (내) — 항상 표시 -->
       <div class="sb-status-conditions">
         <div class="sb-condition-row">
           <span class="sb-condition-group-label">상태이상</span>
@@ -570,7 +622,7 @@
             :class="{ active: !!mineSpecialConditions[s] }"
             @click="toggleMineSpecialCondition(s)"
           >
-            {{ s }}
+            {{ specialConditionLabel(s, !!mineSpecialConditions[s], mineSpecialTurns) }}
           </button>
         </div>
       </div>
@@ -800,6 +852,108 @@
         </div>
       </div>
 
+      <div class="sb-inflict-status-block">
+        <label class="sb-inflict-checkbox">
+          <input
+            v-model="mineInflictsStatus"
+            type="checkbox"
+          >
+          내 포켓몬에게 상태이상 발생
+        </label>
+        <div
+          v-if="mineInflictsStatus"
+          class="sb-status-conditions"
+        >
+          <div class="sb-condition-row">
+            <span class="sb-condition-group-label">상태이상</span>
+            <button
+              v-for="s in STATUS_CONDITIONS"
+              :key="'mine-inflict-cond-' + s"
+              type="button"
+              class="sb-condition-btn"
+              :class="{ active: mineInflictStatusChoice === s }"
+              @click="mineInflictStatusChoice = mineInflictStatusChoice === s ? '' : s"
+            >
+              {{ s }}
+            </button>
+          </div>
+          <div
+            v-for="group in SPECIAL_CONDITION_GROUPS"
+            :key="'mine-inflict-group-' + group.label"
+            class="sb-condition-row"
+          >
+            <span class="sb-condition-group-label">특수 상태이상({{ group.label }})</span>
+            <button
+              v-for="s in group.items"
+              :key="'mine-inflict-cond-' + s"
+              type="button"
+              class="sb-condition-btn"
+              :class="{ active: mineInflictStatusChoice === s }"
+              @click="mineInflictStatusChoice = mineInflictStatusChoice === s ? '' : s"
+            >
+              {{ s }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="sb-inflict-status-block">
+        <label class="sb-inflict-checkbox">
+          <input
+            v-model="oppInflictsStatus"
+            type="checkbox"
+          >
+          상대 포켓몬에게 상태이상 발생
+        </label>
+        <div
+          v-if="oppInflictsStatus"
+          class="sb-status-conditions"
+        >
+          <div class="sb-condition-row">
+            <span class="sb-condition-group-label">상태이상</span>
+            <button
+              v-for="s in STATUS_CONDITIONS"
+              :key="'opp-inflict-cond-' + s"
+              type="button"
+              class="sb-condition-btn"
+              :class="{ active: oppInflictStatusChoice === s }"
+              @click="oppInflictStatusChoice = oppInflictStatusChoice === s ? '' : s"
+            >
+              {{ s }}
+            </button>
+          </div>
+          <div
+            v-for="group in SPECIAL_CONDITION_GROUPS"
+            :key="'opp-inflict-group-' + group.label"
+            class="sb-condition-row"
+          >
+            <span class="sb-condition-group-label">특수 상태이상({{ group.label }})</span>
+            <button
+              v-for="s in group.items"
+              :key="'opp-inflict-cond-' + s"
+              type="button"
+              class="sb-condition-btn"
+              :class="{ active: oppInflictStatusChoice === s }"
+              @click="oppInflictStatusChoice = oppInflictStatusChoice === s ? '' : s"
+            >
+              {{ s }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div
+        v-if="mineStatusDamageForecast || oppStatusDamageForecast"
+        class="sb-status-forecast"
+      >
+        <div v-if="mineStatusDamageForecast">
+          {{ mineStatusDamageForecast }}
+        </div>
+        <div v-if="oppStatusDamageForecast">
+          {{ oppStatusDamageForecast }}
+        </div>
+      </div>
+
       <button
         type="button"
         class="sb-execute-btn"
@@ -866,12 +1020,19 @@
                 >(메가)</span>
               </span>
               <template v-if="oppCellVsMine(k - 1, col.idx, col.mega, showCritOpp)">
-                <span :class="['sb-dmg', { 'sb-dmg--crit': showCritOpp }]">
+                <span :class="['sb-dmg', { 'sb-dmg--crit': showCritOpp, 'sb-dmg--lethal': oppCellVsMine(k - 1, col.idx, col.mega, showCritOpp).isLethalRange }]">
                   {{ oppCellVsMine(k - 1, col.idx, col.mega, showCritOpp).dmgMin }}~{{ oppCellVsMine(k - 1, col.idx, col.mega, showCritOpp).dmgMax }}
                 </span>
-                <span class="sb-pct">
+                <span
+                  class="sb-pct"
+                  :class="{ 'sb-pct--lethal': oppCellVsMine(k - 1, col.idx, col.mega, showCritOpp).isLethalRange }"
+                >
                   ({{ oppCellVsMine(k - 1, col.idx, col.mega, showCritOpp).pctMin }}~{{ oppCellVsMine(k - 1, col.idx, col.mega, showCritOpp).pctMax }}%)
                 </span>
+                <span
+                  v-if="oppCellVsMine(k - 1, col.idx, col.mega, showCritOpp).koLabel"
+                  class="sb-ko-label"
+                >{{ oppCellVsMine(k - 1, col.idx, col.mega, showCritOpp).koLabel }}</span>
               </template>
               <span
                 v-else
@@ -887,13 +1048,20 @@
 
 <script setup>
 import { calculateStat } from '@/utils/stat'
-import { calculateDamage, calculateBaseDamage } from '@/utils/move'
+import { calculateDamage, calculateBaseDamage, calculateDamageRolls, formatKoLabel, calculateStatusDamage } from '@/utils/move'
 import { MegaEvolutionMap } from '@/data/mega-evolutions'
 import { getMoveData, formatMoveInfo } from '@/utils/move-info'
 import { NatureMap } from '@/data/nature'
 
 const mineAction = reactive({ type: '기술사용', moveIndex: 0, targetIndex: null, useMega: false, dmgPercent: 0 })
 const oppAction = reactive({ type: '기술사용', moveIndex: 0, targetIndex: null, useMega: false, damageTaken: 0 })
+
+// 체크 시 아래에 상태이상~특수 상태이상 선택 목록이 노출되고,
+// "이번 턴 적용" 클릭 시 선택된 상태이상이 각각 내/상대 포켓몬에게 적용된다.
+const mineInflictsStatus = ref(false)
+const oppInflictsStatus = ref(false)
+const mineInflictStatusChoice = ref('')
+const oppInflictStatusChoice = ref('')
 
 const config = useRuntimeConfig()
 const pokemonImg = (config.app.baseURL || '/') + 'pokemon.webp'
@@ -923,9 +1091,15 @@ const {
 const { selectedMineIndices } = useMineOrderSelection()
 
 const orderedMineIndices = computed(() => [...selectedMineIndices.value])
+const benchMineIndices = computed(() => orderedMineIndices.value.filter((idx) => idx !== activeMineIndex.value))
 
 const activeMineIndex = ref(null)
 const activeOppIndex = ref(null)
+
+// 좌상단 "예상 데미지" 표에 표시할 미리보기 대상(실제 필드 교체와는 별개).
+// 기본값은 현재 실제로 나와있는 포켓몬이며, 벤치 카드를 클릭하면 그 포켓몬의 예상 데미지만 미리 볼 수 있다.
+const previewMineIndex = ref(null)
+watch(activeMineIndex, (val) => { previewMineIndex.value = val }, { immediate: true })
 
 const showCritMine = ref(false)
 const showCritOpp = ref(false)
@@ -944,7 +1118,7 @@ const statKeys = [
 ]
 
 // ── 상태이상 / 특수 상태이상 (내 / 상대 각각) ─────────────
-const STATUS_CONDITIONS = ['독', '화상', '마비', '잠듦', '얼음']
+const STATUS_CONDITIONS = ['독', '맹독', '화상', '마비', '잠듦', '얼음']
 const SPECIAL_CONDITION_GROUPS = [
   { label: '멘탈허브', items: ['혼란', '반동', '도발', '사슬묶기', '앙코르', '트집', '헤롱헤롱', '회복봉인'] },
   { label: '기타', items: ['소금절이', '씨뿌리기', '악몽', '저주'] },
@@ -955,18 +1129,119 @@ const mineSpecialConditions = reactive({})
 const oppStatusCondition = ref('')
 const oppSpecialConditions = reactive({})
 
+// 특수 상태이상 지속 턴 수(null/미기재면 무한 지속 = ∞ 표시, 숫자면 총 지속 턴)
+const SPECIAL_CONDITION_DURATIONS = {
+  혼란: 4,
+  반동: 1,
+  도발: 3,
+  사슬묶기: null,
+  앙코르: 4,
+  트집: null,
+  헤롱헤롱: null,
+  회복봉인: 5,
+  소금절이: null,
+  씨뿌리기: null,
+  악몽: null,
+  저주: null,
+  문어굳히기: null,
+  물고버티기: 5,
+  뿌리박기: null,
+  조이기: 5,
+}
+// 특수 상태이상별 현재 경과 턴(지속 턴이 있는 항목만 사용)
+const mineSpecialTurns = reactive({})
+const oppSpecialTurns = reactive({})
+
+const specialConditionLabel = (name, active, turnsMap) => {
+  if (!active) return name
+  const total = SPECIAL_CONDITION_DURATIONS[name]
+  if (total === null || total === undefined) return `${name}(∞)`
+  const current = turnsMap[name] || 1
+  return `${name}(${current}/${total})`
+}
+
+// 맹독 경과 턴(걸린 첫 턴 1, 다음 턴 2 ...) — 상태이상이 바뀌면 초기화
+const mineToxicTurn = ref(0)
+const oppToxicTurn = ref(0)
+
 const toggleMineStatusCondition = (name) => {
   mineStatusCondition.value = mineStatusCondition.value === name ? '' : name
+  mineToxicTurn.value = 0
 }
 const toggleMineSpecialCondition = (name) => {
-  mineSpecialConditions[name] = !mineSpecialConditions[name]
+  const turningOn = !mineSpecialConditions[name]
+  mineSpecialConditions[name] = turningOn
+  if (turningOn) {
+    mineSpecialTurns[name] = 1
+  } else {
+    delete mineSpecialTurns[name]
+  }
 }
 const toggleOppStatusCondition = (name) => {
   oppStatusCondition.value = oppStatusCondition.value === name ? '' : name
+  oppToxicTurn.value = 0
 }
 const toggleOppSpecialCondition = (name) => {
-  oppSpecialConditions[name] = !oppSpecialConditions[name]
+  const turningOn = !oppSpecialConditions[name]
+  oppSpecialConditions[name] = turningOn
+  if (turningOn) {
+    oppSpecialTurns[name] = 1
+  } else {
+    delete oppSpecialTurns[name]
+  }
 }
+
+// 특성 설명(마우스 호버 툴팁용) — 계산 로직에서 다루는 특성 위주로 기재
+const ABILITY_DESCRIPTIONS = {
+  천하장사: '물리 기술의 위력이 1.5배가 된다.',
+  근성: '상태이상(화상/마비 등)에 걸리면 공격 관련 스탯이 1.5배가 된다.',
+  날씨부정: '날씨의 효과를 무시한다.',
+  에어록: '날씨의 효과를 무시한다.',
+  내열: '화상으로 인한 매 턴 데미지가 절반(1/32)으로 줄어든다.',
+  부유: '땅 타입 기술에 맞지 않으며, 필드의 효과를 받지 않는다.',
+}
+const abilityDescription = (name) => (name ? (ABILITY_DESCRIPTIONS[name] || name) : '')
+
+// 이름 옆에 표시할 상태이상 요약(맹독 데미지 비율 + 활성화된 특수 상태이상 지속 턴)
+const buildStatusSummary = (statusCondition, toxicTurn, specialConditions, specialTurns) => {
+  const parts = []
+  if (statusCondition) {
+    if (statusCondition === '맹독') {
+      parts.push(`맹독(${toxicTurn + 1}/16)`)
+    } else {
+      parts.push(statusCondition)
+    }
+  }
+  Object.keys(specialConditions).forEach((name) => {
+    if (specialConditions[name]) {
+      parts.push(specialConditionLabel(name, true, specialTurns))
+    }
+  })
+  return parts.join(', ')
+}
+const mineStatusSummary = computed(() => buildStatusSummary(mineStatusCondition.value, mineToxicTurn.value, mineSpecialConditions, mineSpecialTurns))
+const oppStatusSummary = computed(() => buildStatusSummary(oppStatusCondition.value, oppToxicTurn.value, oppSpecialConditions, oppSpecialTurns))
+
+// 중앙 하단: "이번 턴 적용" 시 독/맹독/화상으로 깎일 예상 데미지 문구
+const buildStatusDamageForecast = (label, statusCondition, toxicTurn, maxHp, ability) => {
+  if (!statusCondition || !['독', '맹독', '화상'].includes(statusCondition)) return ''
+  const nextToxicTurn = statusCondition === '맹독' ? toxicTurn + 1 : toxicTurn
+  const dmg = calculateStatusDamage(maxHp, statusCondition, ability, nextToxicTurn)
+  const fraction = statusCondition === '독'
+    ? '1/8'
+    : statusCondition === '화상'
+      ? (ability === '내열' ? '1/32' : '1/16')
+      : `${nextToxicTurn}/16`
+  return `턴 종료 시 ${label} ${statusCondition}으로 인하여 ${dmg}를 입음 (${fraction})`
+}
+const mineStatusDamageForecast = computed(() => {
+  if (activeMineIndex.value === null) return ''
+  return buildStatusDamageForecast('내 포켓몬이', mineStatusCondition.value, mineToxicTurn.value, mineDisplayStats(activeMineIndex.value)?.H || 0, mineAbilityForCalc(activeMineIndex.value))
+})
+const oppStatusDamageForecast = computed(() => {
+  if (activeOppIndex.value === null) return ''
+  return buildStatusDamageForecast('상대 포켓몬이', oppStatusCondition.value, oppToxicTurn.value, oppDisplayStats(activeOppIndex.value)?.H || 0, oppAbilityForCalc(activeOppIndex.value))
+})
 
 // ── 메가진화 판정 ─────────────
 const getMineMegaData = (index) => {
@@ -1047,15 +1322,129 @@ const ensureOppHpInit = (index) => {
   }
 }
 
+// ── 날씨 자동 발동(기술/특성/메가·원시 등장) ─────────────
+// selectMine/selectOpp(등장·교체)에서 곧바로 사용하므로 여기서 먼저 선언한다.
+const battleWeather = ref('없음')
+const weatherTurn = reactive({ current: 0, total: 5 })
+const WEATHER_BASE_TOTAL = 5
+const WEATHER_EXTENDED_TOTAL = 8
+
+// 턴 제한 없는 날씨(메가레쿠쟈/원시가이오가/원시그란돈)를 유발한 포켓몬 추적
+const weatherSource = reactive({ side: null, idx: null })
+
+const setWeather = (newWeather, opts = {}) => {
+  battleWeather.value = newWeather
+  weatherTurn.current = 0
+  weatherTurn.total = WEATHER_BASE_TOTAL
+  if (opts.permanent) {
+    weatherSource.side = opts.side
+    weatherSource.idx = opts.idx
+  } else {
+    weatherSource.side = null
+    weatherSource.idx = null
+  }
+}
+
+// 영구 날씨를 유발한 포켓몬이 필드에서 벗어나면(교체) 날씨가 사라진다
+const clearWeatherIfSourceGone = (side, idx) => {
+  if (weatherSource.side === side && weatherSource.idx === idx) {
+    battleWeather.value = '없음'
+    weatherSource.side = null
+    weatherSource.idx = null
+  }
+}
+// 영구 날씨를 유발한 포켓몬이 기절해도 날씨가 사라진다
+const checkWeatherSourceFainted = () => {
+  if (weatherSource.side === 'mine' && isMineFainted(weatherSource.idx)) {
+    battleWeather.value = '없음'
+    weatherSource.side = null
+    weatherSource.idx = null
+  }
+  if (weatherSource.side === 'opp' && isOppFainted(weatherSource.idx)) {
+    battleWeather.value = '없음'
+    weatherSource.side = null
+    weatherSource.idx = null
+  }
+}
+
+// 메가레쿠쟈/원시가이오가/원시그란돈 등장(레쿠쟈로 나온 뒤 메가진화하는 경우 포함) 시
+// 턴 제한 없는 날씨로 덮어쓴다. 셋 중 나중에 등장한 쪽이 우선한다.
+const PRIMAL_WEATHER_MAP = { 메가레쿠쟈: '난기류', 원시가이오가: '폭우', 원시그란돈: '큰가뭄' }
+const checkMegaFormWeather = (side, idx) => {
+  // 실제로 필드에 나와있는 포켓몬일 때만 날씨에 영향을 준다(벤치에서 메가 토글만 켠 경우는 제외)
+  const activeIdx = side === 'mine' ? activeMineIndex.value : activeOppIndex.value
+  if (activeIdx !== idx) return
+  const megaData = side === 'mine' ? getMineMegaData(idx) : getOppMegaData(idx)
+  const toggled = side === 'mine' ? mineMegaToggle[idx] === true : oppMegaToggle[idx] === true
+  if (megaData && toggled && PRIMAL_WEATHER_MAP[megaData.megaName]) {
+    setWeather(PRIMAL_WEATHER_MAP[megaData.megaName], { permanent: true, side, idx })
+  }
+}
+
+// 가뭄/잔비/모래날림/눈퍼뜨리기 특성을 지닌 포켓몬이 등장하면 기존 날씨를 덧씌우고 턴이 새로 시작된다
+const WEATHER_ABILITY_MAP = { 가뭄: '쾌청', 잔비: '비', 모래날림: '모래바람', 눈퍼뜨리기: '눈' }
+const checkAbilityWeather = (side, idx) => {
+  if (weatherSource.side !== null) return // 원시 날씨(턴 무제한)는 일반 날씨 특성으로 덮어쓰지 않음
+  const ability = side === 'mine' ? mineAbilityForCalc(idx) : oppAbilityForCalc(idx)
+  const weather = WEATHER_ABILITY_MAP[ability]
+  if (weather) {
+    setWeather(weather)
+  }
+}
+
+// 쾌청/비바라기/모래바람/설경 기술을 사용하면 해당 날씨로 전환된다
+const WEATHER_MOVE_MAP = { 쾌청: '쾌청', 비바라기: '비', 모래바람: '모래바람', 설경: '눈' }
+const maybeApplyWeatherMove = (moveName) => {
+  if (weatherSource.side !== null) return
+  const weather = WEATHER_MOVE_MAP[moveName]
+  if (weather) {
+    setWeather(weather)
+  }
+}
+
+// 메가진화/원시회귀 체크박스를 직접 클릭했을 때(카드 위 토글) 날씨 체크까지 함께 수행
+const onMineMegaCheckboxChange = (idx, checked) => {
+  mineMegaToggle[idx] = checked
+  if (checked) {
+    checkMegaFormWeather('mine', idx)
+  } else {
+    clearWeatherIfSourceGone('mine', idx)
+  }
+}
+const onOppMegaCheckboxChange = (idx, checked) => {
+  oppMegaToggle[idx] = checked
+  if (checked) {
+    checkMegaFormWeather('opp', idx)
+  } else {
+    clearWeatherIfSourceGone('opp', idx)
+  }
+}
+
+const toggleBattleWeather = (v) => {
+  battleWeather.value = v === '없음' ? '없음' : (battleWeather.value === v ? '없음' : v)
+  weatherTurn.current = 0
+  weatherTurn.total = WEATHER_BASE_TOTAL
+  weatherSource.side = null
+  weatherSource.idx = null
+}
+
 const selectMine = (idx) => {
   if (isMineFainted(idx)) return
   ensureMineHpInit(idx)
+  const prevMineIndex = activeMineIndex.value
   activeMineIndex.value = idx
+  if (prevMineIndex !== null && prevMineIndex !== idx) clearWeatherIfSourceGone('mine', prevMineIndex)
+  checkMegaFormWeather('mine', idx)
+  checkAbilityWeather('mine', idx)
 }
 const selectOpp = (idx) => {
   if (isOppFainted(idx)) return
   ensureOppHpInit(idx)
+  const prevOppIndex = activeOppIndex.value
   activeOppIndex.value = idx
+  if (prevOppIndex !== null && prevOppIndex !== idx) clearWeatherIfSourceGone('opp', prevOppIndex)
+  checkMegaFormWeather('opp', idx)
+  checkAbilityWeather('opp', idx)
   if (!revealedOppIndices.value.includes(idx)) {
     revealedOppIndices.value.push(idx)
   }
@@ -1135,17 +1524,11 @@ const oppStatBoostReason = (index, statKey) => {
   return boost && boost.stat === statKey ? boost.label : null
 }
 
-// ── 날씨 / 필드 / 공간변화 + 턴 카운터 ─────────────
+// ── 필드 / 공간변화 + 턴 카운터 (날씨 관련 상태는 selectMine/selectOpp 이전에 선언됨) ─────────────
 const fieldOptions = ['일렉트릭필드', '그래스필드', '미스트필드', '사이코필드']
 
-const battleWeather = ref('없음')
 const battleField = ref('없음')
-
-const weatherTurn = reactive({ current: 0, total: 5 })
 const fieldTurn = reactive({ current: 0, total: 5 })
-
-const WEATHER_BASE_TOTAL = 5
-const WEATHER_EXTENDED_TOTAL = 8
 
 const changeExtendableTurn = (target, delta) => {
   if (delta > 0) {
@@ -1164,11 +1547,6 @@ const advanceEffectTurn = (target, onEnd) => {
   }
 }
 
-const toggleBattleWeather = (v) => {
-  battleWeather.value = v === '없음' ? '없음' : (battleWeather.value === v ? '없음' : v)
-  weatherTurn.current = 0
-  weatherTurn.total = WEATHER_BASE_TOTAL
-}
 const toggleBattleField = (v) => {
   battleField.value = battleField.value === v ? '없음' : v
   fieldTurn.current = 0
@@ -1223,7 +1601,89 @@ const oppMoveOptions = (index, moveIdx) => {
   return allMoves.filter((m) => !used.includes(m))
 }
 
-// 교체 → 기술사용 순으로 처리
+// 중앙 하단에서 선택한 상태이상을 실제로 내/상대 포켓몬에게 적용
+// (1. 내 기술로 상태이상 유발 → 내 포켓몬, 2. 상대 기술로 상태이상 유발 → 상대 포켓몬)
+const applyInflictedStatusChoices = () => {
+  if (mineInflictsStatus.value && mineInflictStatusChoice.value) {
+    const value = mineInflictStatusChoice.value
+    if (STATUS_CONDITIONS.includes(value)) {
+      mineStatusCondition.value = value
+      mineToxicTurn.value = 0
+    } else {
+      mineSpecialConditions[value] = true
+      mineSpecialTurns[value] = 1
+    }
+  }
+  mineInflictsStatus.value = false
+  mineInflictStatusChoice.value = ''
+
+  if (oppInflictsStatus.value && oppInflictStatusChoice.value) {
+    const value = oppInflictStatusChoice.value
+    if (STATUS_CONDITIONS.includes(value)) {
+      oppStatusCondition.value = value
+      oppToxicTurn.value = 0
+    } else {
+      oppSpecialConditions[value] = true
+      oppSpecialTurns[value] = 1
+    }
+  }
+  oppInflictsStatus.value = false
+  oppInflictStatusChoice.value = ''
+}
+
+// 특수 상태이상 지속 턴을 1씩 진행시키고, 지속 턴이 다한 항목은 해제한다.
+// (사슬묶기/트집/헤롱헤롱/씨뿌리기 등 무한 지속 항목은 계속 유지)
+const advanceSpecialConditionTurns = (conditions, turns) => {
+  Object.keys(conditions).forEach((name) => {
+    if (!conditions[name]) return
+    const total = SPECIAL_CONDITION_DURATIONS[name]
+    if (total === null || total === undefined) return
+    const next = (turns[name] || 1) + 1
+    if (next > total) {
+      delete conditions[name]
+      delete turns[name]
+    } else {
+      turns[name] = next
+    }
+  })
+}
+
+// 상태이상으로 인한 턴 종료 시 잔여 데미지 적용 (독/맹독/화상)
+const applyEndOfTurnStatusDamage = () => {
+  if (activeMineIndex.value !== null && mineStatusCondition.value) {
+    const mi = activeMineIndex.value
+    if (mineStatusCondition.value === '맹독') {
+      mineToxicTurn.value += 1
+    }
+    const dmg = calculateStatusDamage(
+      mineDisplayStats(mi)?.H || 0,
+      mineStatusCondition.value,
+      mineAbilityForCalc(mi),
+      mineToxicTurn.value,
+    )
+    if (dmg > 0) {
+      mineCurrentHp[mi] = Math.max(0, (mineCurrentHp[mi] || 0) - dmg)
+    }
+  }
+  if (activeOppIndex.value !== null && oppStatusCondition.value) {
+    const oi = activeOppIndex.value
+    if (oppStatusCondition.value === '맹독') {
+      oppToxicTurn.value += 1
+    }
+    const dmg = calculateStatusDamage(
+      oppDisplayStats(oi)?.H || 0,
+      oppStatusCondition.value,
+      oppAbilityForCalc(oi),
+      oppToxicTurn.value,
+    )
+    if (dmg > 0) {
+      const maxHp = oppMaxHp.value || 1
+      oppHpPercent[oi] = Math.max(0, (oppHpPercent[oi] ?? 100) - (dmg / maxHp) * 100)
+    }
+  }
+}
+
+// 교체 → 기술사용 → 상태이상 잔여 데미지 순으로 처리
 const executeTurn = () => {
   if (mineAction.type === '교체' && mineAction.targetIndex !== null) {
     selectMine(mineAction.targetIndex)
@@ -1239,6 +1699,10 @@ const executeTurn = () => {
   if (mineAction.type === '기술사용') {
     if (mineAction.useMega && activeMineIndex.value !== null) {
       mineMegaToggle[activeMineIndex.value] = true
+      checkMegaFormWeather('mine', activeMineIndex.value)
+    }
+    if (activeMineIndex.value !== null) {
+      maybeApplyWeatherMove(selectedMoves.value[activeMineIndex.value]?.[mineAction.moveIndex])
     }
     if (activeOppIndex.value !== null) {
       const oi = activeOppIndex.value
@@ -1250,6 +1714,10 @@ const executeTurn = () => {
   if (oppAction.type === '기술사용') {
     if (oppAction.useMega && activeOppIndex.value !== null) {
       oppMegaToggle[activeOppIndex.value] = true
+      checkMegaFormWeather('opp', activeOppIndex.value)
+    }
+    if (activeOppIndex.value !== null) {
+      maybeApplyWeatherMove(oppSelectedMoves.value[activeOppIndex.value]?.[oppAction.moveIndex])
     }
     if (activeMineIndex.value !== null) {
       const mi = activeMineIndex.value
@@ -1257,7 +1725,15 @@ const executeTurn = () => {
     }
   }
 
-  if (battleWeather.value !== '없음') {
+  checkWeatherSourceFainted()
+
+  applyInflictedStatusChoices()
+  applyEndOfTurnStatusDamage()
+  advanceSpecialConditionTurns(mineSpecialConditions, mineSpecialTurns)
+  advanceSpecialConditionTurns(oppSpecialConditions, oppSpecialTurns)
+
+  // 턴 제한 없는 날씨(메가레쿠쟈/원시가이오가/원시그란돈)는 턴이 지나도 사라지지 않는다
+  if (battleWeather.value !== '없음' && weatherSource.side === null) {
     advanceEffectTurn(weatherTurn, () => { battleWeather.value = '없음' })
   }
   if (battleField.value !== '없음') {
@@ -1301,6 +1777,8 @@ const oppDisplayName = (index) => {
   return mega && toggled ? mega.megaName : (oppSelectedPokemon.value[index] || '')
 }
 
+const previewMineName = computed(() => (previewMineIndex.value === null ? '' : mineDisplayName(previewMineIndex.value)))
+
 const mySprite = (index) => {
   const mega = getMineMegaData(index)
   const toggled = mineMegaToggle[index] === true
@@ -1329,15 +1807,26 @@ const getMineMoveBaseDamage = (idx, moveIndex) => {
   return calculateBaseDamage(move.Power || 0, attack, true, move.Type || '', move.Category, ability, battleWeather.value, item, '', battleField.value)
 }
 
+// 1타가 가능한지(최대 데미지가 100%를 넘는지) 판정
+const isLethalPercentRange = (pctMax) => Number(pctMax) >= 100
+
 const buildCell = (move, attack, defense, ability, item, defHp, useCrit) => {
   const dmg = calculateDamage(move.Power || 0, attack, defense, true, move.Type || '', move.Category, ability, battleWeather.value, item, '', battleField.value, 50)
   const dmgMin = useCrit ? dmg.critMin : dmg.min
   const dmgMax = useCrit ? dmg.critMax : dmg.max
+  const pctMin = defHp > 0 ? ((dmgMin / defHp) * 100).toFixed(1) : '0.0'
+  const pctMax = defHp > 0 ? ((dmgMax / defHp) * 100).toFixed(1) : '0.0'
+
+  const rolls = calculateDamageRolls(move.Power || 0, attack, defense, true, move.Type || '', move.Category, ability, battleWeather.value, item, '', battleField.value, 50, useCrit)
+  const koLabel = formatKoLabel(rolls, defHp)
+
   return {
     dmgMin,
     dmgMax,
-    pctMin: defHp > 0 ? ((dmgMin / defHp) * 100).toFixed(1) : '0.0',
-    pctMax: defHp > 0 ? ((dmgMax / defHp) * 100).toFixed(1) : '0.0',
+    pctMin,
+    pctMax,
+    isLethalRange: isLethalPercentRange(pctMax),
+    koLabel,
   }
 }
 
@@ -1369,9 +1858,9 @@ const scenarioKeys = ['neutral', 'h32', 'full', 'fullNature']
 const scenarioLabel = (sc) => ({ neutral: '무보정', h32: 'H32', full: '풀보정', fullNature: '풀보정(성격)' }[sc])
 
 const mineDamageMoveIndices = computed(() => {
-  if (activeMineIndex.value === null) return []
+  if (previewMineIndex.value === null) return []
   return [0, 1, 2, 3].filter((k) => {
-    const name = selectedMoves.value[activeMineIndex.value]?.[k]
+    const name = selectedMoves.value[previewMineIndex.value]?.[k]
     if (!name) return false
     const move = getMoveData(name)
     return move && move.Category !== '변화'
@@ -1402,22 +1891,24 @@ const scenarioHpValue = (idx, scenario) => {
 }
 
 const mineCellScenario = (moveIndex, oppIdx, scenario, useCrit) => {
-  if (activeMineIndex.value === null) return null
+  if (previewMineIndex.value === null) return null
   if (!oppSelectedPokemon.value[oppIdx]) return null
-  const moveName = selectedMoves.value[activeMineIndex.value]?.[moveIndex]
+  const moveName = selectedMoves.value[previewMineIndex.value]?.[moveIndex]
   if (!moveName) return null
   const move = getMoveData(moveName)
   if (!move || move.Category === '변화') return null
   const atkKey = move.Category === '물리' ? 'A' : 'C'
   const defKey = move.Category === '물리' ? 'B' : 'D'
 
-  const atkStats = mineDisplayStats(activeMineIndex.value)
-  const attack = (atkStats?.[atkKey] || 0) * rankMultiplier(mineRanks[atkKey])
+  const atkStats = mineDisplayStats(previewMineIndex.value)
+  // 랭크업은 실제 필드에 나와있는 포켓몬에게만 적용(벤치 미리보기 대상에는 적용 안 함)
+  const atkRank = previewMineIndex.value === activeMineIndex.value ? mineRanks[atkKey] : 0
+  const attack = (atkStats?.[atkKey] || 0) * rankMultiplier(atkRank)
   const defRank = oppIdx === activeOppIndex.value ? oppRanks[defKey] : 0
   const defense = scenarioDefenseValue(oppIdx, defKey, scenario) * rankMultiplier(defRank)
   const defHp = scenarioHpValue(oppIdx, scenario)
 
-  return buildCell(move, attack, defense, mineAbilityForCalc(activeMineIndex.value), selectedTool.value[activeMineIndex.value], defHp, useCrit)
+  return buildCell(move, attack, defense, mineAbilityForCalc(previewMineIndex.value), selectedTool.value[previewMineIndex.value], defHp, useCrit)
 }
 
 // ── 우하단 표: 받은 데미지 역산용 시나리오 ─────────────
@@ -1455,11 +1946,15 @@ const oppDamageScenario = (moveIndex, scenario, useCrit) => {
     const defHp = defStats?.H || 0
     const dmgMin = Math.floor(cell.dmgMin * 1.2)
     const dmgMax = Math.floor(cell.dmgMax * 1.2)
+    const pctMin = defHp > 0 ? ((dmgMin / defHp) * 100).toFixed(1) : '0.0'
+    const pctMax = defHp > 0 ? ((dmgMax / defHp) * 100).toFixed(1) : '0.0'
     return {
       dmgMin,
       dmgMax,
-      pctMin: defHp > 0 ? ((dmgMin / defHp) * 100).toFixed(1) : '0.0',
-      pctMax: defHp > 0 ? ((dmgMax / defHp) * 100).toFixed(1) : '0.0',
+      pctMin,
+      pctMax,
+      isLethalRange: isLethalPercentRange(pctMax),
+      koLabel: cell.koLabel,
     }
   }
   return cell
@@ -1525,11 +2020,12 @@ const oppScenarioMatches = computed(() => {
   align-items: start;
 }
 .sb-cell-mine-moves  { grid-area: mineMoves; }
-.sb-cell-field        { grid-area: field; border-left: 3px solid #e53935; padding-left: 10px; }
-.sb-cell-opp-status  { grid-area: oppStatus; border-left: 3px solid #e53935; padding-left: 10px; }
+.sb-cell-field        { grid-area: field; }
+.sb-cell-opp-status  { grid-area: oppStatus; }
 .sb-cell-mine-status { grid-area: mineStatus; }
-.sb-cell-empty        { grid-area: fieldBottom; border-left: 3px solid #e53935; padding-left: 10px; }
-.sb-cell-opp-moves   { grid-area: oppMoves; border-left: 3px solid #e53935; padding-left: 10px; }
+/* 중앙/우측 열의 아래쪽 카드는 위쪽 카드와의 사이에 빨간 구분선을 넣는다 */
+.sb-cell-empty        { grid-area: fieldBottom; border-top: 3px solid #e53935; padding-top: 14px; }
+.sb-cell-opp-moves   { grid-area: oppMoves; border-top: 3px solid #e53935; padding-top: 14px; }
 
 .sb-panel { background:#555; border-radius:6px; padding:8px; color:#fff; min-height:60px; box-sizing:border-box; }
 .sb-panel-header-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
@@ -1543,6 +2039,9 @@ const oppScenarioMatches = computed(() => {
 .sb-input-label { font-size:10px; color:#999; }
 .sb-preview { font-size:10px; color:#8bc34a; }
 .sb-preview--none { color:#ff8a65; }
+.sb-inflict-status-block { display:flex; flex-direction:column; gap:4px; border-top:1px solid #666; padding-top:8px; }
+.sb-inflict-checkbox { display:flex; align-items:center; gap:4px; font-size:11px; cursor:pointer; }
+.sb-status-forecast { display:flex; flex-direction:column; gap:2px; font-size:10px; color:#ffb74d; border-top:1px solid #666; padding-top:6px; }
 
 .sb-panel--moves { align-self:start; }
 
@@ -1554,7 +2053,7 @@ const oppScenarioMatches = computed(() => {
 
 .sb-scenario-line {
   display:grid;
-  grid-template-columns: 76px 56px 66px;
+  grid-template-columns: 76px 56px 66px 92px;
   column-gap:4px;
   align-items:center;
   white-space:nowrap;
@@ -1565,7 +2064,8 @@ const oppScenarioMatches = computed(() => {
 .sb-scenario-label { color:#999; text-align:left; }
 .sb-scenario-line .sb-dmg { text-align:right; }
 .sb-scenario-line .sb-pct { text-align:right; }
-.sb-scenario-line .sb-dmg-empty { grid-column: 2 / span 2; text-align:center; }
+.sb-scenario-line .sb-ko-label { text-align:right; color:#4fc3f7; font-size:9px; }
+.sb-scenario-line .sb-dmg-empty { grid-column: 2 / span 3; text-align:center; }
 
 .sb-panel--field { display:flex; flex-direction:column; gap:10px; }
 .sb-panel--opp-status,
@@ -1578,8 +2078,11 @@ const oppScenarioMatches = computed(() => {
 .sb-move-select { font-size:11px; padding:2px 4px; width:auto; max-width:160px; }
 .sb-dmg { font-weight:bold; font-size:11px; }
 .sb-dmg--crit { color:#ff5252; }
+.sb-dmg--lethal { color:#ff1744; }
 .sb-pct { font-size:9px; color:#aaa; }
+.sb-pct--lethal { color:#ff1744; font-weight:bold; }
 .sb-dmg-empty { color:#888; }
+.sb-ko-label { font-size:9px; color:#4fc3f7; margin-left:4px; }
 
 .sb-field-row { display:flex; align-items:flex-start; flex-wrap:wrap; gap:6px; }
 .sb-field-label { font-size:10px; color:#ccc; width: 26px; padding-top:2px; }
@@ -1609,6 +2112,9 @@ const oppScenarioMatches = computed(() => {
 .sb-status-card { display:flex; flex-direction:row; align-items:flex-start; gap:8px; }
 .sb-status-sprite { width:48px; height:48px; object-fit:cover; border:2px solid #333; border-radius:6px; background:#e8e8e8; flex-shrink:0; }
 .sb-status-info { display:flex; flex-direction:column; gap:2px; width:140px; min-width:0; }
+.sb-status-right { display:flex; flex-direction:column; gap:4px; margin-left:auto; align-items:flex-end; }
+.sb-status-ability { font-size:11px; color:#ffd54f; font-weight:bold; white-space:nowrap; cursor:help; }
+.sb-status-summary { font-size:9px; color:#ff8a65; font-weight:normal; margin-left:4px; white-space:normal; }
 
 .sb-compact-row { display:flex; gap:12px; align-items:flex-start; }
 
@@ -1665,7 +2171,7 @@ const oppScenarioMatches = computed(() => {
 .sb-mini-sprite { width:32px; height:32px; object-fit:cover; border:1px solid #333; border-radius:4px; background:#e8e8e8; }
 .sb-mini-name { font-size:11px; white-space:nowrap; }
 
-/* 내 파티 카드 (entrySelect.vue와 동일한 가로 배치, 항상 표시) */
+/* 내 파티 카드 (entrySelect.vue와 동일한 가로 배치, 현재 나와있는 포켓몬은 제외) */
 .sb-mine-team { display:flex; flex-direction:column; gap:6px; }
 .sb-mine-card {
   position: relative;
@@ -1681,8 +2187,8 @@ const oppScenarioMatches = computed(() => {
   outline: 2px solid transparent;
   transition: outline-color 0.15s ease;
 }
-.sb-mine-card--active { outline: 3px solid #4caf50; }
 .sb-mine-card--fainted { opacity:0.4; cursor:not-allowed; }
+.sb-mine-card--previewing { outline: 3px solid #4fc3f7; }
 .sb-mine-card-sprite { width:44px; height:44px; object-fit:cover; border:2px solid #333; border-radius:6px; background:#e8e8e8; flex-shrink:0; }
 .sb-mine-card-name-block { display:flex; flex-direction:column; gap:2px; width:110px; flex-shrink:0; }
 .sb-mine-card-name { font-size:13px; font-weight:bold; color:#fff; }
