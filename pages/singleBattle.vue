@@ -32,11 +32,11 @@
             <tr>
               <th>기술</th>
               <th
-                v-for="i in 6"
-                :key="'opp-head-' + i"
+                v-for="idx in mineTableOppSlots"
+                :key="'opp-head-' + idx"
               >
                 <img
-                  :src="opponentSprite(i - 1)"
+                  :src="opponentSprite(idx)"
                   class="sb-table-sprite"
                   @error="$event.target.src = pokemonImg"
                 >
@@ -52,29 +52,29 @@
                 {{ selectedMoves[previewMineIndex]?.[k] || '-' }}
               </td>
               <td
-                v-for="i in 6"
-                :key="'mine-cell-' + i"
+                v-for="idx in mineTableOppSlots"
+                :key="'mine-cell-' + idx"
               >
-                <template v-if="oppSelectedPokemon[i - 1]">
+                <template v-if="oppSelectedPokemon[idx]">
                   <div
                     v-for="sc in scenarioKeys"
                     :key="sc"
                     class="sb-scenario-line"
                   >
                     <span class="sb-scenario-label">{{ scenarioLabel(sc) }}</span>
-                    <template v-if="mineCellScenario(k, i - 1, sc, showCritMine)">
+                    <template v-if="mineCellScenario(k, idx, sc, showCritMine)">
                       <span
                         class="sb-dmg"
-                        :class="{ 'sb-dmg--lethal': mineCellScenario(k, i - 1, sc, showCritMine).isLethalRange }"
-                      >{{ mineCellScenario(k, i - 1, sc, showCritMine).dmgMin }}~{{ mineCellScenario(k, i - 1, sc, showCritMine).dmgMax }}</span>
+                        :class="{ 'sb-dmg--lethal': mineCellScenario(k, idx, sc, showCritMine).isLethalRange }"
+                      >{{ mineCellScenario(k, idx, sc, showCritMine).dmgMin }}~{{ mineCellScenario(k, idx, sc, showCritMine).dmgMax }}</span>
                       <span
                         class="sb-pct"
-                        :class="{ 'sb-pct--lethal': mineCellScenario(k, i - 1, sc, showCritMine).isLethalRange }"
-                      >({{ mineCellScenario(k, i - 1, sc, showCritMine).pctMin }}~{{ mineCellScenario(k, i - 1, sc, showCritMine).pctMax }}%)</span>
+                        :class="{ 'sb-pct--lethal': mineCellScenario(k, idx, sc, showCritMine).isLethalRange }"
+                      >({{ mineCellScenario(k, idx, sc, showCritMine).pctMin }}~{{ mineCellScenario(k, idx, sc, showCritMine).pctMax }}%)</span>
                       <span
-                        v-if="mineCellScenario(k, i - 1, sc, showCritMine).koLabel"
+                        v-if="mineCellScenario(k, idx, sc, showCritMine).koLabel"
                         class="sb-ko-label"
-                      >{{ mineCellScenario(k, i - 1, sc, showCritMine).koLabel }}</span>
+                      >{{ mineCellScenario(k, idx, sc, showCritMine).koLabel }}</span>
                     </template>
                     <span
                       v-else
@@ -270,42 +270,8 @@
       </div>
     </section>
 
-    <!-- 우상단: 상태이상 + 상대 카드 + 실능치 + 랭크업 상태 + 확정/후보 목록 -->
+    <!-- 우상단: 상대 카드 + 실능치 + 랭크업 상태 + 상태이상 + 확정/후보 목록 -->
     <section class="sb-panel sb-panel--opp-status sb-cell-opp-status">
-      <!-- 상태이상 / 특수 상태이상 (상대) — 항상 표시 -->
-      <div class="sb-status-conditions">
-        <div class="sb-condition-row">
-          <span class="sb-condition-group-label">상태이상</span>
-          <button
-            v-for="s in STATUS_CONDITIONS"
-            :key="'opp-cond-' + s"
-            type="button"
-            class="sb-condition-btn"
-            :class="{ active: oppStatusCondition === s }"
-            @click="toggleOppStatusCondition(s)"
-          >
-            {{ s }}
-          </button>
-        </div>
-        <div
-          v-for="group in SPECIAL_CONDITION_GROUPS"
-          :key="'opp-cond-group-' + group.label"
-          class="sb-condition-row"
-        >
-          <span class="sb-condition-group-label">특수 상태이상({{ group.label }})</span>
-          <button
-            v-for="s in group.items"
-            :key="'opp-cond-' + s"
-            type="button"
-            class="sb-condition-btn"
-            :class="{ active: !!oppSpecialConditions[s] }"
-            @click="toggleOppSpecialCondition(s)"
-          >
-            {{ specialConditionLabel(s, !!oppSpecialConditions[s], oppSpecialTurns) }}
-          </button>
-        </div>
-      </div>
-
       <template v-if="activeOppIndex !== null">
         <div class="sb-status-card">
           <img
@@ -321,13 +287,6 @@
                 class="sb-status-summary"
               >{{ oppStatusSummary }}</span>
             </span>
-            <div class="sb-hp-bar-bg">
-              <div
-                class="sb-hp-bar-fill"
-                :style="{ width: oppHpBarPercent + '%' }"
-              />
-            </div>
-            <span class="sb-hp-text">{{ oppHpRange.min }}~{{ oppHpRange.max }}/{{ oppMaxHp }} ({{ Math.round(oppHpBarPercent) }}%)</span>
           </div>
           <div class="sb-status-right">
             <span
@@ -348,7 +307,18 @@
           </div>
         </div>
 
+        <!-- 체력 / 체력바 / 실능치 / 랭크업을 한 행에 배치 -->
         <div class="sb-compact-row">
+          <div class="sb-hp-block">
+            <div class="sb-hp-bar-bg">
+              <div
+                class="sb-hp-bar-fill"
+                :style="{ width: oppHpBarPercent + '%' }"
+              />
+            </div>
+            <span class="sb-hp-text">{{ oppHpRange.min }}~{{ oppHpRange.max }}/{{ oppMaxHp }} ({{ Math.round(oppHpBarPercent) }}%)</span>
+          </div>
+
           <div class="sb-realstats-box sb-realstats-box--compact">
             <div
               v-for="stat in statKeys"
@@ -413,6 +383,40 @@
         아래 후보 중 한 마리를 선출하세요
       </div>
 
+      <!-- 상태이상 / 특수 상태이상 (상대) — 항상 표시, 위 행 아래에 가로로 배치 -->
+      <div class="sb-status-conditions">
+        <div class="sb-condition-row">
+          <span class="sb-condition-group-label">상태이상</span>
+          <button
+            v-for="s in STATUS_CONDITIONS"
+            :key="'opp-cond-' + s"
+            type="button"
+            class="sb-condition-btn"
+            :class="{ active: oppStatusCondition === s }"
+            @click="toggleOppStatusCondition(s)"
+          >
+            {{ s }}
+          </button>
+        </div>
+        <div
+          v-for="group in SPECIAL_CONDITION_GROUPS"
+          :key="'opp-cond-group-' + group.label"
+          class="sb-condition-row"
+        >
+          <span class="sb-condition-group-label">특수 상태이상({{ group.label }})</span>
+          <button
+            v-for="s in group.items"
+            :key="'opp-cond-' + s"
+            type="button"
+            class="sb-condition-btn"
+            :class="{ active: !!oppSpecialConditions[s] }"
+            @click="toggleOppSpecialCondition(s)"
+          >
+            {{ specialConditionLabel(s, !!oppSpecialConditions[s], oppSpecialTurns) }}
+          </button>
+        </div>
+      </div>
+
       <!-- 확정 포켓몬 / 후보 포켓몬: 항상 표시 -->
       <div class="sb-opp-team-area">
         <div class="sb-opp-confirmed-block">
@@ -468,7 +472,7 @@
       </div>
     </section>
 
-    <!-- 좌하단: 내 파티(entrySelect 카드 스타일) + 현재 포켓몬 상태카드 + 상태이상 + 랭크업 -->
+    <!-- 좌하단: 내 파티(entrySelect 카드 스타일) + 현재 포켓몬 상태카드 + 상태이상 + 실능치/랭크업 -->
     <section class="sb-panel sb-panel--mine-status sb-cell-mine-status">
       <!-- 내 파티 (entrySelect.vue 카드 스타일, 현재 나와있는 포켓몬은 제외, 가로 배치) -->
       <div class="sb-mine-team">
@@ -548,10 +552,12 @@
         >대기 중인 포켓몬 없음</span>
       </div>
 
-      <!-- 현재 활성 포켓몬 요약 카드 (사진/HP/특성/메가진화) -->
+      <!-- 현재 활성 포켓몬 요약 카드 (사진/특성/메가진화) — 클릭 시 예상 데미지 미리보기가 이 포켓몬으로 돌아옴 -->
       <div
         v-if="activeMineIndex !== null"
-        class="sb-status-card"
+        class="sb-status-card sb-status-card--clickable"
+        :class="{ 'sb-status-card--previewing': previewMineIndex === activeMineIndex }"
+        @click="previewMineIndex = activeMineIndex"
       >
         <img
           :src="mySprite(activeMineIndex)"
@@ -566,13 +572,6 @@
               class="sb-status-summary"
             >{{ mineStatusSummary }}</span>
           </span>
-          <div class="sb-hp-bar-bg">
-            <div
-              class="sb-hp-bar-fill"
-              :style="{ width: mineHpPercent + '%' }"
-            />
-          </div>
-          <span class="sb-hp-text">{{ Math.round(mineCurrentHp[activeMineIndex] || 0) }}/{{ mineMaxHp }} ({{ mineHpPercent }}%)</span>
         </div>
         <div class="sb-status-right">
           <span
@@ -593,7 +592,7 @@
         </div>
       </div>
 
-      <!-- 상태이상 / 특수 상태이상 (내) — 항상 표시 -->
+      <!-- 상태이상 / 특수 상태이상 (내) — 항상 표시, 실능치/랭크업 행보다 위에 배치 -->
       <div class="sb-status-conditions">
         <div class="sb-condition-row">
           <span class="sb-condition-group-label">상태이상</span>
@@ -627,44 +626,71 @@
         </div>
       </div>
 
+      <!-- 체력 / 체력바 / 실능치 / 랭크업을 한 행에 배치 -->
       <div
         v-if="activeMineIndex !== null"
-        class="sb-rank-box"
+        class="sb-compact-row"
       >
-        <div
-          v-for="stat in rankStatKeys"
-          :key="'mine-rank-' + stat.key"
-          class="sb-rank-row"
-        >
-          <span class="sb-rank-name">{{ stat.name }}</span>
-          <span class="sb-rank-arrows">
+        <div class="sb-hp-block">
+          <div class="sb-hp-bar-bg">
+            <div
+              class="sb-hp-bar-fill"
+              :style="{ width: mineHpPercent + '%' }"
+            />
+          </div>
+          <span class="sb-hp-text">{{ Math.round(mineCurrentHp[activeMineIndex] || 0) }}/{{ mineMaxHp }} ({{ mineHpPercent }}%)</span>
+        </div>
+
+        <div class="sb-realstats-box sb-realstats-box--compact">
+          <div
+            v-for="stat in statKeys"
+            :key="'mine-active-real-' + stat.key"
+            class="sb-realstat-row"
+          >
+            <span class="sb-realstat-name">{{ stat.name }}</span>
             <span
-              v-for="n in 6"
-              :key="'arrow-' + n"
-              class="sb-arrow"
-              :class="{
-                'sb-arrow--pos': mineRanks[stat.key] > 0 && isRankArrowFilled(mineRanks[stat.key], n),
-                'sb-arrow--neg': mineRanks[stat.key] < 0 && isRankArrowFilled(mineRanks[stat.key], n),
-              }"
-            >{{ rankArrowChar(mineRanks[stat.key]) }}</span>
-          </span>
-          <span class="sb-rank-value">{{ mineRanks[stat.key] >= 0 ? '+' : '' }}{{ mineRanks[stat.key] }}</span>
-          <span class="sb-rank-btns">
-            <button
-              type="button"
-              class="sb-rank-btn"
-              @click="changeRank(mineRanks, stat.key, 1)"
-            >
-              ▲
-            </button>
-            <button
-              type="button"
-              class="sb-rank-btn"
-              @click="changeRank(mineRanks, stat.key, -1)"
-            >
-              ▼
-            </button>
-          </span>
+              class="sb-realstat-value"
+              :style="{ color: mineStatColor(activeMineIndex, stat.key) }"
+            >{{ mineDisplayStats(activeMineIndex)[stat.key] ?? 0 }}</span>
+          </div>
+        </div>
+
+        <div class="sb-rank-box">
+          <div
+            v-for="stat in rankStatKeys"
+            :key="'mine-rank-' + stat.key"
+            class="sb-rank-row"
+          >
+            <span class="sb-rank-name">{{ stat.name }}</span>
+            <span class="sb-rank-arrows">
+              <span
+                v-for="n in 6"
+                :key="'arrow-' + n"
+                class="sb-arrow"
+                :class="{
+                  'sb-arrow--pos': mineRanks[stat.key] > 0 && isRankArrowFilled(mineRanks[stat.key], n),
+                  'sb-arrow--neg': mineRanks[stat.key] < 0 && isRankArrowFilled(mineRanks[stat.key], n),
+                }"
+              >{{ rankArrowChar(mineRanks[stat.key]) }}</span>
+            </span>
+            <span class="sb-rank-value">{{ mineRanks[stat.key] >= 0 ? '+' : '' }}{{ mineRanks[stat.key] }}</span>
+            <span class="sb-rank-btns">
+              <button
+                type="button"
+                class="sb-rank-btn"
+                @click="changeRank(mineRanks, stat.key, 1)"
+              >
+                ▲
+              </button>
+              <button
+                type="button"
+                class="sb-rank-btn"
+                @click="changeRank(mineRanks, stat.key, -1)"
+              >
+                ▼
+              </button>
+            </span>
+          </div>
         </div>
       </div>
     </section>
@@ -943,6 +969,18 @@
       </div>
 
       <div
+        v-if="turnOrderForecast.length"
+        class="sb-turn-order-forecast"
+      >
+        <div
+          v-for="(line, i) in turnOrderForecast"
+          :key="'turn-order-' + i"
+        >
+          {{ line }}
+        </div>
+      </div>
+
+      <div
         v-if="mineStatusDamageForecast || oppStatusDamageForecast"
         class="sb-status-forecast"
       >
@@ -1107,6 +1145,10 @@ const showCritOpp = ref(false)
 const battleTurn = ref(1)
 
 const revealedOppIndices = ref([])
+
+// 좌상단 "예상 데미지" 표에 표시할 상대 슬롯. 3마리가 모두 확정되면 그 3마리만,
+// 아직 확정 전이면 기존처럼 6칸(후보 포함)을 모두 보여준다.
+const mineTableOppSlots = computed(() => (revealedOppIndices.value.length === 3 ? [...revealedOppIndices.value] : [0, 1, 2, 3, 4, 5]))
 
 const statKeys = [
   { key: 'H', name: '체력' },
@@ -1283,25 +1325,27 @@ const buildDisplayStats = (name, mega, calcStatsRef, index, natureRef, itemRef, 
   return result
 }
 
-const mineDisplayStats = (index) => {
+// forceMega가 주어지면(true/false) 실제 토글 상태 대신 이 값을 사용한다.
+// (예: 메가진화 사용 체크박스만 켠 상태에서 예상 데미지 미리보기에 반영하기 위함)
+const mineDisplayStats = (index, forceMega) => {
   const mega = getMineMegaData(index)
-  const toggled = mineMegaToggle[index] === true
+  const toggled = forceMega !== undefined ? forceMega : mineMegaToggle[index] === true
   return buildDisplayStats(selectedPokemon.value[index], mega && toggled, calcStats, index, selectedNature, selectedTool, inputStats)
 }
-const oppDisplayStats = (index) => {
+const oppDisplayStats = (index, forceMega) => {
   const mega = getOppMegaData(index)
-  const toggled = oppMegaToggle[index] === true
+  const toggled = forceMega !== undefined ? forceMega : oppMegaToggle[index] === true
   return buildDisplayStats(oppSelectedPokemon.value[index], mega && toggled, oppCalcStats, index, oppSelectedNature, oppSelectedTool, oppInputStats)
 }
 
-const mineAbilityForCalc = (index) => {
+const mineAbilityForCalc = (index, forceMega) => {
   const mega = getMineMegaData(index)
-  const toggled = mineMegaToggle[index] === true
+  const toggled = forceMega !== undefined ? forceMega : mineMegaToggle[index] === true
   return (mega && toggled) ? mega.ability : selectedAbility.value[index]
 }
-const oppAbilityForCalc = (index) => {
+const oppAbilityForCalc = (index, forceMega) => {
   const mega = getOppMegaData(index)
-  const toggled = oppMegaToggle[index] === true
+  const toggled = forceMega !== undefined ? forceMega : oppMegaToggle[index] === true
   return (mega && toggled) ? mega.ability : oppSelectedAbility.value[index]
 }
 
@@ -1745,6 +1789,8 @@ const executeTurn = () => {
 
   oppAction.damageTaken = 0
   mineAction.dmgPercent = 0
+  mineAction.useMega = false
+  oppAction.useMega = false
   battleTurn.value += 1
 }
 
@@ -1830,7 +1876,8 @@ const buildCell = (move, attack, defense, ability, item, defHp, useCrit) => {
   }
 }
 
-const mineCellVsSlot = (moveIndex, oppIdx, useCrit) => {
+// forceMega가 주어지면 실제 메가 토글 상태와 상관없이 해당 값으로 공격자의 능력치/특성을 계산한다.
+const mineCellVsSlot = (moveIndex, oppIdx, useCrit, forceMega) => {
   if (activeMineIndex.value === null) return null
   if (!oppSelectedPokemon.value[oppIdx]) return null
   const moveName = selectedMoves.value[activeMineIndex.value]?.[moveIndex]
@@ -1839,18 +1886,89 @@ const mineCellVsSlot = (moveIndex, oppIdx, useCrit) => {
   if (!move || move.Category === '변화') return null
   const atkKey = move.Category === '물리' ? 'A' : 'C'
   const defKey = move.Category === '물리' ? 'B' : 'D'
-  const atkStats = mineDisplayStats(activeMineIndex.value)
+  const atkStats = mineDisplayStats(activeMineIndex.value, forceMega)
   const defStats = oppDisplayStats(oppIdx)
   const attack = (atkStats?.[atkKey] || 0) * rankMultiplier(mineRanks[atkKey])
   const defRank = oppIdx === activeOppIndex.value ? oppRanks[defKey] : 0
   const defense = (defStats?.[defKey] || 0) * rankMultiplier(defRank)
-  return buildCell(move, attack, defense, mineAbilityForCalc(activeMineIndex.value), selectedTool.value[activeMineIndex.value], defStats?.H || 0, useCrit)
+  return buildCell(move, attack, defense, mineAbilityForCalc(activeMineIndex.value, forceMega), selectedTool.value[activeMineIndex.value], defStats?.H || 0, useCrit)
 }
 
+// 메가진화 사용 체크박스(mineAction.useMega)가 켜져 있으면 그 상태를 예상 데미지 계산에 반영한다.
 const mineActionPreview = computed(() => {
   if (mineAction.type !== '기술사용') return null
-  if (activeOppIndex.value === null) return null
-  return mineCellVsSlot(mineAction.moveIndex, activeOppIndex.value, false)
+  if (activeOppIndex.value === null || activeMineIndex.value === null) return null
+  const megaData = getMineMegaData(activeMineIndex.value)
+  const alreadyMega = mineMegaToggle[activeMineIndex.value] === true
+  const forceMega = megaData && !alreadyMega ? mineAction.useMega : undefined
+  return mineCellVsSlot(mineAction.moveIndex, activeOppIndex.value, false, forceMega)
+})
+
+// ── 중앙 하단: 스피드 기준 행동 순서 미리보기 ─────────────
+const oppActiveSpeed = computed(() => (activeOppIndex.value === null ? 0 : (oppDisplayStats(activeOppIndex.value)?.S || 0)))
+
+// dmgMin~dmgMax(절대 데미지)가 상대의 현재 체력 범위(hpMin~hpMax)를 항상/절대 넘지 못하는지 판정
+// 'guaranteed': 무조건 쓰러뜨림, 'none': 절대 못 쓰러뜨림, 'possible': 난수에 따라 다름
+const assessKo = (dmgMin, dmgMax, hpMin, hpMax) => {
+  if (hpMax <= 0) return 'guaranteed'
+  if (dmgMin >= hpMax) return 'guaranteed'
+  if (dmgMax < hpMin) return 'none'
+  return 'possible'
+}
+
+const turnOrderForecast = computed(() => {
+  if (activeMineIndex.value === null || activeOppIndex.value === null) return []
+  if (mineAction.type !== '기술사용' || oppAction.type !== '기술사용') {
+    return ['교체가 포함된 턴은 교체가 최우선으로 처리되어 행동 순서 미리보기를 제공하지 않습니다.']
+  }
+
+  const mineName = mineDisplayName(activeMineIndex.value)
+  const oppName = oppDisplayName(activeOppIndex.value)
+  const mineMoveName = selectedMoves.value[activeMineIndex.value]?.[mineAction.moveIndex] || '(기술 없음)'
+  const oppMoveName = oppSelectedMoves.value[activeOppIndex.value]?.[oppAction.moveIndex] || '(기술 없음)'
+
+  const minePreview = mineActionPreview.value
+  const oppPreview = oppCellVsMine(oppAction.moveIndex, activeMineIndex.value, undefined, false)
+
+  const mineHpNow = mineCurrentHp[activeMineIndex.value] ?? mineMaxHp.value
+  const oppHpRangeNow = oppHpRange.value
+
+  const describeAttack = (attackerName, moveName, preview) => (preview
+    ? `${attackerName}이(가) ${moveName}(으)로 공격합니다 (예상 ${preview.dmgMin}~${preview.dmgMax}, ${preview.pctMin}~${preview.pctMax}%).`
+    : `${attackerName}이(가) ${moveName}(으)로 공격합니다.`)
+
+  const lines = []
+
+  if (mineSpeedStat.value === oppActiveSpeed.value) {
+    lines.push(`${mineName}과(와) ${oppName}의 스피드가 같아 선공 여부를 알 수 없습니다.`)
+    return lines
+  }
+
+  const mineFirst = mineSpeedStat.value > oppActiveSpeed.value
+  const firstName = mineFirst ? mineName : oppName
+  const secondName = mineFirst ? oppName : mineName
+
+  lines.push(`${firstName}이(가) 더 빨라 먼저 행동합니다.`)
+  lines.push(describeAttack(firstName, mineFirst ? mineMoveName : oppMoveName, mineFirst ? minePreview : oppPreview))
+
+  const firstPreview = mineFirst ? minePreview : oppPreview
+  const koResult = firstPreview
+    ? (mineFirst
+      ? assessKo(firstPreview.dmgMin, firstPreview.dmgMax, oppHpRangeNow.min, oppHpRangeNow.max)
+      : assessKo(firstPreview.dmgMin, firstPreview.dmgMax, mineHpNow, mineHpNow))
+    : 'none'
+
+  if (koResult === 'guaranteed') {
+    lines.push(`이 공격으로 ${secondName}이(가) 반드시 쓰러져 행동할 수 없습니다.`)
+  } else {
+    if (koResult === 'possible') {
+      lines.push(`이 공격의 난수에 따라 ${secondName}이(가) 쓰러져 행동하지 못할 수도 있습니다.`)
+    }
+    const secondPreview = mineFirst ? oppPreview : minePreview
+    lines.push(`쓰러지지 않는다면 이어서 ${describeAttack(secondName, mineFirst ? oppMoveName : mineMoveName, secondPreview)}`)
+  }
+
+  return lines
 })
 
 // ── 좌상단 표: 4가지 상대 시나리오 (변화기 제외) ─────────────
@@ -2042,6 +2160,7 @@ const oppScenarioMatches = computed(() => {
 .sb-inflict-status-block { display:flex; flex-direction:column; gap:4px; border-top:1px solid #666; padding-top:8px; }
 .sb-inflict-checkbox { display:flex; align-items:center; gap:4px; font-size:11px; cursor:pointer; }
 .sb-status-forecast { display:flex; flex-direction:column; gap:2px; font-size:10px; color:#ffb74d; border-top:1px solid #666; padding-top:6px; }
+.sb-turn-order-forecast { display:flex; flex-direction:column; gap:2px; font-size:10px; color:#81d4fa; border-top:1px solid #666; padding-top:6px; }
 
 .sb-panel--moves { align-self:start; }
 
@@ -2074,8 +2193,9 @@ const oppScenarioMatches = computed(() => {
 .sb-panel-title { margin:0 0 6px 0; font-size:13px; }
 
 .sb-move-list { display:flex; flex-direction:column; gap:6px; }
-.sb-move-row-block { display:flex; flex-direction:column; gap:3px; border-bottom:1px solid #666; padding-bottom:6px; }
-.sb-move-select { font-size:11px; padding:2px 4px; width:auto; max-width:160px; }
+/* 기술을 선택해도(값 유무와 무관하게) 항상 동일한 높이를 갖도록 최소 높이를 고정 */
+.sb-move-row-block { display:flex; flex-direction:column; gap:3px; border-bottom:1px solid #666; padding-bottom:6px; min-height: 108px; box-sizing:border-box; }
+.sb-move-select { font-size:11px; padding:2px 4px; width:160px; max-width:160px; box-sizing:border-box; }
 .sb-dmg { font-weight:bold; font-size:11px; }
 .sb-dmg--crit { color:#ff5252; }
 .sb-dmg--lethal { color:#ff1744; }
@@ -2110,23 +2230,28 @@ const oppScenarioMatches = computed(() => {
 .sb-hp-text { font-size:10px; color:#ccc; }
 
 .sb-status-card { display:flex; flex-direction:row; align-items:flex-start; gap:8px; }
+.sb-status-card--clickable { cursor:pointer; outline:2px solid transparent; border-radius:6px; }
+.sb-status-card--previewing { outline: 3px solid #4fc3f7; }
 .sb-status-sprite { width:48px; height:48px; object-fit:cover; border:2px solid #333; border-radius:6px; background:#e8e8e8; flex-shrink:0; }
-.sb-status-info { display:flex; flex-direction:column; gap:2px; width:140px; min-width:0; }
+.sb-status-info { display:flex; flex-direction:column; gap:2px; flex:1; min-width:0; }
 .sb-status-right { display:flex; flex-direction:column; gap:4px; margin-left:auto; align-items:flex-end; }
 .sb-status-ability { font-size:11px; color:#ffd54f; font-weight:bold; white-space:nowrap; cursor:help; }
 .sb-status-summary { font-size:9px; color:#ff8a65; font-weight:normal; margin-left:4px; white-space:normal; }
 
-.sb-compact-row { display:flex; gap:12px; align-items:flex-start; }
+/* 체력/실능치/랭크업(또는 실능치/랭크업)을 한 행에 배치하는 공통 컨테이너 */
+.sb-compact-row { display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap; }
+
+.sb-hp-block { display:flex; flex-direction:column; gap:2px; width:150px; flex-shrink:0; }
 
 .sb-realstats-box { display:flex; flex-direction:column; gap:1px; font-size:11px; }
-.sb-realstats-box--compact { flex:1; min-width:0; }
+.sb-realstats-box--compact { flex:1; min-width:120px; }
 .sb-realstat-row { display:flex; align-items:center; gap:4px; }
 .sb-realstat-name { width:50px; color:#ccc; font-size:10px; }
 .sb-realstat-value { font-weight:bold; width:30px; text-align:right; font-size:11px; }
 .sb-realstat-reason { font-size:8px; color:#ffeb3b; }
 .sb-ev-tag { font-size:9px; color:#aaa; margin-left:2px; }
 
-.sb-rank-box { display:flex; flex-direction:column; gap:2px; }
+.sb-rank-box { display:flex; flex-direction:column; gap:2px; flex-shrink:0; }
 .sb-rank-row { display:flex; align-items:center; gap:4px; }
 .sb-rank-name { width:50px; font-size:10px; }
 .sb-rank-arrows { display:flex; gap:1px; font-size:9px; width:60px; }
@@ -2138,10 +2263,10 @@ const oppScenarioMatches = computed(() => {
 .sb-rank-btn { font-size:7px; line-height:7px; padding:0 3px; border:1px solid #888; background:#444; color:#fff; cursor:pointer; }
 
 /* 상태이상 / 특수 상태이상 */
-.sb-status-conditions { display:flex; flex-direction:column; gap:4px; }
-.sb-condition-row { display:flex; align-items:center; flex-wrap:wrap; gap:4px; }
-.sb-condition-group-label { font-size:9px; color:#ccc; width:110px; flex-shrink:0; }
-.sb-condition-btn { font-size:9px; padding:2px 6px; border:1px solid #999; border-radius:10px; cursor:pointer; background:#444; color:#fff; }
+.sb-status-conditions { display:flex; flex-direction:row; flex-wrap:wrap; gap:12px; }
+.sb-condition-row { display:flex; flex-direction:column; align-items:flex-start; gap:3px; }
+.sb-condition-group-label { font-size:9px; color:#ccc; }
+.sb-condition-btn { font-size:9px; padding:2px 6px; border:1px solid #999; border-radius:10px; cursor:pointer; background:#444; color:#fff; align-self:stretch; text-align:left; }
 .sb-condition-btn.active { background:#e53935; border-color:#e53935; }
 
 /* 상대 확정/후보 영역 (항상 표시, 좌우 배치) */
@@ -2216,7 +2341,20 @@ const oppScenarioMatches = computed(() => {
 }
 .sb-room-status-list { display:flex; flex-wrap:wrap; gap:8px; margin-top:2px; }
 .sb-mine-col-list { display:flex; flex-direction:column; gap:2px; margin-left:4px; }
-.sb-mine-col-cell { display:flex; align-items:center; gap:6px; font-size:10px; white-space:nowrap; }
-.sb-mine-col-label { color:#ccc; width:70px; flex-shrink:0; }
+/* 데미지 값 유무와 상관없이 각 행의 높이를 고정하고, grid로 컬럼 폭을 고정해 텍스트 길이에 따른 흔들림을 방지 */
+.sb-mine-col-cell {
+  display:grid;
+  grid-template-columns: 70px 56px 66px 40px;
+  align-items:center;
+  column-gap:4px;
+  font-size:10px;
+  white-space:nowrap;
+  height:16px;
+  overflow:hidden;
+}
+.sb-mine-col-label { color:#ccc; overflow:hidden; text-overflow:ellipsis; }
+.sb-mine-col-cell .sb-dmg,
+.sb-mine-col-cell .sb-pct { text-align:right; }
+.sb-mine-col-cell .sb-dmg-empty { grid-column: 2 / span 3; text-align:center; }
 .sb-mega-tag { color:#ffeb3b; font-size:9px; margin-left:2px; }
 </style>
