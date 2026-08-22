@@ -1311,31 +1311,47 @@ const oppHpPercent = reactive({})
 const isMineFainted = (idx) => mineCurrentHp[idx] !== undefined && mineCurrentHp[idx] <= 0
 const isOppFainted = (idx) => oppHpPercent[idx] !== undefined && oppHpPercent[idx] <= 0
 
-const buildDisplayStats = (name, mega, calcStatsRef, index, natureRef, itemRef, evsRef) => {
-  if (mega) return calcStatsRef.value[index] || {}
-  const data = name ? pokemonMap.value[name] : null
-  if (!data?.stats) return calcStatsRef.value[index] || {}
+// mega(진짜 토글이든, 미리보기 override든)일 때 종족값 기반으로 직접 실능치를 계산
+const calcStatsFromBaseStats = (baseStats, index, natureRef, itemRef, evsRef) => {
   const natureName = natureRef.value[index]?.replace(/\([^)]*\)/g, '') || '무보정'
   const itemName = itemRef.value[index] || ''
   const keys = ['H', 'A', 'B', 'C', 'D', 'S']
   const result = {}
   keys.forEach((k) => {
-    result[k] = calculateStat(k, data.stats[k] || 0, evsRef.value[index]?.[k] || 0, natureName, itemName, '')
+    result[k] = calculateStat(k, baseStats[k] || 0, evsRef.value[index]?.[k] || 0, natureName, itemName, '')
   })
   return result
 }
 
+// megaData: 메가 진화 데이터, useActualMegaStats: 실제 토글 상태와 일치하는 경우(=진짜 메가 상태)에만
+// 미리 계산된 calcStatsRef를 그대로 쓰고, 그렇지 않으면(=미리보기 override) 메가 종족값으로 직접 계산한다.
+const buildDisplayStats = (name, mega, calcStatsRef, index, natureRef, itemRef, evsRef, megaData, useActualMegaStats) => {
+  if (mega) {
+    if (useActualMegaStats) return calcStatsRef.value[index] || {}
+    if (megaData?.stats) return calcStatsFromBaseStats(megaData.stats, index, natureRef, itemRef, evsRef)
+    return calcStatsRef.value[index] || {}
+  }
+  const data = name ? pokemonMap.value[name] : null
+  if (!data?.stats) return calcStatsRef.value[index] || {}
+  return calcStatsFromBaseStats(data.stats, index, natureRef, itemRef, evsRef)
+}
+
 // forceMega가 주어지면(true/false) 실제 토글 상태 대신 이 값을 사용한다.
 // (예: 메가진화 사용 체크박스만 켠 상태에서 예상 데미지 미리보기에 반영하기 위함)
+// forceMega가 실제 토글 상태와 다를 때는 calcStats에 의존하지 않고 메가 종족값으로 직접 계산한다.
 const mineDisplayStats = (index, forceMega) => {
   const mega = getMineMegaData(index)
-  const toggled = forceMega !== undefined ? forceMega : mineMegaToggle[index] === true
-  return buildDisplayStats(selectedPokemon.value[index], mega && toggled, calcStats, index, selectedNature, selectedTool, inputStats)
+  const actualToggled = mineMegaToggle[index] === true
+  const toggled = forceMega !== undefined ? forceMega : actualToggled
+  const useActualMegaStats = toggled === actualToggled
+  return buildDisplayStats(selectedPokemon.value[index], mega && toggled, calcStats, index, selectedNature, selectedTool, inputStats, mega, useActualMegaStats)
 }
 const oppDisplayStats = (index, forceMega) => {
   const mega = getOppMegaData(index)
-  const toggled = forceMega !== undefined ? forceMega : oppMegaToggle[index] === true
-  return buildDisplayStats(oppSelectedPokemon.value[index], mega && toggled, oppCalcStats, index, oppSelectedNature, oppSelectedTool, oppInputStats)
+  const actualToggled = oppMegaToggle[index] === true
+  const toggled = forceMega !== undefined ? forceMega : actualToggled
+  const useActualMegaStats = toggled === actualToggled
+  return buildDisplayStats(oppSelectedPokemon.value[index], mega && toggled, oppCalcStats, index, oppSelectedNature, oppSelectedTool, oppInputStats, mega, useActualMegaStats)
 }
 
 const mineAbilityForCalc = (index, forceMega) => {
@@ -2078,10 +2094,14 @@ const oppDamageScenario = (moveIndex, scenario, useCrit) => {
   return cell
 }
 
+// forceMega === true 이면 mega, false이면 non-mega로 강제하고, 값이 실제 토글 상태와 다를 경우
+// (예: 메가 컬럼을 미리보기로 보여주는 경우) 종족값으로 직접 계산한다.
 const mineStatsForColumn = (idx, forceMega) => {
   const mega = getMineMegaData(idx)
-  const useMega = forceMega === true ? true : (forceMega === false ? false : mineMegaToggle[idx] === true)
-  return buildDisplayStats(selectedPokemon.value[idx], mega && useMega, calcStats, idx, selectedNature, selectedTool, inputStats)
+  const actualToggled = mineMegaToggle[idx] === true
+  const useMega = forceMega === true ? true : (forceMega === false ? false : actualToggled)
+  const useActualMegaStats = useMega === actualToggled
+  return buildDisplayStats(selectedPokemon.value[idx], mega && useMega, calcStats, idx, selectedNature, selectedTool, inputStats, mega, useActualMegaStats)
 }
 
 const mineColumns = computed(() => {
