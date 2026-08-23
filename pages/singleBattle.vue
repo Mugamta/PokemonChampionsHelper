@@ -299,28 +299,7 @@
         현재 턴: {{ battleTurn }}
       </div>
 
-      <!-- 스피드 비교 (내림차순 정렬, 내 스피드는 빨간색) -->
-      <div class="sb-field-row">
-        <span class="sb-field-label">관찰</span>
-        <div class="sb-field-buttons">
-          <button
-            type="button"
-            class="sb-field-btn"
-            :class="{ active: observedTurnOrder === 'mine' }"
-            @click="toggleObservedTurnOrder('mine')"
-          >
-            내가 선공
-          </button>
-          <button
-            type="button"
-            class="sb-field-btn"
-            :class="{ active: observedTurnOrder === 'opp' }"
-            @click="toggleObservedTurnOrder('opp')"
-          >
-            상대가 선공
-          </button>
-        </div>
-      </div>
+      <!-- 스피드 비교 (내림차순 정렬, 내 스피드는 빨간색). "관찰" 입력은 중앙 하단 ③번 구역에서 한다 -->
       <div
         v-if="inferredOppSpeedBound"
         class="sb-speed-inferred"
@@ -1052,10 +1031,14 @@
         </div>
       </div>
 
+      <!-- ① 설정값(내가 입력한 상대 노력치·상대가 사용한 기술) 기준 예상 흐름 -->
       <div
         v-if="turnOrderForecast.length"
-        class="sb-turn-order-forecast"
+        class="sb-forecast-block"
       >
+        <h5 class="sb-forecast-title">
+          ① 설정값 기준 예상 흐름
+        </h5>
         <div
           v-for="(line, i) in turnOrderForecast"
           :key="'turn-order-' + i"
@@ -1064,16 +1047,84 @@
         </div>
       </div>
 
+      <!-- ② 상대 내구/스피드가 최소일 때, 최대일 때 각각의 예상 흐름 -->
       <div
-        v-if="turnOrderReference.length"
-        class="sb-turn-order-forecast sb-turn-order-reference"
+        v-if="turnOrderScenarioFlows.length"
+        class="sb-forecast-block sb-forecast-block--reference"
       >
+        <h5 class="sb-forecast-title">
+          ② 최소·최대 시나리오 예상 흐름
+        </h5>
         <div
-          v-for="(line, i) in turnOrderReference"
-          :key="'turn-order-ref-' + i"
-          :class="{ 'sb-turn-order-section': line.startsWith('[') }"
+          v-for="flow in turnOrderScenarioFlows"
+          :key="flow.title"
+          class="sb-scenario-flow"
         >
-          {{ line }}
+          <div class="sb-scenario-flow-title">
+            {{ flow.title }}
+          </div>
+          <div
+            v-for="(line, i) in flow.lines"
+            :key="flow.title + '-' + i"
+          >
+            {{ line }}
+          </div>
+        </div>
+      </div>
+
+      <!-- ③ 실제로 진행된 턴 흐름을 입력하는 곳: 이 값을 바탕으로 상대 스피드/내구를 역산해서
+           위 스피드 비교 표·아래 목록에서 모순되는(불가능한) 값을 제외한다 -->
+      <div class="sb-forecast-block sb-forecast-block--input">
+        <h5 class="sb-forecast-title">
+          ③ 실제 진행 결과 입력
+        </h5>
+
+        <div class="sb-observe-row">
+          <span class="sb-input-label">선후공 관찰</span>
+          <button
+            type="button"
+            class="sb-field-btn"
+            :class="{ active: observedTurnOrder === 'mine' }"
+            @click="toggleObservedTurnOrder('mine')"
+          >
+            내가 선공
+          </button>
+          <button
+            type="button"
+            class="sb-field-btn"
+            :class="{ active: observedTurnOrder === 'opp' }"
+            @click="toggleObservedTurnOrder('opp')"
+          >
+            상대가 선공
+          </button>
+          <span
+            v-if="inferredOppSpeedBound"
+            class="sb-preview"
+          >
+            → 상대 스피드(랭크 제외) {{ inferredOppSpeedBound.type === 'min' ? '최소' : '최대' }} {{ inferredOppSpeedBound.value }} (상단 스피드 표에 반영됨)
+          </span>
+        </div>
+
+        <div class="sb-observe-row">
+          <span class="sb-input-label">입힌 데미지(%) 기반 상대 내구 역산</span>
+          <span
+            v-if="mineScenarioMatches.length"
+            class="sb-preview"
+          >
+            일치하는 내구 시나리오: {{ mineScenarioMatches.map(m => m.label).join(', ') }}
+          </span>
+          <span
+            v-else-if="Number(mineAction.dmgPercent)"
+            class="sb-preview sb-preview--none"
+          >
+            일치하는 내구 시나리오 없음(급소이거나 다른 조건)
+          </span>
+          <span
+            v-else
+            class="sb-placeholder-small"
+          >
+            위 "내 행동 → 입힌 데미지(%)"를 입력하면 자동으로 표시됩니다
+          </span>
         </div>
       </div>
 
@@ -2231,8 +2282,8 @@ const turnOrderForecast = computed(() => {
   } else {
     if (koResult === 'possible') {
       // 이건 "내가 실제로 입력한 상대 노력치" 기준 판정일 뿐이다.
-      // 다른 노력치(무보정/H32/풀보정 등)에서는 결과가 다를 수 있으므로 아래 참고 정보를 별도로 확인해야 한다.
-      lines.push(`이 공격은 확정 1타가 아니므로 ${secondLabel}이(가) 쓰러지지 않는 것으로 간주하고 진행합니다. (다른 노력치 기준은 아래 '참고 정보'에서 확인)`)
+      // 다른 노력치(무보정/풀보정 등)에서는 결과가 다를 수 있으므로 ②번 구역을 별도로 확인해야 한다.
+      lines.push(`이 공격은 확정 1타가 아니므로 ${secondLabel}이(가) 쓰러지지 않는 것으로 간주하고 진행합니다. (다른 노력치 기준은 아래 ②번 참고)`)
     } else {
       lines.push(`이 공격으로는 ${secondLabel}이(가) 쓰러지지 않습니다.`)
     }
@@ -2243,45 +2294,75 @@ const turnOrderForecast = computed(() => {
   return lines
 })
 
-// 위 turnOrderForecast는 "내가 실제로 입력한 상대 노력치(내구/스피드)" 기준 결과다.
-// 이 turnOrderReference는 그와 별개로, 좌측 상단 표의 내구 시나리오(무보정/H32/풀보정/풀보정(성격))와
-// 상단 스피드 비교 시나리오(상대 무보정/준속/최속/스카프 등) 기준으로 참고 정보를 보여준다.
-// 즉 "내가 설정한 상대 스탯"과 "다른 노력치였다면 어떻게 되는지"를 서로 다른 구간으로 명확히 분리한다.
-const turnOrderReference = computed(() => {
+// ② 상대의 내구/스피드가 "최소"(노력치 0·무보정) 또는 "최대"(노력치 32+보정 성격, 스피드는 최속 스카프까지)일 때
+// 각각 어떤 흐름이 되는지 시나리오별로 서술한다. 좌측 상단 표·상단 스피드 표와 동일한 계산 로직을 그대로 재사용해서
+// ①번(설정값 기준)과는 독립적인, 서로 다른 전제의 시나리오임을 명확히 분리해서 보여준다.
+const SCENARIO_FLOW_DEFS = [
+  { key: 'min', label: '최소 시나리오 (상대 내구 무보정 · 스피드 무보정)', bulkScenario: 'neutral', speedRowKey: 'neutral' },
+  { key: 'max', label: '최대 시나리오 (상대 내구 풀보정(성격) · 스피드 최속 스카프)', bulkScenario: 'fullNature', speedRowKey: 'maxScarf' },
+]
+
+const turnOrderScenarioFlows = computed(() => {
   if (activeMineIndex.value === null || activeOppIndex.value === null) return []
   if (mineAction.type !== '기술사용') return []
 
-  const lines = []
+  const mineLabel = `자신의 ${mineDisplayName(activeMineIndex.value)}`
+  const oppLabel = `상대의 ${oppDisplayName(activeOppIndex.value)}`
   const moveName = selectedMoves.value[activeMineIndex.value]?.[mineAction.moveIndex]
   const move = moveName ? getMoveData(moveName) : null
+  const mineMoveName = moveName || '(기술 없음)'
 
-  if (move && move.Category !== '변화') {
-    lines.push('[내구 참고: 좌측 상단 "예상 데미지" 표 시나리오 기준]')
-    scenarioKeys.forEach((sc) => {
-      const cell = mineCellScenarioForIndex(activeMineIndex.value, mineAction.moveIndex, activeOppIndex.value, sc, false)
-      const hp = scenarioHpValue(activeOppIndex.value, sc)
-      const label = !cell
-        ? '기술 없음'
-        : (hp <= 0 || cell.dmgMin >= hp)
-          ? '확정 1타'
-          : cell.dmgMax >= hp
-            ? '1타 가능(난수 필요)'
-            : '1타 불가능'
-      lines.push(`${scenarioLabel(sc)}: ${label}`)
-    })
-  }
+  return SCENARIO_FLOW_DEFS.map((def) => {
+    const speedRow = speedRows.value.find((r) => r.key === def.speedRowKey)
+    const oppScenarioSpeed = speedRow ? speedRow.value : 0
+    const lines = []
 
-  lines.push('[스피드 참고: 상단 "스피드 비교" 표 시나리오 기준]')
-  speedRows.value
-    .filter((row) => !row.isMine)
-    .forEach((row) => {
-      const result = row.value > mineSpeedStat.value ? '상대가 앞섬(추월)' : row.value === mineSpeedStat.value ? '동속' : '자신이 앞섬'
-      lines.push(`${row.label} (${row.value}): ${result}`)
-    })
+    if (mineSpeedStat.value === oppScenarioSpeed) {
+      lines.push(`${mineLabel}과(와) ${oppLabel}의 스피드가 같아(상대 ${oppScenarioSpeed}) 선공 여부를 알 수 없습니다.`)
+      return { title: def.label, lines }
+    }
 
-  return lines
+    const mineFirst = mineSpeedStat.value > oppScenarioSpeed
+    const firstLabel = mineFirst ? mineLabel : oppLabel
+    lines.push(`${firstLabel}이(가) 더 빨라 먼저 행동합니다. (상대 스피드 ${oppScenarioSpeed})`)
+
+    if (!mineFirst) {
+      lines.push(`이 시나리오에서는 ${oppLabel}이(가) 먼저 행동하므로, 데미지 판정은 상대가 어떤 기술을 쓰는지에 달려 있습니다.`)
+      return { title: def.label, lines }
+    }
+
+    if (!move || move.Category === '변화') {
+      lines.push(`${mineMoveName}은(는) 데미지를 주는 기술이 아니라 이 시나리오에서 KO 여부를 판단할 수 없습니다.`)
+      return { title: def.label, lines }
+    }
+
+    const cell = mineCellScenarioForIndex(activeMineIndex.value, mineAction.moveIndex, activeOppIndex.value, def.bulkScenario, false)
+    const hp = scenarioHpValue(activeOppIndex.value, def.bulkScenario)
+    if (!cell) {
+      lines.push('이 시나리오에서는 데미지를 계산할 수 없습니다.')
+    } else if (hp <= 0 || cell.dmgMin >= hp) {
+      lines.push(`${mineMoveName}(으)로 이 시나리오에서는 확정 1타로 ${oppLabel}이(가) 쓰러집니다.`)
+    } else if (cell.dmgMax >= hp) {
+      lines.push(`${mineMoveName}(으)로 이 시나리오에서는 1타가 가능하지만 확정은 아닙니다 (${cell.pctMin}~${cell.pctMax}%).`)
+    } else {
+      lines.push(`${mineMoveName}(으)로는 이 시나리오에서 1타가 불가능합니다 (${cell.pctMin}~${cell.pctMax}%).`)
+    }
+
+    return { title: def.label, lines }
+  })
 })
 
+// ③ 실제로 진행된 턴의 결과를 사용자가 직접 입력하는 구역.
+//   - 선후공 관찰(observedTurnOrder) → 상대 스피드(랭크 제외 기본 실능치) 최소/최대 역산 (inferredOppSpeedBound, 위에서 정의)
+//   - 입힌 데미지(%)(mineAction.dmgPercent, "내 행동" 입력란) → 상대 내구가 어느 시나리오와 일치하는지 역산
+// 이렇게 역산된 값과 모순되는 경우는 자동으로 제외된다(스피드는 speedRows에서 취소선으로 표시).
+const mineScenarioMatches = computed(() => {
+  const dmgPercent = Number(mineAction.dmgPercent)
+  if (!dmgPercent || activeMineIndex.value === null || activeOppIndex.value === null) return []
+  return scenarioKeys
+    .map((sc) => ({ key: sc, label: scenarioLabel(sc), data: mineCellScenarioForIndex(activeMineIndex.value, mineAction.moveIndex, activeOppIndex.value, sc, false) }))
+    .filter((s) => s.data && dmgPercent >= Number(s.data.pctMin) && dmgPercent <= Number(s.data.pctMax))
+})
 
 // ── 좌상단 표: 4가지 상대 시나리오 (변화기 제외) ─────────────
 const scenarioKeys = ['neutral', 'h32', 'full', 'fullNature']
@@ -2480,9 +2561,13 @@ const oppScenarioMatches = computed(() => {
 .sb-inflict-status-block { display:flex; flex-direction:column; gap:4px; border-top:1px solid #666; padding-top:8px; }
 .sb-inflict-checkbox { display:flex; align-items:center; gap:4px; font-size:11px; cursor:pointer; }
 .sb-status-forecast { display:flex; flex-direction:column; gap:2px; font-size:10px; color:#ffb74d; border-top:1px solid #666; padding-top:6px; }
-.sb-turn-order-forecast { display:flex; flex-direction:column; gap:2px; font-size:10px; color:#81d4fa; border-top:1px solid #666; padding-top:6px; }
-.sb-turn-order-reference { color:#b0bec5; }
-.sb-turn-order-section { color:#ffd54f; font-weight:bold; margin-top:4px; }
+.sb-forecast-block { display:flex; flex-direction:column; gap:2px; font-size:10px; color:#81d4fa; border-top:1px solid #666; padding-top:6px; }
+.sb-forecast-title { margin:0 0 2px 0; font-size:11px; color:#ffd54f; }
+.sb-forecast-block--reference { color:#b0bec5; }
+.sb-scenario-flow { margin-bottom:4px; padding-left:6px; border-left:2px solid #555; }
+.sb-scenario-flow-title { color:#ffd54f; font-weight:bold; margin-bottom:2px; }
+.sb-forecast-block--input { color:#e0e0e0; }
+.sb-observe-row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:4px; }
 
 .sb-panel--moves { align-self:start; }
 
