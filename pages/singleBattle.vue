@@ -1032,6 +1032,19 @@
       </div>
 
       <div
+        v-if="turnOrderReference.length"
+        class="sb-turn-order-forecast sb-turn-order-reference"
+      >
+        <div
+          v-for="(line, i) in turnOrderReference"
+          :key="'turn-order-ref-' + i"
+          :class="{ 'sb-turn-order-section': line.startsWith('[') }"
+        >
+          {{ line }}
+        </div>
+      </div>
+
+      <div
         v-if="mineStatusDamageForecast || oppStatusDamageForecast"
         class="sb-status-forecast"
       >
@@ -2146,15 +2159,54 @@ const turnOrderForecast = computed(() => {
     lines.push(`이 공격으로 ${secondLabel}이(가) 반드시 쓰러져 행동할 수 없습니다.`)
   } else {
     if (koResult === 'possible') {
-      // 내구 조정(노력치/성격 등)에 관계없이, 확정 1타인 경우에만 쓰러진다고 볼 수 있으므로
-      // 확정이 아닌 이상 쓰러지지 않는 것으로 간주하고 진행한다.
-      lines.push(`${secondLabel}은(는) 확정 1타인 경우에만 쓰러지므로, 내구 조정에 관계없이 쓰러지지 않는 것으로 간주하고 진행합니다.`)
+      // 이건 "내가 실제로 입력한 상대 노력치" 기준 판정일 뿐이다.
+      // 다른 노력치(무보정/H32/풀보정 등)에서는 결과가 다를 수 있으므로 아래 참고 정보를 별도로 확인해야 한다.
+      lines.push(`이 공격은 확정 1타가 아니므로 ${secondLabel}이(가) 쓰러지지 않는 것으로 간주하고 진행합니다. (다른 노력치 기준은 아래 '참고 정보'에서 확인)`)
     } else {
       lines.push(`이 공격으로는 ${secondLabel}이(가) 쓰러지지 않습니다.`)
     }
     const secondPreview = mineFirst ? oppPreview : minePreview
     lines.push(`이어서 ${describeAttack(secondLabel, mineFirst ? oppMoveName : mineMoveName, secondPreview)}`)
   }
+
+  return lines
+})
+
+// 위 turnOrderForecast는 "내가 실제로 입력한 상대 노력치(내구/스피드)" 기준 결과다.
+// 이 turnOrderReference는 그와 별개로, 좌측 상단 표의 내구 시나리오(무보정/H32/풀보정/풀보정(성격))와
+// 상단 스피드 비교 시나리오(상대 무보정/준속/최속/스카프 등) 기준으로 참고 정보를 보여준다.
+// 즉 "내가 설정한 상대 스탯"과 "다른 노력치였다면 어떻게 되는지"를 서로 다른 구간으로 명확히 분리한다.
+const turnOrderReference = computed(() => {
+  if (activeMineIndex.value === null || activeOppIndex.value === null) return []
+  if (mineAction.type !== '기술사용') return []
+
+  const lines = []
+  const moveName = selectedMoves.value[activeMineIndex.value]?.[mineAction.moveIndex]
+  const move = moveName ? getMoveData(moveName) : null
+
+  if (move && move.Category !== '변화') {
+    lines.push('[내구 참고: 좌측 상단 "예상 데미지" 표 시나리오 기준]')
+    scenarioKeys.forEach((sc) => {
+      const cell = mineCellScenarioForIndex(activeMineIndex.value, mineAction.moveIndex, activeOppIndex.value, sc, false)
+      const hp = scenarioHpValue(activeOppIndex.value, sc)
+      const label = !cell
+        ? '기술 없음'
+        : (hp <= 0 || cell.dmgMin >= hp)
+          ? '확정 1타'
+          : cell.dmgMax >= hp
+            ? '1타 가능(난수 필요)'
+            : '1타 불가능'
+      lines.push(`${scenarioLabel(sc)}: ${label}`)
+    })
+  }
+
+  lines.push('[스피드 참고: 상단 "스피드 비교" 표 시나리오 기준]')
+  speedRows.value
+    .filter((row) => !row.isMine)
+    .forEach((row) => {
+      const result = row.value > mineSpeedStat.value ? '상대가 앞섬(추월)' : row.value === mineSpeedStat.value ? '동속' : '자신이 앞섬'
+      lines.push(`${row.label} (${row.value}): ${result}`)
+    })
 
   return lines
 })
@@ -2197,26 +2249,30 @@ const scenarioHpValue = (idx, scenario) => {
   return calculateStat('H', baseHp, hpEv, '무보정', '', '')
 }
 
-const mineCellScenario = (moveIndex, oppIdx, scenario, useCrit) => {
-  if (previewMineIndex.value === null) return null
+// attackerIdx를 명시적으로 받는 버전 — previewMineIndex 대신 임의의 공격자 인덱스로 계산 가능
+// (좌상단 표는 previewMineIndex 기준, 중앙 하단 참고 정보는 activeMineIndex 기준으로 각각 사용)
+const mineCellScenarioForIndex = (attackerIdx, moveIndex, oppIdx, scenario, useCrit) => {
+  if (attackerIdx === null) return null
   if (!oppSelectedPokemon.value[oppIdx]) return null
-  const moveName = selectedMoves.value[previewMineIndex.value]?.[moveIndex]
+  const moveName = selectedMoves.value[attackerIdx]?.[moveIndex]
   if (!moveName) return null
   const move = getMoveData(moveName)
   if (!move || move.Category === '변화') return null
   const atkKey = move.Category === '물리' ? 'A' : 'C'
   const defKey = move.Category === '물리' ? 'B' : 'D'
 
-  const atkStats = mineDisplayStats(previewMineIndex.value)
+  const atkStats = mineDisplayStats(attackerIdx)
   // 랭크업은 실제 필드에 나와있는 포켓몬에게만 적용(벤치 미리보기 대상에는 적용 안 함)
-  const atkRank = previewMineIndex.value === activeMineIndex.value ? mineRanks[atkKey] : 0
+  const atkRank = attackerIdx === activeMineIndex.value ? mineRanks[atkKey] : 0
   const attack = (atkStats?.[atkKey] || 0) * rankMultiplier(atkRank)
   const defRank = oppIdx === activeOppIndex.value ? oppRanks[defKey] : 0
   const defense = scenarioDefenseValue(oppIdx, defKey, scenario) * rankMultiplier(defRank)
   const defHp = scenarioHpValue(oppIdx, scenario)
 
-  return buildCell(move, attack, defense, mineAbilityForCalc(previewMineIndex.value), selectedTool.value[previewMineIndex.value], defHp, useCrit)
+  return buildCell(move, attack, defense, mineAbilityForCalc(attackerIdx), selectedTool.value[attackerIdx], defHp, useCrit)
 }
+
+const mineCellScenario = (moveIndex, oppIdx, scenario, useCrit) => mineCellScenarioForIndex(previewMineIndex.value, moveIndex, oppIdx, scenario, useCrit)
 
 // ── 우하단 표: 받은 데미지 역산용 시나리오 ─────────────
 const oppScenarioKeys = ['neutral', 'ev32', 'ev32Nature', 'itemBoost']
@@ -2354,6 +2410,8 @@ const oppScenarioMatches = computed(() => {
 .sb-inflict-checkbox { display:flex; align-items:center; gap:4px; font-size:11px; cursor:pointer; }
 .sb-status-forecast { display:flex; flex-direction:column; gap:2px; font-size:10px; color:#ffb74d; border-top:1px solid #666; padding-top:6px; }
 .sb-turn-order-forecast { display:flex; flex-direction:column; gap:2px; font-size:10px; color:#81d4fa; border-top:1px solid #666; padding-top:6px; }
+.sb-turn-order-reference { color:#b0bec5; }
+.sb-turn-order-section { color:#ffd54f; font-weight:bold; margin-top:4px; }
 
 .sb-panel--moves { align-self:start; }
 
