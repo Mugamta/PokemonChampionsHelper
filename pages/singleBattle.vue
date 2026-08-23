@@ -245,6 +245,55 @@
         </div>
       </div>
 
+      <!-- 필드 설치 효과 (해저드/스크린) -->
+      <div class="sb-field-row">
+        <span class="sb-field-label">내 필드</span>
+        <div class="sb-tag-list">
+          <span
+            v-for="(cnt, name) in mineHazards"
+            :key="'mh-' + name"
+            class="sb-effect-tag"
+          >{{ name }}{{ cnt > 1 ? ` x${cnt}` : '' }}</span>
+          <span
+            v-for="(val, name) in mineScreens"
+            :key="'ms-' + name"
+            class="sb-effect-tag"
+          >{{ name }}({{ val.current }}/{{ val.total }})</span>
+          <span
+            v-if="!Object.keys(mineHazards).length && !Object.keys(mineScreens).length"
+            class="sb-placeholder-small"
+          >없음</span>
+        </div>
+      </div>
+      <div class="sb-field-row">
+        <span class="sb-field-label">상대 필드</span>
+        <div class="sb-tag-list">
+          <span
+            v-for="(cnt, name) in oppHazards"
+            :key="'oh-' + name"
+            class="sb-effect-tag"
+          >{{ name }}{{ cnt > 1 ? ` x${cnt}` : '' }}</span>
+          <span
+            v-for="(val, name) in oppScreens"
+            :key="'os-' + name"
+            class="sb-effect-tag"
+          >{{ name }}({{ val.current }}/{{ val.total }})</span>
+          <span
+            v-if="!Object.keys(oppHazards).length && !Object.keys(oppScreens).length"
+            class="sb-placeholder-small"
+          >없음</span>
+        </div>
+      </div>
+
+      <!-- 페어리록: 발동 중이면 양쪽 모두 교체 불가 -->
+      <div
+        v-if="fairyLockTurns > 0"
+        class="sb-field-row"
+      >
+        <span class="sb-field-label">교체금지</span>
+        <span class="sb-effect-tag">페어리록 ({{ fairyLockTurns }}턴 남음)</span>
+      </div>
+
       <!-- 전체 배틀 턴 수 -->
       <div class="sb-battle-turn">
         현재 턴: {{ battleTurn }}
@@ -707,6 +756,7 @@
               v-model="mineAction.type"
               type="radio"
               value="교체"
+              :disabled="fairyLockTurns > 0"
             >
             교체
           </label>
@@ -795,6 +845,7 @@
               v-model="oppAction.type"
               type="radio"
               value="교체"
+              :disabled="fairyLockTurns > 0"
             >
             교체
           </label>
@@ -1452,15 +1503,8 @@ const checkAbilityWeather = (side, idx) => {
   }
 }
 
-// 쾌청/비바라기/모래바람/설경 기술을 사용하면 해당 날씨로 전환된다
+// 쾌청/비바라기/모래바람/설경 기술을 사용하면 해당 날씨로 전환된다 (실제 적용은 applyFieldEffect에서 처리)
 const WEATHER_MOVE_MAP = { 쾌청: '쾌청', 비바라기: '비', 모래바람: '모래바람', 설경: '눈' }
-const maybeApplyWeatherMove = (moveName) => {
-  if (weatherSource.side !== null) return
-  const weather = WEATHER_MOVE_MAP[moveName]
-  if (weather) {
-    setWeather(weather)
-  }
-}
 
 // 메가진화/원시회귀 체크박스를 직접 클릭했을 때(카드 위 토글) 날씨 체크까지 함께 수행
 const onMineMegaCheckboxChange = (idx, checked) => {
@@ -1493,7 +1537,10 @@ const selectMine = (idx) => {
   ensureMineHpInit(idx)
   const prevMineIndex = activeMineIndex.value
   activeMineIndex.value = idx
-  if (prevMineIndex !== null && prevMineIndex !== idx) clearWeatherIfSourceGone('mine', prevMineIndex)
+  if (prevMineIndex !== null && prevMineIndex !== idx) {
+    clearWeatherIfSourceGone('mine', prevMineIndex)
+    resetRanks(mineRanks) // 교체 시 랭크 변화는 초기화된다
+  }
   checkMegaFormWeather('mine', idx)
   checkAbilityWeather('mine', idx)
 }
@@ -1502,7 +1549,10 @@ const selectOpp = (idx) => {
   ensureOppHpInit(idx)
   const prevOppIndex = activeOppIndex.value
   activeOppIndex.value = idx
-  if (prevOppIndex !== null && prevOppIndex !== idx) clearWeatherIfSourceGone('opp', prevOppIndex)
+  if (prevOppIndex !== null && prevOppIndex !== idx) {
+    clearWeatherIfSourceGone('opp', prevOppIndex)
+    resetRanks(oppRanks) // 교체 시 랭크 변화는 초기화된다
+  }
   checkMegaFormWeather('opp', idx)
   checkAbilityWeather('opp', idx)
   if (!revealedOppIndices.value.includes(idx)) {
@@ -1629,8 +1679,26 @@ const changeRoomTurn = (name, delta) => {
   r.current = Math.min(r.total, Math.max(0, r.current + delta))
 }
 
+// ── 필드 설치 효과 (해저드/스크린) ─────────────
+// 상대/사용자 필드에 설치되는 기술들(독압정/스텔스록/압정뿌리기/끈적끈적네트=해저드,
+// 리플렉터/빛의장막/오로라베일/신비의부적/순풍/와이드가드/패스트가드=스크린)의 설치 상태.
+// key는 moves.ts의 effects[].key(기술 자신의 이름)를 그대로 사용한다.
+const mineHazards = reactive({}) // { 독압정: 1~2, 스텔스록: 1, ... } 내 필드에 깔린 해저드
+const oppHazards = reactive({})  // 상대 필드에 깔린 해저드
+const mineScreens = reactive({}) // { 리플렉터: {current, total}, ... } 내 필드의 스크린류
+const oppScreens = reactive({})
+
+const SCREEN_DEFAULT_TURNS = 5
+
+// 페어리록: 이 값이 0보다 크면 양쪽 모두 교체가 불가능하다(발동한 턴 + 다음 턴 = 2)
+const fairyLockTurns = ref(0)
+
 // ── 스피드 비교 ─────────────
-const mineSpeedStat = computed(() => (activeMineIndex.value === null ? 0 : (mineDisplayStats(activeMineIndex.value)?.S || 0)))
+const mineSpeedStat = computed(() => {
+  if (activeMineIndex.value === null) return 0
+  const base = mineDisplayStats(activeMineIndex.value)?.S || 0
+  return Math.floor(base * rankMultiplier(mineRanks.S))
+})
 
 const speedRows = computed(() => {
   if (activeMineIndex.value === null) return []
@@ -1639,9 +1707,10 @@ const speedRows = computed(() => {
     const name = oppSelectedPokemon.value[activeOppIndex.value]
     const data = name ? pokemonMap.value[name] : null
     const base = data?.stats?.S || 0
-    const neutral = calculateStat('S', base, 0, '무보정', '', '')
-    const semi = calculateStat('S', base, 32, '무보정', '', '')
-    const max = calculateStat('S', base, 32, findNatureBoosting('S'), '', '')
+    const speedRankMult = rankMultiplier(oppRanks.S)
+    const neutral = Math.floor(calculateStat('S', base, 0, '무보정', '', '') * speedRankMult)
+    const semi = Math.floor(calculateStat('S', base, 32, '무보정', '', '') * speedRankMult)
+    const max = Math.floor(calculateStat('S', base, 32, findNatureBoosting('S'), '', '') * speedRankMult)
     rows.push(
       { key: 'neutral', label: '상대 무보정', value: neutral, isMine: false },
       { key: 'semi', label: '상대 준속', value: semi, isMine: false },
@@ -1743,6 +1812,89 @@ const applyEndOfTurnStatusDamage = () => {
   }
 }
 
+// ── 기술 사용 시 효과 자동 적용 (랭크 변화 / 필드 변화) ─────────────
+// moves.ts의 effects 배열을 읽어서, 기술을 사용한 쪽(userSide: 'mine' | 'opp')을 기준으로
+// 랭크 변화와 필드 설치 효과를 실제 배틀 상태에 반영한다.
+// (상태이상/다단히트/반동/회복/흡수는 기존처럼 별도 UI로 처리하며 여기서는 다루지 않음)
+
+const resetRanks = (target) => {
+  Object.keys(target).forEach((k) => { target[k] = 0 })
+}
+
+const oppositeSide = (side) => (side === 'mine' ? 'opp' : 'mine')
+
+// effect.target('self'|'opponent')을 실제 사용자 쪽 기준 side('mine'|'opp')로 변환해 랭크에 반영
+const applyRankEffect = (effect, userSide) => {
+  const side = effect.target === 'self' ? userSide : oppositeSide(userSide)
+  const ranks = side === 'mine' ? mineRanks : oppRanks
+  if (!(effect.stat in ranks)) return // 현재는 A/B/C/D/S만 추적(명중/회피/급소 랭크는 UI 미지원)
+  ranks[effect.stat] = Math.min(6, Math.max(-6, ranks[effect.stat] + effect.amount))
+}
+
+// effect.scope('self'|'opponent'|'global')에 따라 날씨/필드/공간변화/해저드/스크린 상태를 갱신
+const applyFieldEffect = (effect, userSide) => {
+  if (effect.scope === 'global') {
+    if (WEATHER_MOVE_MAP[effect.key] && weatherSource.side === null) {
+      setWeather(WEATHER_MOVE_MAP[effect.key])
+      return
+    }
+    if (roomOptions.includes(effect.key)) {
+      activeRooms[effect.key] = { current: 0, total: 5 }
+      return
+    }
+    if (fieldOptions.includes(effect.key)) {
+      battleField.value = effect.key
+      fieldTurn.current = 0
+      fieldTurn.total = WEATHER_BASE_TOTAL
+      return
+    }
+    if (effect.key === '썰렁개그') {
+      // 날씨를 눈으로 바꾸고, 사용자는 공격 직후 곧바로 교체된다.
+      // 같은 턴에 교체 대상까지 자동으로 고를 수는 없으므로,
+      // 사용한 쪽의 다음 행동을 "교체"로 미리 선택해 둔다(다음 실행 시 대상만 고르면 됨).
+      setWeather('눈')
+      if (userSide === 'mine') mineAction.type = '교체'
+      else oppAction.type = '교체'
+      return
+    }
+    if (effect.key === '흑안개') {
+      // 필드에 있는 모든 포켓몬(양쪽 다)의 랭크 변화를 초기화한다.
+      resetRanks(mineRanks)
+      resetRanks(oppRanks)
+      return
+    }
+    if (effect.key === '페어리록') {
+      // 발동한 턴과 다음 턴, 양쪽 모두 교체가 불가능해진다.
+      fairyLockTurns.value = 2
+      return
+    }
+    // 그 외 아직 전용 UI가 없는 필드 전체 효과는 추후 확장 지점으로 남겨둠
+    return
+  }
+
+  const side = effect.scope === 'self' ? userSide : oppositeSide(userSide)
+  if (effect.maxStack) {
+    // 스택형 엔트리 해저드(독압정/스텔스록/압정뿌리기/끈적끈적네트)
+    const hazards = side === 'mine' ? mineHazards : oppHazards
+    hazards[effect.key] = Math.min(effect.maxStack, (hazards[effect.key] || 0) + 1)
+  } else {
+    // 스크린류(리플렉터/빛의장막/오로라베일/신비의부적/순풍/와이드가드/패스트가드)
+    const screens = side === 'mine' ? mineScreens : oppScreens
+    screens[effect.key] = { current: 0, total: SCREEN_DEFAULT_TURNS }
+  }
+}
+
+// 실제로 사용된 기술 하나에 대해 rank/field 타입 effects를 전부 적용
+const applyMoveEffectsForMove = (moveName, userSide) => {
+  if (!moveName) return
+  const move = getMoveData(moveName)
+  if (!move?.effects?.length) return
+  move.effects.forEach((effect) => {
+    if (effect.type === 'rank') applyRankEffect(effect, userSide)
+    else if (effect.type === 'field') applyFieldEffect(effect, userSide)
+  })
+}
+
 // 교체 → 기술사용 → 상태이상 잔여 데미지 순으로 처리
 const executeTurn = () => {
   if (mineAction.type === '교체' && mineAction.targetIndex !== null) {
@@ -1762,7 +1914,7 @@ const executeTurn = () => {
       checkMegaFormWeather('mine', activeMineIndex.value)
     }
     if (activeMineIndex.value !== null) {
-      maybeApplyWeatherMove(selectedMoves.value[activeMineIndex.value]?.[mineAction.moveIndex])
+      applyMoveEffectsForMove(selectedMoves.value[activeMineIndex.value]?.[mineAction.moveIndex], 'mine')
     }
     if (activeOppIndex.value !== null) {
       const oi = activeOppIndex.value
@@ -1777,7 +1929,7 @@ const executeTurn = () => {
       checkMegaFormWeather('opp', activeOppIndex.value)
     }
     if (activeOppIndex.value !== null) {
-      maybeApplyWeatherMove(oppSelectedMoves.value[activeOppIndex.value]?.[oppAction.moveIndex])
+      applyMoveEffectsForMove(oppSelectedMoves.value[activeOppIndex.value]?.[oppAction.moveIndex], 'opp')
     }
     if (activeMineIndex.value !== null) {
       const mi = activeMineIndex.value
@@ -1802,6 +1954,15 @@ const executeTurn = () => {
   Object.keys(activeRooms).forEach((name) => {
     advanceEffectTurn(activeRooms[name], () => { delete activeRooms[name] })
   })
+  Object.keys(mineScreens).forEach((name) => {
+    advanceEffectTurn(mineScreens[name], () => { delete mineScreens[name] })
+  })
+  Object.keys(oppScreens).forEach((name) => {
+    advanceEffectTurn(oppScreens[name], () => { delete oppScreens[name] })
+  })
+  if (fairyLockTurns.value > 0) {
+    fairyLockTurns.value -= 1
+  }
 
   oppAction.damageTaken = 0
   mineAction.dmgPercent = 0
@@ -1816,9 +1977,10 @@ const rankStatKeys = [
   { key: 'B', name: '방어' },
   { key: 'C', name: '특수공격' },
   { key: 'D', name: '특수방어' },
+  { key: 'S', name: '스피드' },
 ]
-const mineRanks = reactive({ A: 0, B: 0, C: 0, D: 0 })
-const oppRanks = reactive({ A: 0, B: 0, C: 0, D: 0 })
+const mineRanks = reactive({ A: 0, B: 0, C: 0, D: 0, S: 0 })
+const oppRanks = reactive({ A: 0, B: 0, C: 0, D: 0, S: 0 })
 
 const changeRank = (target, key, delta) => {
   target[key] = Math.min(6, Math.max(-6, target[key] + delta))
@@ -1921,7 +2083,11 @@ const mineActionPreview = computed(() => {
 })
 
 // ── 중앙 하단: 스피드 기준 행동 순서 미리보기 ─────────────
-const oppActiveSpeed = computed(() => (activeOppIndex.value === null ? 0 : (oppDisplayStats(activeOppIndex.value)?.S || 0)))
+const oppActiveSpeed = computed(() => {
+  if (activeOppIndex.value === null) return 0
+  const base = oppDisplayStats(activeOppIndex.value)?.S || 0
+  return Math.floor(base * rankMultiplier(oppRanks.S))
+})
 
 // dmgMin~dmgMax(절대 데미지)가 상대의 현재 체력 범위(hpMin~hpMax)를 항상/절대 넘지 못하는지 판정
 // 'guaranteed': 무조건 쓰러뜨림, 'none': 절대 못 쓰러뜨림, 'possible': 난수에 따라 다름
@@ -1938,8 +2104,10 @@ const turnOrderForecast = computed(() => {
     return ['교체가 포함된 턴은 교체가 최우선으로 처리되어 행동 순서 미리보기를 제공하지 않습니다.']
   }
 
-  const mineName = mineDisplayName(activeMineIndex.value)
-  const oppName = oppDisplayName(activeOppIndex.value)
+  // 자신/상대가 같은 포켓몬을 선출할 수도 있으므로, 이름만으로는 구분이 안 되어
+  // "자신의 OO" / "상대의 OO" 형태로 표기해 어느 쪽인지 항상 구분되도록 한다.
+  const mineLabel = `자신의 ${mineDisplayName(activeMineIndex.value)}`
+  const oppLabel = `상대의 ${oppDisplayName(activeOppIndex.value)}`
   const mineMoveName = selectedMoves.value[activeMineIndex.value]?.[mineAction.moveIndex] || '(기술 없음)'
   const oppMoveName = oppSelectedMoves.value[activeOppIndex.value]?.[oppAction.moveIndex] || '(기술 없음)'
 
@@ -1949,23 +2117,23 @@ const turnOrderForecast = computed(() => {
   const mineHpNow = mineCurrentHp[activeMineIndex.value] ?? mineMaxHp.value
   const oppHpRangeNow = oppHpRange.value
 
-  const describeAttack = (attackerName, moveName, preview) => (preview
-    ? `${attackerName}이(가) ${moveName}(으)로 공격합니다 (예상 ${preview.dmgMin}~${preview.dmgMax}, ${preview.pctMin}~${preview.pctMax}%).`
-    : `${attackerName}이(가) ${moveName}(으)로 공격합니다.`)
+  const describeAttack = (attackerLabel, moveName, preview) => (preview
+    ? `${attackerLabel}이(가) ${moveName}(으)로 공격합니다 (예상 ${preview.dmgMin}~${preview.dmgMax}, ${preview.pctMin}~${preview.pctMax}%).`
+    : `${attackerLabel}이(가) ${moveName}(으)로 공격합니다.`)
 
   const lines = []
 
   if (mineSpeedStat.value === oppActiveSpeed.value) {
-    lines.push(`${mineName}과(와) ${oppName}의 스피드가 같아 선공 여부를 알 수 없습니다.`)
+    lines.push(`${mineLabel}과(와) ${oppLabel}의 스피드가 같아 선공 여부를 알 수 없습니다.`)
     return lines
   }
 
   const mineFirst = mineSpeedStat.value > oppActiveSpeed.value
-  const firstName = mineFirst ? mineName : oppName
-  const secondName = mineFirst ? oppName : mineName
+  const firstLabel = mineFirst ? mineLabel : oppLabel
+  const secondLabel = mineFirst ? oppLabel : mineLabel
 
-  lines.push(`${firstName}이(가) 더 빨라 먼저 행동합니다.`)
-  lines.push(describeAttack(firstName, mineFirst ? mineMoveName : oppMoveName, mineFirst ? minePreview : oppPreview))
+  lines.push(`${firstLabel}이(가) 더 빨라 먼저 행동합니다.`)
+  lines.push(describeAttack(firstLabel, mineFirst ? mineMoveName : oppMoveName, mineFirst ? minePreview : oppPreview))
 
   const firstPreview = mineFirst ? minePreview : oppPreview
   const koResult = firstPreview
@@ -1975,17 +2143,22 @@ const turnOrderForecast = computed(() => {
     : 'none'
 
   if (koResult === 'guaranteed') {
-    lines.push(`이 공격으로 ${secondName}이(가) 반드시 쓰러져 행동할 수 없습니다.`)
+    lines.push(`이 공격으로 ${secondLabel}이(가) 반드시 쓰러져 행동할 수 없습니다.`)
   } else {
     if (koResult === 'possible') {
-      lines.push(`이 공격의 난수에 따라 ${secondName}이(가) 쓰러져 행동하지 못할 수도 있습니다.`)
+      // 내구 조정(노력치/성격 등)에 관계없이, 확정 1타인 경우에만 쓰러진다고 볼 수 있으므로
+      // 확정이 아닌 이상 쓰러지지 않는 것으로 간주하고 진행한다.
+      lines.push(`${secondLabel}은(는) 확정 1타인 경우에만 쓰러지므로, 내구 조정에 관계없이 쓰러지지 않는 것으로 간주하고 진행합니다.`)
+    } else {
+      lines.push(`이 공격으로는 ${secondLabel}이(가) 쓰러지지 않습니다.`)
     }
     const secondPreview = mineFirst ? oppPreview : minePreview
-    lines.push(`쓰러지지 않는다면 이어서 ${describeAttack(secondName, mineFirst ? oppMoveName : mineMoveName, secondPreview)}`)
+    lines.push(`이어서 ${describeAttack(secondLabel, mineFirst ? oppMoveName : mineMoveName, secondPreview)}`)
   }
 
   return lines
 })
+
 
 // ── 좌상단 표: 4가지 상대 시나리오 (변화기 제외) ─────────────
 const scenarioKeys = ['neutral', 'h32', 'full', 'fullNature']
@@ -2237,6 +2410,9 @@ const oppScenarioMatches = computed(() => {
 .sb-turn-counter button { font-size:10px; width:16px; height:16px; line-height:1; border:1px solid #888; background:#444; color:#fff; cursor:pointer; border-radius:3px; }
 
 .sb-battle-turn { font-size:11px; color:#ffeb3b; font-weight:bold; margin-top:2px; }
+
+.sb-tag-list { display:flex; flex-wrap:wrap; gap:4px; }
+.sb-effect-tag { font-size:9px; padding:1px 6px; border-radius:8px; background:#37474f; color:#fff; white-space:nowrap; }
 
 .sb-speed-box { display:flex; flex-direction:column; gap:2px; border-top:1px solid #666; padding-top:6px; }
 .sb-speed-row { display:flex; justify-content:space-between; font-size:11px; }
