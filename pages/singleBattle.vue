@@ -300,14 +300,47 @@
       </div>
 
       <!-- 스피드 비교 (내림차순 정렬, 내 스피드는 빨간색) -->
+      <div class="sb-field-row">
+        <span class="sb-field-label">관찰</span>
+        <div class="sb-field-buttons">
+          <button
+            type="button"
+            class="sb-field-btn"
+            :class="{ active: observedTurnOrder === 'mine' }"
+            @click="toggleObservedTurnOrder('mine')"
+          >
+            내가 선공
+          </button>
+          <button
+            type="button"
+            class="sb-field-btn"
+            :class="{ active: observedTurnOrder === 'opp' }"
+            @click="toggleObservedTurnOrder('opp')"
+          >
+            상대가 선공
+          </button>
+        </div>
+      </div>
+      <div
+        v-if="inferredOppSpeedBound"
+        class="sb-speed-inferred"
+      >
+        추정: 상대 스피드 실능치(랭크 제외) {{ inferredOppSpeedBound.type === 'min' ? '최소' : '최대' }} {{ inferredOppSpeedBound.value }}
+      </div>
       <div class="sb-speed-box">
         <div
           v-for="row in speedRows"
           :key="row.key"
           class="sb-speed-row"
-          :class="{ 'sb-speed-row--mine': row.isMine }"
+          :class="{ 'sb-speed-row--mine': row.isMine, 'sb-speed-row--excluded': isSpeedRowExcluded(row) }"
         >
-          <span>{{ row.label }}</span>
+          <span>
+            {{ row.label }}
+            <span
+              v-if="isSpeedRowExcluded(row)"
+              class="sb-speed-excluded-tag"
+            >(제외: 관찰 결과와 모순)</span>
+          </span>
           <span>{{ row.value }}</span>
         </div>
         <div
@@ -1553,6 +1586,7 @@ const selectMine = (idx) => {
   if (prevMineIndex !== null && prevMineIndex !== idx) {
     clearWeatherIfSourceGone('mine', prevMineIndex)
     resetRanks(mineRanks) // 교체 시 랭크 변화는 초기화된다
+    observedTurnOrder.value = 'unknown' // 매치업이 바뀌므로 이전 관찰 결과는 무효화
   }
   checkMegaFormWeather('mine', idx)
   checkAbilityWeather('mine', idx)
@@ -1565,6 +1599,7 @@ const selectOpp = (idx) => {
   if (prevOppIndex !== null && prevOppIndex !== idx) {
     clearWeatherIfSourceGone('opp', prevOppIndex)
     resetRanks(oppRanks) // 교체 시 랭크 변화는 초기화된다
+    observedTurnOrder.value = 'unknown' // 매치업이 바뀌므로 이전 관찰 결과는 무효화
   }
   checkMegaFormWeather('opp', idx)
   checkAbilityWeather('opp', idx)
@@ -1721,19 +1756,55 @@ const speedRows = computed(() => {
     const data = name ? pokemonMap.value[name] : null
     const base = data?.stats?.S || 0
     const speedRankMult = rankMultiplier(oppRanks.S)
-    const neutral = Math.floor(calculateStat('S', base, 0, '무보정', '', '') * speedRankMult)
-    const semi = Math.floor(calculateStat('S', base, 32, '무보정', '', '') * speedRankMult)
-    const max = Math.floor(calculateStat('S', base, 32, findNatureBoosting('S'), '', '') * speedRankMult)
+    // rawValue: 랭크(스테이지) 배율을 적용하지 않은, 노력치/성격/도구까지만 반영한 "기본 실능치".
+    // 랭크는 일시적인 상태라서 관찰 기반 역산과 비교할 때는 이 값을 기준으로 삼아야 한다.
+    const neutralBase = calculateStat('S', base, 0, '무보정', '', '')
+    const semiBase = calculateStat('S', base, 32, '무보정', '', '')
+    const maxBase = calculateStat('S', base, 32, findNatureBoosting('S'), '', '')
+    const semiScarfBase = Math.floor(semiBase * 1.5)
+    const maxScarfBase = Math.floor(maxBase * 1.5)
     rows.push(
-      { key: 'neutral', label: '상대 무보정', value: neutral, isMine: false },
-      { key: 'semi', label: '상대 준속', value: semi, isMine: false },
-      { key: 'max', label: '상대 최속', value: max, isMine: false },
-      { key: 'semiScarf', label: '상대 준속 스카프', value: Math.floor(semi * 1.5), isMine: false },
-      { key: 'maxScarf', label: '상대 최속 스카프', value: Math.floor(max * 1.5), isMine: false },
+      { key: 'neutral', label: '상대 무보정', value: Math.floor(neutralBase * speedRankMult), rawValue: neutralBase, isMine: false },
+      { key: 'semi', label: '상대 준속', value: Math.floor(semiBase * speedRankMult), rawValue: semiBase, isMine: false },
+      { key: 'max', label: '상대 최속', value: Math.floor(maxBase * speedRankMult), rawValue: maxBase, isMine: false },
+      { key: 'semiScarf', label: '상대 준속 스카프', value: Math.floor(semiScarfBase * speedRankMult), rawValue: semiScarfBase, isMine: false },
+      { key: 'maxScarf', label: '상대 최속 스카프', value: Math.floor(maxScarfBase * speedRankMult), rawValue: maxScarfBase, isMine: false },
     )
   }
   return rows.sort((a, b) => b.value - a.value)
 })
+
+// ── 관찰된 선후공 결과로 상대 스피드 역산 ─────────────
+// 이번 턴 실제로 누가 먼저 움직였는지를 입력하면, 그 순간의 랭크 상태를 감안해서
+// 상대의 "랭크를 제외한 기본 실능치"의 최소/최대 경계를 역산한다.
+// 랭크가 걸린 상태에서 비교하면 매 순간 배율이 달라지므로 반드시 랭크를 나눠서
+// 뒤로 돌린 기본 실능치 기준으로 판단해야 한다(랭크가 아닌 기본 실능치 기준).
+const observedTurnOrder = ref('unknown') // 'unknown' | 'mine' | 'opp'
+const toggleObservedTurnOrder = (v) => {
+  observedTurnOrder.value = observedTurnOrder.value === v ? 'unknown' : v
+}
+
+const inferredOppSpeedBound = computed(() => {
+  if (observedTurnOrder.value === 'unknown') return null
+  if (activeMineIndex.value === null || activeOppIndex.value === null) return null
+  const oppRankMult = rankMultiplier(oppRanks.S)
+  const boundary = mineSpeedStat.value / oppRankMult
+  if (observedTurnOrder.value === 'opp') {
+    // 상대가 선공 → 상대의 (랭크 반영) 실효 스피드가 내 실효 스피드 이상이어야 하므로,
+    // 상대 기본 실능치는 최소 이 값 이상이어야 한다.
+    return { type: 'min', value: Math.ceil(boundary) }
+  }
+  // 내가 선공 → 상대 기본 실능치는 최대 이 값 이하여야 한다.
+  return { type: 'max', value: Math.floor(boundary) }
+})
+
+// 관찰된 경계값과 모순되는 스피드 시나리오(예: 최소 스피드가 130인데 상대 무보정은 100인 경우)는
+// "일어날 수 없는 경우"로 판단해 제외 표시한다.
+const isSpeedRowExcluded = (row) => {
+  if (row.isMine || !inferredOppSpeedBound.value || row.rawValue === undefined) return false
+  if (inferredOppSpeedBound.value.type === 'min') return row.rawValue < inferredOppSpeedBound.value.value
+  return row.rawValue > inferredOppSpeedBound.value.value
+}
 
 // ── 상대 기술 select 옵션 ─────────────
 const oppMoveOptions = (index, moveIdx) => {
@@ -2475,6 +2546,9 @@ const oppScenarioMatches = computed(() => {
 .sb-speed-box { display:flex; flex-direction:column; gap:2px; border-top:1px solid #666; padding-top:6px; }
 .sb-speed-row { display:flex; justify-content:space-between; font-size:11px; }
 .sb-speed-row--mine { color:#ff5252; font-weight:bold; }
+.sb-speed-row--excluded { opacity:0.4; text-decoration: line-through; }
+.sb-speed-excluded-tag { font-size:8px; color:#ff8a65; margin-left:4px; text-decoration:none; }
+.sb-speed-inferred { font-size:10px; color:#4fc3f7; font-weight:bold; }
 .sb-placeholder-small { font-size:10px; color:#999; }
 
 .sb-status-name { font-size:13px; font-weight:bold; }
