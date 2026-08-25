@@ -927,10 +927,10 @@
             class="sb-dmg-input"
           >
           <span
-            v-if="oppScenarioMatches.length"
+            v-if="oppScenarioEstimateText"
             class="sb-preview"
           >
-            추정: {{ oppScenarioMatches.map(m => m.label).join(', ') }}
+            {{ oppScenarioEstimateText }}
           </span>
           <span
             v-else-if="oppAction.damageTaken"
@@ -1108,10 +1108,10 @@
         <div class="sb-observe-row">
           <span class="sb-input-label">입힌 데미지(%) 기반 상대 내구 역산</span>
           <span
-            v-if="mineScenarioMatches.length"
+            v-if="mineScenarioEstimateText"
             class="sb-preview"
           >
-            일치하는 내구 시나리오: {{ mineScenarioMatches.map(m => m.label).join(', ') }}
+            {{ mineScenarioEstimateText }}
           </span>
           <span
             v-else-if="Number(mineAction.dmgPercent)"
@@ -2294,12 +2294,15 @@ const turnOrderForecast = computed(() => {
   return lines
 })
 
-// ② 상대의 내구/스피드가 "최소"(노력치 0·무보정) 또는 "최대"(노력치 32+보정 성격, 스피드는 최속 스카프까지)일 때
+// ② 상대의 내구/스피드가 "최소"(노력치 0·무보정) 또는 "최대"(노력치 32, 스피드는 최속 스카프까지)일 때
 // 각각 어떤 흐름이 되는지 시나리오별로 서술한다. 좌측 상단 표·상단 스피드 표와 동일한 계산 로직을 그대로 재사용해서
 // ①번(설정값 기준)과는 독립적인, 서로 다른 전제의 시나리오임을 명확히 분리해서 보여준다.
+// 주의: 성격은 한 포켓몬당 하나만 적용되고 오직 한 스탯만 올릴 수 있다.
+// "최대" 시나리오에서 스피드에 보정 성격(최속 스카프)을 쓴다고 가정했으므로,
+// 내구까지 동시에 보정 성격(fullNature)을 받는 건 불가능하다 — 내구는 EV만 최대(full)로 잡는다.
 const SCENARIO_FLOW_DEFS = [
   { key: 'min', label: '최소 시나리오 (상대 내구 무보정 · 스피드 무보정)', bulkScenario: 'neutral', speedRowKey: 'neutral' },
-  { key: 'max', label: '최대 시나리오 (상대 내구 풀보정(성격) · 스피드 최속 스카프)', bulkScenario: 'fullNature', speedRowKey: 'maxScarf' },
+  { key: 'max', label: '최대 시나리오 (상대 내구 EV32·무보정 · 스피드 최속 스카프)', bulkScenario: 'full', speedRowKey: 'maxScarf' },
 ]
 
 const turnOrderScenarioFlows = computed(() => {
@@ -2356,6 +2359,19 @@ const turnOrderScenarioFlows = computed(() => {
 //   - 선후공 관찰(observedTurnOrder) → 상대 스피드(랭크 제외 기본 실능치) 최소/최대 역산 (inferredOppSpeedBound, 위에서 정의)
 //   - 입힌 데미지(%)(mineAction.dmgPercent, "내 행동" 입력란) → 상대 내구가 어느 시나리오와 일치하는지 역산
 // 이렇게 역산된 값과 모순되는 경우는 자동으로 제외된다(스피드는 speedRows에서 취소선으로 표시).
+
+// 시나리오 목록은 반드시 "값이 약함(데미지가 잘 들어감) → 강함(데미지가 덜 들어감)" 순서로 넘겨야 한다.
+// 하나만 일치하면 그 라벨 그대로("~로 추정"), 여러 개가 겹쳐서 동시에 일치하면 실제 값은 그 사이 어딘가라는 뜻이므로
+// "가장 약한 시나리오는 최대난수로 겨우 맞고, 가장 강한 시나리오는 최저난수로 겨우 맞는" 경계로 이해해
+// "약한 시나리오 최대난수 ~ 강한 시나리오 최저난수 사이로 추정"처럼 구간으로 합쳐서 표현한다.
+const formatScenarioEstimate = (matches) => {
+  if (!matches.length) return ''
+  if (matches.length === 1) return `${matches[0].label}로 추정`
+  const weakest = matches[0]
+  const strongest = matches[matches.length - 1]
+  return `${weakest.label} 최대난수 ~ ${strongest.label} 최저난수 사이로 추정`
+}
+
 const mineScenarioMatches = computed(() => {
   const dmgPercent = Number(mineAction.dmgPercent)
   if (!dmgPercent || activeMineIndex.value === null || activeOppIndex.value === null) return []
@@ -2363,6 +2379,7 @@ const mineScenarioMatches = computed(() => {
     .map((sc) => ({ key: sc, label: scenarioLabel(sc), data: mineCellScenarioForIndex(activeMineIndex.value, mineAction.moveIndex, activeOppIndex.value, sc, false) }))
     .filter((s) => s.data && dmgPercent >= Number(s.data.pctMin) && dmgPercent <= Number(s.data.pctMax))
 })
+const mineScenarioEstimateText = computed(() => formatScenarioEstimate(mineScenarioMatches.value))
 
 // ── 좌상단 표: 4가지 상대 시나리오 (변화기 제외) ─────────────
 const scenarioKeys = ['neutral', 'h32', 'full', 'fullNature']
@@ -2428,11 +2445,23 @@ const mineCellScenario = (moveIndex, oppIdx, scenario, useCrit) => mineCellScena
 
 // ── 우하단 표: 받은 데미지 역산용 시나리오 ─────────────
 const oppScenarioKeys = ['neutral', 'ev32', 'ev32Nature', 'itemBoost']
-const oppScenarioLabels = {
-  neutral: '무보정',
-  ev32: 'A/C 32',
-  ev32Nature: 'A/C 32+성격',
-  itemBoost: '데미지업 도구(20%)',
+
+// 상대가 사용한 기술이 물리인지 특수인지에 따라 A32/C32처럼 실제 관여하는 스탯으로 표기한다.
+const oppAtkKeyForCurrentMove = computed(() => {
+  if (activeOppIndex.value === null) return null
+  const moveName = oppSelectedMoves.value[activeOppIndex.value]?.[oppAction.moveIndex]
+  const move = moveName ? getMoveData(moveName) : null
+  if (!move || move.Category === '변화') return null
+  return move.Category === '물리' ? 'A' : 'C'
+})
+const oppScenarioLabel = (sc) => {
+  const atkKey = oppAtkKeyForCurrentMove.value || 'A/C'
+  return {
+    neutral: '무보정',
+    ev32: `${atkKey}32`,
+    ev32Nature: `${atkKey}32+성격`,
+    itemBoost: '데미지업 도구(20%)',
+  }[sc]
 }
 
 const scenarioOffenseValue = (idx, atkKey, scenario) => {
@@ -2521,9 +2550,10 @@ const oppScenarioMatches = computed(() => {
   const dmg = Number(oppAction.damageTaken)
   if (!dmg || activeMineIndex.value === null || activeOppIndex.value === null) return []
   return oppScenarioKeys
-    .map((sc) => ({ key: sc, label: oppScenarioLabels[sc], data: oppDamageScenario(oppAction.moveIndex, sc, false) }))
+    .map((sc) => ({ key: sc, label: oppScenarioLabel(sc), data: oppDamageScenario(oppAction.moveIndex, sc, false) }))
     .filter((s) => s.data && dmg >= s.data.dmgMin && dmg <= s.data.dmgMax)
 })
+const oppScenarioEstimateText = computed(() => formatScenarioEstimate(oppScenarioMatches.value))
 </script>
 
 <style scoped>
