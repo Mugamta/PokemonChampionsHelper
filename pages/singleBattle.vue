@@ -2708,10 +2708,16 @@ const oppScenarioEstimateText = computed(() => formatScenarioEstimate(oppScenari
 /* 상태이상 / 특수 상태이상 */
 /* 상태이상: 그룹(상태이상/멘탈허브/기타/교체불가)이 각각 한 행씩 세로로 쌓이고,
    그 행 안에서는 라벨+버튼들이 가로로 나란히 배치된다. */
-.sb-status-conditions { display:flex; flex-direction:column; gap:4px; }
-.sb-condition-row { display:flex; flex-direction:row; align-items:center; gap:6px; flex-wrap:wrap; }
-.sb-condition-group-label { font-size:9px; color:#ccc; flex-shrink:0; }
-.sb-condition-btn { font-size:9px; padding:2px 6px; border:1px solid #999; border-radius:10px; cursor:pointer; background:#444; color:#fff; white-space:nowrap; }
+/* 상태이상: 부모(sb-status-conditions)가 "라벨 1칸 + 버튼 8칸"짜리 진짜 그리드를 만들고,
+   각 행(sb-condition-row)은 display:contents로 그 그리드에 직접 참여한다.
+   그래서 행마다 항목 개수가 달라도(6/8/4/4) 같은 순번 항목은 항상 같은 열에 정렬된다
+   (예: 독/혼란/소금절이/문어굳히기가 전부 첫 번째 버튼 열에 나란히 놓임). */
+.sb-status-conditions { display:grid; grid-template-columns: max-content repeat(8, max-content); row-gap:4px; column-gap:3px; align-items:center; }
+.sb-condition-row { display:contents; }
+/* grid-column:1을 명시하면, 현재 행의 1열이 이미 앞 그룹 라벨로 채워져 있을 때
+   자동으로 다음 행의 1열로 넘어간다(sparse 배치 규칙) → 그룹마다 새 행에서 시작하게 강제됨 */
+.sb-condition-group-label { grid-column: 1; font-size:9px; color:#ccc; }
+.sb-condition-btn { font-size:9px; padding:2px 3px; border:1px solid #999; border-radius:6px; cursor:pointer; background:#444; color:#fff; white-space:nowrap; text-align:center; }
 .sb-condition-btn.active { background:#e53935; border-color:#e53935; }
 
 /* 상대 확정/후보 영역 (항상 표시, 좌우 배치) */
