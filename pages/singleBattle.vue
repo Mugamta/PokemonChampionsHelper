@@ -2706,10 +2706,12 @@ const oppScenarioEstimateText = computed(() => formatScenarioEstimate(oppScenari
 .sb-rank-btn { font-size:7px; line-height:7px; padding:0 3px; border:1px solid #888; background:#444; color:#fff; cursor:pointer; }
 
 /* 상태이상 / 특수 상태이상 */
-.sb-status-conditions { display:flex; flex-direction:row; flex-wrap:wrap; gap:12px; }
-.sb-condition-row { display:flex; flex-direction:column; align-items:flex-start; gap:3px; }
-.sb-condition-group-label { font-size:9px; color:#ccc; }
-.sb-condition-btn { font-size:9px; padding:2px 6px; border:1px solid #999; border-radius:10px; cursor:pointer; background:#444; color:#fff; align-self:stretch; text-align:left; }
+/* 상태이상: 그룹(상태이상/멘탈허브/기타/교체불가)이 각각 한 행씩 세로로 쌓이고,
+   그 행 안에서는 라벨+버튼들이 가로로 나란히 배치된다. */
+.sb-status-conditions { display:flex; flex-direction:column; gap:4px; }
+.sb-condition-row { display:flex; flex-direction:row; align-items:center; gap:6px; flex-wrap:wrap; }
+.sb-condition-group-label { font-size:9px; color:#ccc; flex-shrink:0; }
+.sb-condition-btn { font-size:9px; padding:2px 6px; border:1px solid #999; border-radius:10px; cursor:pointer; background:#444; color:#fff; white-space:nowrap; }
 .sb-condition-btn.active { background:#e53935; border-color:#e53935; }
 
 /* 상대 확정/후보 영역 (항상 표시, 좌우 배치) */
