@@ -898,15 +898,22 @@
           class="sb-action-detail"
         >
           <select
-            v-model.number="oppAction.moveIndex"
+            :value="oppSelectedMoves[activeOppIndex]?.[oppAction.moveIndex] || ''"
             :disabled="activeOppIndex === null"
+            @change="onOppActionMoveSelect($event.target.value)"
           >
             <option
-              v-for="k in 4"
-              :key="'opp-act-move-' + k"
-              :value="k - 1"
+              value=""
+              disabled
             >
-              {{ oppSelectedMoves[activeOppIndex]?.[k - 1] || '-' }}
+              기술 선택
+            </option>
+            <option
+              v-for="m in oppAllMoveOptions"
+              :key="m"
+              :value="m"
+            >
+              {{ m }}
             </option>
           </select>
           <label
@@ -1863,6 +1870,36 @@ const oppMoveOptions = (index, moveIdx) => {
   const allMoves = pokemonMap.value[name]?.moves || []
   const used = oppSelectedMoves.value[index]?.filter((m, i) => i !== moveIdx && m) || []
   return allMoves.filter((m) => !used.includes(m))
+}
+
+// 중앙 하단 "상대 행동 → 기술 사용" select용: 4개 확정 슬롯이 아니라
+// 상대 포켓몬 종족이 배울 수 있는 기술 전부를 보여준다(첫 턴에는 아직 아무 기술도 확정되지 않았으므로).
+const oppAllMoveOptions = computed(() => {
+  if (activeOppIndex.value === null) return []
+  const name = oppSelectedPokemon.value[activeOppIndex.value]
+  return pokemonMap.value[name]?.moves || []
+})
+
+// 실제로 사용된 것으로 관찰된 기술을 선택하면, 이미 확정된 4개 슬롯 중 하나와 일치하면 그 슬롯을 그대로 쓰고,
+// 아직 없는(=미확정) 기술이면 비어있는 슬롯에 채워 넣어 "확정"시킨다.
+// 이렇게 확정된 기술은 oppSelectedMoves(우하단 기술 목록 select)에도 그대로 반영된다.
+const onOppActionMoveSelect = (moveName) => {
+  if (!moveName || activeOppIndex.value === null) return
+  const idx = activeOppIndex.value
+  const slots = oppSelectedMoves.value[idx]
+  if (!slots) return
+
+  let slotIndex = slots.findIndex((m) => m === moveName)
+  if (slotIndex === -1) {
+    slotIndex = slots.findIndex((m) => !m)
+    if (slotIndex === -1) {
+      // 이미 4개 슬롯이 전부 다른 기술로 채워진 상태에서 그중 없는 기술이 관찰된 경우(정상적으로는
+      // 발생하지 않아야 함 — 포켓몬은 기술을 4개까지만 배우므로). 안전하게 마지막 슬롯을 덮어쓴다.
+      slotIndex = slots.length - 1
+    }
+    slots[slotIndex] = moveName
+  }
+  oppAction.moveIndex = slotIndex
 }
 
 // 중앙 하단에서 선택한 상태이상을 실제로 내/상대 포켓몬에게 적용
