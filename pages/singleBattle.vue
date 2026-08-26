@@ -1115,7 +1115,13 @@
         <div class="sb-observe-row">
           <span class="sb-input-label">입힌 데미지(%) 기반 상대 내구 역산</span>
           <span
-            v-if="mineScenarioEstimateText"
+            v-if="oppUsedHitTriggeredItem"
+            class="sb-preview sb-preview--none"
+          >
+            이 턴은 도구 효과가 데미지에 섞여 있어 내구 역산을 생략합니다
+          </span>
+          <span
+            v-else-if="mineScenarioEstimateText"
             class="sb-preview"
           >
             {{ mineScenarioEstimateText }}
@@ -1133,6 +1139,32 @@
             위 "내 행동 → 입힌 데미지(%)"를 입력하면 자동으로 표시됩니다
           </span>
         </div>
+
+        <div class="sb-observe-row">
+          <label class="sb-inflict-checkbox">
+            <input
+              v-model="oppUsedHitTriggeredItem"
+              type="checkbox"
+            >
+            상대가 피격 시 발동하는 도구를 사용함
+          </label>
+          <select
+            v-if="oppUsedHitTriggeredItem"
+            v-model="oppHitTriggeredItemNote"
+            class="sb-item-note-select"
+          >
+            <option value="">
+              어떤 도구인지(선택, 메모용)
+            </option>
+            <option
+              v-for="opt in HIT_TRIGGERED_ITEM_OPTIONS"
+              :key="opt"
+              :value="opt"
+            >
+              {{ opt }}
+            </option>
+          </select>
+        </div>
       </div>
 
       <div
@@ -1147,13 +1179,31 @@
         </div>
       </div>
 
-      <button
-        type="button"
-        class="sb-execute-btn"
-        @click="executeTurn"
+      <div
+        v-if="turnValidationError"
+        class="sb-turn-error"
       >
-        이번 턴 적용
-      </button>
+        ⚠ {{ turnValidationError }}
+      </div>
+
+      <div class="sb-execute-row">
+        <button
+          type="button"
+          class="sb-undo-btn"
+          :disabled="!canUndoTurn"
+          @click="undoLastTurn"
+        >
+          ◀ 이전 턴으로
+        </button>
+        <button
+          type="button"
+          class="sb-execute-btn"
+          :disabled="!!turnValidationError"
+          @click="executeTurn"
+        >
+          이번 턴 적용
+        </button>
+      </div>
     </section>
 
     <!-- 우하단: 상대 기술 목록(select) + 내 포켓몬별 실제 데미지 -->
@@ -2067,8 +2117,130 @@ const applyMoveEffectsForMove = (moveName, userSide) => {
   })
 }
 
+// ── 턴 진행 전 입력값 검증 ─────────────
+// 실제로 있을 수 없는 수치(0~100% 범위를 벗어난 입힌 데미지, 내 최대체력을 넘는 받은 데미지 등)를
+// 조용히 잘라내는 대신, 턴 적용을 막고 에러 문구를 보여준다.
+const turnValidationError = computed(() => {
+  if (mineAction.type === '기술사용' && mineAction.dmgPercent !== '' && mineAction.dmgPercent !== null && mineAction.dmgPercent !== undefined) {
+    const dmg = Number(mineAction.dmgPercent)
+    if (Number.isNaN(dmg) || dmg < 0 || dmg > 100) {
+      return '입힌 데미지(%)는 0~100 사이여야 합니다.'
+    }
+  }
+  if (oppAction.type === '기술사용' && oppAction.damageTaken !== '' && oppAction.damageTaken !== null && oppAction.damageTaken !== undefined) {
+    const dmg = Number(oppAction.damageTaken)
+    const maxHp = mineMaxHp.value
+    if (Number.isNaN(dmg) || dmg < 0 || (maxHp > 0 && dmg > maxHp)) {
+      return `입은 데미지는 0~${maxHp} 사이여야 합니다(내 최대체력 기준).`
+    }
+  }
+  return ''
+})
+
+// ── 이전 턴으로 되돌리기 ─────────────
+// executeTurn을 실행하기 직전 상태 전체를 스냅샷으로 남겨두고, "이전 턴으로" 버튼을 누르면 마지막
+// 스냅샷을 그대로 복원한다. reactive({})로 만든 "임의 키가 늘었다 줄었다 하는" 객체들은 단순 Object.assign만
+// 하면 지워진 키가 안 지워지므로, 먼저 기존 키를 전부 delete한 뒤 스냅샷 값으로 다시 채운다.
+const turnHistory = ref([])
+const MAX_TURN_HISTORY = 30
+
+const replaceReactiveObject = (target, source) => {
+  Object.keys(target).forEach((k) => { delete target[k] })
+  Object.assign(target, source || {})
+}
+
+const captureBattleSnapshot = () => JSON.parse(JSON.stringify({
+  activeMineIndex: activeMineIndex.value,
+  activeOppIndex: activeOppIndex.value,
+  previewMineIndex: previewMineIndex.value,
+  mineCurrentHp,
+  oppHpPercent,
+  mineMegaToggle,
+  oppMegaToggle,
+  revealedOppIndices: revealedOppIndices.value,
+  mineRanks,
+  oppRanks,
+  mineStatusCondition: mineStatusCondition.value,
+  oppStatusCondition: oppStatusCondition.value,
+  mineToxicTurn: mineToxicTurn.value,
+  oppToxicTurn: oppToxicTurn.value,
+  mineSpecialConditions,
+  mineSpecialTurns,
+  oppSpecialConditions,
+  oppSpecialTurns,
+  battleWeather: battleWeather.value,
+  weatherTurn,
+  weatherSource,
+  battleField: battleField.value,
+  fieldTurn,
+  activeRooms,
+  mineHazards,
+  oppHazards,
+  mineScreens,
+  oppScreens,
+  fairyLockTurns: fairyLockTurns.value,
+  observedTurnOrder: observedTurnOrder.value,
+  battleTurn: battleTurn.value,
+  mineAction,
+  oppAction,
+  oppUsedHitTriggeredItem: oppUsedHitTriggeredItem.value,
+  oppHitTriggeredItemNote: oppHitTriggeredItemNote.value,
+}))
+
+const restoreBattleSnapshot = (snap) => {
+  activeMineIndex.value = snap.activeMineIndex
+  activeOppIndex.value = snap.activeOppIndex
+  previewMineIndex.value = snap.previewMineIndex
+  replaceReactiveObject(mineCurrentHp, snap.mineCurrentHp)
+  replaceReactiveObject(oppHpPercent, snap.oppHpPercent)
+  replaceReactiveObject(mineMegaToggle, snap.mineMegaToggle)
+  replaceReactiveObject(oppMegaToggle, snap.oppMegaToggle)
+  revealedOppIndices.value = snap.revealedOppIndices || []
+  replaceReactiveObject(mineRanks, snap.mineRanks)
+  replaceReactiveObject(oppRanks, snap.oppRanks)
+  mineStatusCondition.value = snap.mineStatusCondition
+  oppStatusCondition.value = snap.oppStatusCondition
+  mineToxicTurn.value = snap.mineToxicTurn
+  oppToxicTurn.value = snap.oppToxicTurn
+  replaceReactiveObject(mineSpecialConditions, snap.mineSpecialConditions)
+  replaceReactiveObject(mineSpecialTurns, snap.mineSpecialTurns)
+  replaceReactiveObject(oppSpecialConditions, snap.oppSpecialConditions)
+  replaceReactiveObject(oppSpecialTurns, snap.oppSpecialTurns)
+  battleWeather.value = snap.battleWeather
+  replaceReactiveObject(weatherTurn, snap.weatherTurn)
+  replaceReactiveObject(weatherSource, snap.weatherSource)
+  battleField.value = snap.battleField
+  replaceReactiveObject(fieldTurn, snap.fieldTurn)
+  replaceReactiveObject(activeRooms, snap.activeRooms)
+  replaceReactiveObject(mineHazards, snap.mineHazards)
+  replaceReactiveObject(oppHazards, snap.oppHazards)
+  replaceReactiveObject(mineScreens, snap.mineScreens)
+  replaceReactiveObject(oppScreens, snap.oppScreens)
+  fairyLockTurns.value = snap.fairyLockTurns
+  observedTurnOrder.value = snap.observedTurnOrder
+  battleTurn.value = snap.battleTurn
+  replaceReactiveObject(mineAction, snap.mineAction)
+  replaceReactiveObject(oppAction, snap.oppAction)
+  oppUsedHitTriggeredItem.value = snap.oppUsedHitTriggeredItem
+  oppHitTriggeredItemNote.value = snap.oppHitTriggeredItemNote
+}
+
+const canUndoTurn = computed(() => turnHistory.value.length > 0)
+const undoLastTurn = () => {
+  const snap = turnHistory.value.pop()
+  if (!snap) return
+  restoreBattleSnapshot(snap)
+}
+
 // 교체 → 기술사용 → 상태이상 잔여 데미지 순으로 처리
 const executeTurn = () => {
+  if (turnValidationError.value) return
+
+  turnHistory.value.push(captureBattleSnapshot())
+  if (turnHistory.value.length > MAX_TURN_HISTORY) {
+    turnHistory.value.shift()
+  }
+
   if (mineAction.type === '교체' && mineAction.targetIndex !== null) {
     selectMine(mineAction.targetIndex)
     mineAction.targetIndex = null
@@ -2140,6 +2312,8 @@ const executeTurn = () => {
   mineAction.dmgPercent = 0
   mineAction.useMega = false
   oppAction.useMega = false
+  oppUsedHitTriggeredItem.value = false
+  oppHitTriggeredItemNote.value = ''
   battleTurn.value += 1
 }
 
@@ -2419,7 +2593,15 @@ const formatScenarioEstimate = (matches) => {
   return `${weakest.label} 최대난수 ~ ${strongest.label} 최저난수 사이로 추정`
 }
 
+// 상대가 피격 시 발동하는 도구(반감열매류 등 타입 상성 반감 열매, 추후 울퉁불퉁멧·약점보험 등도 추가 예정)를
+// 사용한 것으로 관찰되면, 이번 턴 입힌 데미지에는 그 도구 효과가 섞여 있으므로 순수 내구 역산이 무의미해진다.
+// 아직 각 도구의 실제 데미지 계산 반영은 구현되지 않았고, 우선 "이번 턴 값은 못 믿는다"는 표시와 메모만 남긴다.
+const oppUsedHitTriggeredItem = ref(false)
+const oppHitTriggeredItemNote = ref('')
+const HIT_TRIGGERED_ITEM_OPTIONS = ['반감열매(타입별)', '울퉁불퉁멧', '약점보험', '기타/모름']
+
 const mineScenarioMatches = computed(() => {
+  if (oppUsedHitTriggeredItem.value) return []
   const dmgPercent = Number(mineAction.dmgPercent)
   if (!dmgPercent || activeMineIndex.value === null || activeOppIndex.value === null) return []
   return scenarioKeys
@@ -2827,6 +3009,7 @@ const oppScenarioEstimateText = computed(() => formatScenarioEstimate(oppScenari
 
 .sb-placeholder { font-size:12px; color:#aaa; padding:12px; }
 .sb-dmg-input { width:70px; font-size:11px; padding:2px 4px; }
+.sb-execute-row { display:flex; gap:8px; align-items:center; }
 .sb-execute-btn {
   align-self: flex-start;
   font-size:12px;
@@ -2837,6 +3020,20 @@ const oppScenarioEstimateText = computed(() => formatScenarioEstimate(oppScenari
   color:#fff;
   cursor:pointer;
 }
+.sb-execute-btn:disabled { background:#666; cursor:not-allowed; opacity:0.6; }
+.sb-undo-btn {
+  align-self: flex-start;
+  font-size:12px;
+  padding:6px 14px;
+  border:1px solid #888;
+  border-radius:4px;
+  background:#444;
+  color:#fff;
+  cursor:pointer;
+}
+.sb-undo-btn:disabled { opacity:0.4; cursor:not-allowed; }
+.sb-turn-error { color:#ff5252; font-size:11px; font-weight:bold; }
+.sb-item-note-select { font-size:10px; padding:2px 4px; }
 .sb-room-status-list { display:flex; flex-wrap:wrap; gap:8px; margin-top:2px; }
 .sb-mine-col-list { display:flex; flex-direction:column; gap:2px; margin-left:4px; }
 /* 데미지 값 유무와 상관없이 각 행의 높이를 고정하고, grid로 컬럼 폭을 고정해 텍스트 길이에 따른 흔들림을 방지 */
