@@ -1053,7 +1053,7 @@
         class="sb-forecast-block sb-forecast-block--reference"
       >
         <h5 class="sb-forecast-title">
-          ② 최소·최대 시나리오 예상 흐름
+          ② 실전 노력치 시나리오 예상 흐름
         </h5>
         <div
           v-for="flow in turnOrderScenarioFlows"
@@ -2294,15 +2294,15 @@ const turnOrderForecast = computed(() => {
   return lines
 })
 
-// ② 상대의 내구/스피드가 "최소"(노력치 0·무보정) 또는 "최대"(노력치 32, 스피드는 최속 스카프까지)일 때
-// 각각 어떤 흐름이 되는지 시나리오별로 서술한다. 좌측 상단 표·상단 스피드 표와 동일한 계산 로직을 그대로 재사용해서
-// ①번(설정값 기준)과는 독립적인, 서로 다른 전제의 시나리오임을 명확히 분리해서 보여준다.
-// 주의: 성격은 한 포켓몬당 하나만 적용되고 오직 한 스탯만 올릴 수 있다.
-// "최대" 시나리오에서 스피드에 보정 성격(최속 스카프)을 쓴다고 가정했으므로,
-// 내구까지 동시에 보정 성격(fullNature)을 받는 건 불가능하다 — 내구는 EV만 최대(full)로 잡는다.
-const SCENARIO_FLOW_DEFS = [
-  { key: 'min', label: '최소 시나리오 (상대 내구 무보정 · 스피드 무보정)', bulkScenario: 'neutral', speedRowKey: 'neutral' },
-  { key: 'max', label: '최대 시나리오 (상대 내구 EV32·무보정 · 스피드 최속 스카프)', bulkScenario: 'full', speedRowKey: 'maxScarf' },
+// ② 실전에서 실제로 쓰이는 두 가지 "완성된" 노력치 스프레드를 기준으로 각각 어떤 흐름이 되는지 서술한다.
+// ("무보정"처럼 아무 노력치도 안 쓴 스프레드는 실전에 거의 없으므로 배제하고, 대신 흔히 쓰는 두 아키타입을 사용)
+//   - 스피드형: 체력 32 + 스피드 32(보정 성격)
+//   - 내구형:   체력 32 + 방어/특방(내가 쓰는 기술의 분류에 맞는 스탯) 32(보정 성격)
+// 성격은 한 포켓몬당 하나만 적용되고 오직 한 스탯만 올릴 수 있으므로, 각 아키타입은 나머지 한쪽(스피드형의 내구,
+// 내구형의 스피드)은 노력치 0·무보정으로 둔다 — 두 우선순위를 동시에 성격으로 올리는 건 애초에 불가능하다.
+const ARCHETYPE_DEFS = [
+  { key: 'speedy', label: '스피드형 (H32 · S32 보정)', hpEv: 32, defEv: 0, defNature: false, spdEv: 32, spdNature: true },
+  { key: 'bulky', label: '내구형 (H32 · B/D32 보정)', hpEv: 32, defEv: 32, defNature: true, spdEv: 0, spdNature: false },
 ]
 
 const turnOrderScenarioFlows = computed(() => {
@@ -2314,38 +2314,48 @@ const turnOrderScenarioFlows = computed(() => {
   const moveName = selectedMoves.value[activeMineIndex.value]?.[mineAction.moveIndex]
   const move = moveName ? getMoveData(moveName) : null
   const mineMoveName = moveName || '(기술 없음)'
+  const defKey = move && move.Category !== '변화' ? (move.Category === '물리' ? 'B' : 'D') : null
+  const atkKey = defKey === 'B' ? 'A' : 'C'
 
-  return SCENARIO_FLOW_DEFS.map((def) => {
-    const speedRow = speedRows.value.find((r) => r.key === def.speedRowKey)
-    const oppScenarioSpeed = speedRow ? speedRow.value : 0
+  const base = oppBaseStatsForIndex(activeOppIndex.value)
+
+  return ARCHETYPE_DEFS.map((def) => {
     const lines = []
 
-    if (mineSpeedStat.value === oppScenarioSpeed) {
-      lines.push(`${mineLabel}과(와) ${oppLabel}의 스피드가 같아(상대 ${oppScenarioSpeed}) 선공 여부를 알 수 없습니다.`)
+    const oppSpeedBase = calculateStat('S', base?.S || 0, def.spdEv, def.spdNature ? findNatureBoosting('S') : '무보정', '', '')
+    const oppSpeed = Math.floor(oppSpeedBase * rankMultiplier(oppRanks.S))
+
+    if (mineSpeedStat.value === oppSpeed) {
+      lines.push(`${mineLabel}과(와) ${oppLabel}의 스피드가 같아(상대 ${oppSpeed}) 선공 여부를 알 수 없습니다.`)
       return { title: def.label, lines }
     }
 
-    const mineFirst = mineSpeedStat.value > oppScenarioSpeed
+    const mineFirst = mineSpeedStat.value > oppSpeed
     const firstLabel = mineFirst ? mineLabel : oppLabel
-    lines.push(`${firstLabel}이(가) 더 빨라 먼저 행동합니다. (상대 스피드 ${oppScenarioSpeed})`)
+    lines.push(`${firstLabel}이(가) 더 빨라 먼저 행동합니다. (상대 스피드 ${oppSpeed})`)
 
     if (!mineFirst) {
       lines.push(`이 시나리오에서는 ${oppLabel}이(가) 먼저 행동하므로, 데미지 판정은 상대가 어떤 기술을 쓰는지에 달려 있습니다.`)
       return { title: def.label, lines }
     }
 
-    if (!move || move.Category === '변화') {
+    if (!move || move.Category === '변화' || !defKey) {
       lines.push(`${mineMoveName}은(는) 데미지를 주는 기술이 아니라 이 시나리오에서 KO 여부를 판단할 수 없습니다.`)
       return { title: def.label, lines }
     }
 
-    const cell = mineCellScenarioForIndex(activeMineIndex.value, mineAction.moveIndex, activeOppIndex.value, def.bulkScenario, false)
-    const hp = scenarioHpValue(activeOppIndex.value, def.bulkScenario)
-    if (!cell) {
-      lines.push('이 시나리오에서는 데미지를 계산할 수 없습니다.')
-    } else if (hp <= 0 || cell.dmgMin >= hp) {
+    const oppHp = calculateStat('H', base?.H || 0, def.hpEv, '무보정', '', '')
+    const oppDefBase = calculateStat(defKey, base?.[defKey] || 0, def.defEv, def.defNature ? findNatureBoosting(defKey) : '무보정', '', '')
+    const oppDef = oppDefBase * rankMultiplier(oppRanks[defKey])
+
+    const atkStats = mineDisplayStats(activeMineIndex.value)
+    const attack = (atkStats?.[atkKey] || 0) * rankMultiplier(mineRanks[atkKey])
+
+    const cell = buildCell(move, attack, oppDef, mineAbilityForCalc(activeMineIndex.value), selectedTool.value[activeMineIndex.value], oppHp, false)
+
+    if (oppHp <= 0 || cell.dmgMin >= oppHp) {
       lines.push(`${mineMoveName}(으)로 이 시나리오에서는 확정 1타로 ${oppLabel}이(가) 쓰러집니다.`)
-    } else if (cell.dmgMax >= hp) {
+    } else if (cell.dmgMax >= oppHp) {
       lines.push(`${mineMoveName}(으)로 이 시나리오에서는 1타가 가능하지만 확정은 아닙니다 (${cell.pctMin}~${cell.pctMax}%).`)
     } else {
       lines.push(`${mineMoveName}(으)로는 이 시나리오에서 1타가 불가능합니다 (${cell.pctMin}~${cell.pctMax}%).`)
