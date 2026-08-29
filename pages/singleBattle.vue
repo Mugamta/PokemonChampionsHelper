@@ -75,6 +75,10 @@
                         v-if="mineCellScenario(k, idx, sc, showCritMine).koLabel"
                         class="sb-ko-label"
                       >{{ mineCellScenario(k, idx, sc, showCritMine).koLabel }}</span>
+                      <span
+                        v-else-if="mineCellScenario(k, idx, sc, showCritMine).hitRange"
+                        class="sb-ko-label"
+                      >{{ formatHitRange(mineCellScenario(k, idx, sc, showCritMine).hitRange) }}</span>
                     </template>
                     <span
                       v-else
@@ -833,7 +837,7 @@
             v-if="mineActionPreview"
             class="sb-preview"
           >
-            예상 {{ mineActionPreview.dmgMin }}~{{ mineActionPreview.dmgMax }} ({{ mineActionPreview.pctMin }}~{{ mineActionPreview.pctMax }}%)
+            예상 {{ mineActionPreview.dmgMin }}~{{ mineActionPreview.dmgMax }} ({{ mineActionPreview.pctMin }}~{{ mineActionPreview.pctMax }}%)<span v-if="mineActionPreview.hitRange"> {{ formatHitRange(mineActionPreview.hitRange) }}</span>
           </span>
           <span class="sb-input-label">입힌 데미지(%)</span>
           <input
@@ -844,6 +848,17 @@
             placeholder="0~100"
             class="sb-dmg-input"
           >
+          <div
+            v-if="mineMultiHitRiskText.length"
+            class="sb-multihit-warning"
+          >
+            <div
+              v-for="(line, i) in mineMultiHitRiskText"
+              :key="'multihit-risk-' + i"
+            >
+              {{ line }}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -945,6 +960,17 @@
           >
             일치하는 시나리오 없음(급소이거나 다른 조건)
           </span>
+          <div
+            v-if="oppMultiHitRiskText.length"
+            class="sb-multihit-warning"
+          >
+            <div
+              v-for="(line, i) in oppMultiHitRiskText"
+              :key="'opp-multihit-risk-' + i"
+            >
+              {{ line }}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1276,6 +1302,10 @@
                   v-if="oppCellVsMine(k - 1, col.idx, col.mega, showCritOpp).koLabel"
                   class="sb-ko-label"
                 >{{ oppCellVsMine(k - 1, col.idx, col.mega, showCritOpp).koLabel }}</span>
+                <span
+                  v-else-if="oppCellVsMine(k - 1, col.idx, col.mega, showCritOpp).hitRange"
+                  class="sb-ko-label"
+                >{{ formatHitRange(oppCellVsMine(k - 1, col.idx, col.mega, showCritOpp).hitRange) }}</span>
               </template>
               <span
                 v-else
@@ -2364,6 +2394,41 @@ const opponentSprite = (index) => {
   return data?.id ? `${config.app.baseURL || '/'}pokemon_sprites/${data.id}.png` : pokemonImg
 }
 
+// ── 연속기(다단히트) 처리 ─────────────
+// moves.ts의 effects에 { type: 'multiHit', min, max }가 있으면 여러 번 때리는 기술이다(2~5회/2회 고정/3회 등).
+// 매 히트당 데미지 자체는 기존과 동일한 1회분 min~max를 그대로 쓰고, 총 데미지는
+// "최소 히트수 × 1회 최소데미지" ~ "최대 히트수 × 1회 최대데미지" 범위로 합산해서 보여준다.
+//
+// 찍찍베기처럼 "매 타마다 일정 확률로 이어져서 최대 N회까지" 때리는 기술은 moves.ts 원본 Effect 텍스트가
+// 비어있어 파서가 다단히트로 인식하지 못했다(소스 데이터 자체의 공백). 그런 기술들은 여기서 직접 보정한다.
+const MULTI_HIT_OVERRIDES = {
+  '찍찍베기': { mode: 'chance', continueChance: 0.9, minHits: 1, maxHits: 10 },
+}
+
+const getMoveHitInfo = (move, moveName) => {
+  if (moveName && MULTI_HIT_OVERRIDES[moveName]) return MULTI_HIT_OVERRIDES[moveName]
+  const multiHit = move?.effects?.find((e) => e.type === 'multiHit')
+  if (multiHit) return { mode: 'fixed', min: multiHit.min, max: multiHit.max, powerPerHit: multiHit.powerPerHit }
+  return { mode: 'fixed', min: 1, max: 1 }
+}
+
+// 확률 지속형(찍찍베기 등)의 "평균적으로 몇 대 맞는지"를 기하급수로 계산 (표시용 참고치)
+const expectedHitCount = (hitInfo) => {
+  if (hitInfo.mode === 'fixed') return (hitInfo.min + hitInfo.max) / 2
+  const p = hitInfo.continueChance
+  const n = hitInfo.maxHits
+  if (p >= 1) return n
+  return (1 - p ** n) / (1 - p)
+}
+
+// buildCell 결과의 hitRange를 화면에 표시할 짧은 태그 문자열로 변환
+const formatHitRange = (hitRange) => {
+  if (!hitRange) return ''
+  if (hitRange.isChance) return `(${hitRange.min}~${hitRange.max}회, 평균 ${hitRange.avg.toFixed(1)}회)`
+  if (hitRange.min === hitRange.max) return `(${hitRange.min}회 고정)`
+  return `(${hitRange.min}~${hitRange.max}회)`
+}
+
 const getMineMoveBaseDamage = (idx, moveIndex) => {
   const moveName = selectedMoves.value[idx]?.[moveIndex]
   if (!moveName) return ''
@@ -2380,15 +2445,50 @@ const getMineMoveBaseDamage = (idx, moveIndex) => {
 // 1타가 가능한지(최대 데미지가 100%를 넘는지) 판정
 const isLethalPercentRange = (pctMax) => Number(pctMax) >= 100
 
-const buildCell = (move, attack, defense, ability, item, defHp, useCrit) => {
-  const dmg = calculateDamage(move.Power || 0, attack, defense, true, move.Type || '', move.Category, ability, battleWeather.value, item, '', battleField.value, 50)
-  const dmgMin = useCrit ? dmg.critMin : dmg.min
-  const dmgMax = useCrit ? dmg.critMax : dmg.max
+const buildCell = (move, attack, defense, ability, item, defHp, useCrit, moveName) => {
+  const hitInfo = getMoveHitInfo(move, moveName)
+  const isMultiHit = hitInfo.mode === 'chance' || hitInfo.max > 1
+
+  let dmgMin
+  let dmgMax
+  let koLabel = ''
+  let hitRange = null
+
+  if (isMultiHit) {
+    // 연속기: 한 방(1회분) 데미지에 히트수를 곱해서 총합 범위로 넓힌다.
+    // 확정 1타 판정용 koLabel(난수별 몇 번째 시도에 죽는지)은 단일 히트 전제라 연속기에는 그대로 못 쓰므로 생략한다.
+    const minHits = hitInfo.mode === 'fixed' ? hitInfo.min : hitInfo.minHits
+    const maxHits = hitInfo.mode === 'fixed' ? hitInfo.max : hitInfo.maxHits
+
+    if (hitInfo.powerPerHit) {
+      // 트리플악셀처럼 히트마다 위력이 다른 기술: 각 히트를 실제 위력으로 각각 계산해서 그대로 합산한다
+      // (min/max 히트수 개념이 없고 항상 powerPerHit 배열 길이만큼 전부 맞는다는 전제).
+      dmgMin = 0
+      dmgMax = 0
+      hitInfo.powerPerHit.forEach((power) => {
+        const hitDmg = calculateDamage(power, attack, defense, true, move.Type || '', move.Category, ability, battleWeather.value, item, '', battleField.value, 50)
+        dmgMin += useCrit ? hitDmg.critMin : hitDmg.min
+        dmgMax += useCrit ? hitDmg.critMax : hitDmg.max
+      })
+    } else {
+      const dmg = calculateDamage(move.Power || 0, attack, defense, true, move.Type || '', move.Category, ability, battleWeather.value, item, '', battleField.value, 50)
+      const singleMin = useCrit ? dmg.critMin : dmg.min
+      const singleMax = useCrit ? dmg.critMax : dmg.max
+      dmgMin = singleMin * minHits
+      dmgMax = singleMax * maxHits
+    }
+
+    hitRange = { min: minHits, max: maxHits, avg: expectedHitCount(hitInfo), isChance: hitInfo.mode === 'chance' }
+  } else {
+    const dmg = calculateDamage(move.Power || 0, attack, defense, true, move.Type || '', move.Category, ability, battleWeather.value, item, '', battleField.value, 50)
+    dmgMin = useCrit ? dmg.critMin : dmg.min
+    dmgMax = useCrit ? dmg.critMax : dmg.max
+    const rolls = calculateDamageRolls(move.Power || 0, attack, defense, true, move.Type || '', move.Category, ability, battleWeather.value, item, '', battleField.value, 50, useCrit)
+    koLabel = formatKoLabel(rolls, defHp)
+  }
+
   const pctMin = defHp > 0 ? ((dmgMin / defHp) * 100).toFixed(1) : '0.0'
   const pctMax = defHp > 0 ? ((dmgMax / defHp) * 100).toFixed(1) : '0.0'
-
-  const rolls = calculateDamageRolls(move.Power || 0, attack, defense, true, move.Type || '', move.Category, ability, battleWeather.value, item, '', battleField.value, 50, useCrit)
-  const koLabel = formatKoLabel(rolls, defHp)
 
   return {
     dmgMin,
@@ -2397,6 +2497,7 @@ const buildCell = (move, attack, defense, ability, item, defHp, useCrit) => {
     pctMax,
     isLethalRange: isLethalPercentRange(pctMax),
     koLabel,
+    hitRange,
   }
 }
 
@@ -2415,7 +2516,7 @@ const mineCellVsSlot = (moveIndex, oppIdx, useCrit, forceMega) => {
   const attack = (atkStats?.[atkKey] || 0) * rankMultiplier(mineRanks[atkKey])
   const defRank = oppIdx === activeOppIndex.value ? oppRanks[defKey] : 0
   const defense = (defStats?.[defKey] || 0) * rankMultiplier(defRank)
-  return buildCell(move, attack, defense, mineAbilityForCalc(activeMineIndex.value, forceMega), selectedTool.value[activeMineIndex.value], defStats?.H || 0, useCrit)
+  return buildCell(move, attack, defense, mineAbilityForCalc(activeMineIndex.value, forceMega), selectedTool.value[activeMineIndex.value], defStats?.H || 0, useCrit, moveName)
 }
 
 // 메가진화 사용 체크박스(mineAction.useMega)가 켜져 있으면 그 상태를 예상 데미지 계산에 반영한다.
@@ -2427,6 +2528,181 @@ const mineActionPreview = computed(() => {
   const forceMega = megaData && !alreadyMega ? mineAction.useMega : undefined
   return mineCellVsSlot(mineAction.moveIndex, activeOppIndex.value, false, forceMega)
 })
+
+// ── 연속기 도중 접촉 반격으로 자멸 위험 시뮬레이션 ─────────────
+// "총 데미지 범위"만으로는 "2회는 버티고 5회째엔 죽는다"거나 "상대 까칠한피부 때문에 다 때리기도 전에
+// 내가 먼저 쓰러진다" 같은 걸 못 잡아낸다. 그래서 연속기+접촉기+상대에게 반격 특성/도구가 있을 때는
+// 히트를 한 번씩 순서대로 진행하면서 상대/자신 체력을 같이 깎아나가는 시뮬레이션을 돌린다.
+const CONTACT_PUNISH_ABILITIES = {
+  까칠한피부: { fraction: 1 / 8, label: '까칠한피부' },
+  철가시: { fraction: 1 / 8, label: '철가시' },
+}
+const CONTACT_PUNISH_ITEMS = {
+  울퉁불퉁멧: { fraction: 1 / 6, label: '울퉁불퉁멧' },
+}
+
+// 비접촉 물리 기술 목록(전부는 아니지만 자주 쓰이는 것 위주) — 여기 없는 물리 기술은 접촉기로 간주한다.
+// (특수 기술은 애초에 접촉기가 아니므로 이 판정 자체가 필요 없음)
+const NON_CONTACT_PHYSICAL_MOVES = new Set([
+  '지진', '땅고르기', '스톤에지', '스톤샤워', '록블라스트', '암석포', '메테오빔',
+  '뿔드릴', '가위자르기', '땅가르기', '자이로볼', '전자포', '눈사태', '더스트슈트',
+  '아이언롤러', '내던지기', '앙갚음', '기사회생', '죽기살기', '자폭', '대폭발', '지구던지기',
+])
+const isContactMove = (move, moveName) => {
+  if (!move || move.Category !== '물리') return false
+  return !NON_CONTACT_PHYSICAL_MOVES.has(moveName)
+}
+
+const getContactPunish = (defenderAbility, defenderItem) => (
+  CONTACT_PUNISH_ABILITIES[defenderAbility] || CONTACT_PUNISH_ITEMS[defenderItem] || null
+)
+
+// perHitDamages(히트별 데미지 배열)로 defHp를 순서대로 깎고, 접촉 반격이 있으면 매 히트마다
+// atkHp도 같이 깎는다. 둘 중 누가 먼저 0 이하가 되는지 히트 순서대로 판정한다.
+// (배열이라서 균일 데미지 연속기든, 트리플악셀처럼 히트마다 위력이 다른 기술이든 동일하게 처리 가능)
+const simulateMultiHitTrajectory = (perHitDamages, defHp, atkHp, atkMaxHp, punish) => {
+  let remainingDef = defHp
+  let remainingAtk = atkHp
+  for (let i = 0; i < perHitDamages.length; i++) {
+    remainingDef -= perHitDamages[i]
+    const hit = i + 1
+    if (remainingDef <= 0) return { outcome: 'defender', atHit: hit }
+    if (punish) {
+      remainingAtk -= punish.fraction * atkMaxHp
+      if (remainingAtk <= 0) return { outcome: 'attacker', atHit: hit }
+    }
+  }
+  return { outcome: 'survives', atHit: perHitDamages.length }
+}
+
+// 히트별 데미지 배열(최댓값 기준 배열, 최솟값 기준 배열)을 만든다.
+// 트리플악셀류(powerPerHit)는 히트마다 실제 위력으로 각각 계산하고, 그 외 균일 연속기는 1회분을 히트수만큼 반복한다.
+const buildPerHitDamageArrays = (move, hitInfo, attack, defense, ability, item, maxHits) => {
+  if (hitInfo.powerPerHit) {
+    const maxDamages = hitInfo.powerPerHit.map((power) => calculateDamage(power, attack, defense, true, move.Type || '', move.Category, ability, battleWeather.value, item, '', battleField.value, 50).max)
+    const minDamages = hitInfo.powerPerHit.map((power) => calculateDamage(power, attack, defense, true, move.Type || '', move.Category, ability, battleWeather.value, item, '', battleField.value, 50).min)
+    return { maxDamages, minDamages }
+  }
+  const dmg = calculateDamage(move.Power || 0, attack, defense, true, move.Type || '', move.Category, ability, battleWeather.value, item, '', battleField.value, 50)
+  return { maxDamages: Array(maxHits).fill(dmg.max), minDamages: Array(maxHits).fill(dmg.min) }
+}
+
+// "내 행동"에서 고른 기술이 연속기 + 접촉기이고 상대에게 반격 특성/도구가 있을 때만 계산한다.
+const mineMultiHitRisk = computed(() => {
+  if (mineAction.type !== '기술사용') return null
+  if (activeMineIndex.value === null || activeOppIndex.value === null) return null
+  const moveName = selectedMoves.value[activeMineIndex.value]?.[mineAction.moveIndex]
+  const move = moveName ? getMoveData(moveName) : null
+  if (!move || move.Category !== '물리') return null
+
+  const hitInfo = getMoveHitInfo(move, moveName)
+  const isMulti = hitInfo.mode === 'chance' || hitInfo.max > 1
+  if (!isMulti) return null
+  if (!isContactMove(move, moveName)) return null
+
+  const oppAbility = oppAbilityForCalc(activeOppIndex.value)
+  const oppItem = oppSelectedTool.value[activeOppIndex.value]
+  const punish = getContactPunish(oppAbility, oppItem)
+  if (!punish) return null
+
+  const atkStats = mineDisplayStats(activeMineIndex.value)
+  const attack = (atkStats?.A || 0) * rankMultiplier(mineRanks.A)
+  const defStats = oppDisplayStats(activeOppIndex.value)
+  const defense = (defStats?.B || 0) * rankMultiplier(oppRanks.B)
+  const ability = mineAbilityForCalc(activeMineIndex.value)
+  const item = selectedTool.value[activeMineIndex.value]
+
+  const defenderMaxHp = oppMaxHp.value
+  const defenderCurrentHp = defenderMaxHp * ((oppHpPercent[activeOppIndex.value] ?? 100) / 100)
+  const attackerMaxHp = mineMaxHp.value
+  const attackerCurrentHp = mineCurrentHp[activeMineIndex.value] ?? attackerMaxHp
+
+  const maxHits = hitInfo.mode === 'fixed' ? hitInfo.max : hitInfo.maxHits
+  const minHits = hitInfo.mode === 'fixed' ? hitInfo.min : hitInfo.minHits
+
+  const { maxDamages, minDamages } = buildPerHitDamageArrays(move, hitInfo, attack, defense, ability, item, maxHits)
+
+  // "최대 데미지 기준"은 상대가 빨리 죽어서 히트 수가 적게 끝나는(=반격도 적게 맞는) 나에게 유리한 쪽,
+  // "최소 데미지 기준"은 오래 때려야 해서 반격을 더 많이 맞는 나에게 불리한 쪽이다.
+  const bestForMe = simulateMultiHitTrajectory(maxDamages, defenderCurrentHp, attackerCurrentHp, attackerMaxHp, punish)
+  const worstForMe = simulateMultiHitTrajectory(minDamages, defenderCurrentHp, attackerCurrentHp, attackerMaxHp, punish)
+
+  return { moveName, punishLabel: punish.label, minHits, maxHits, bestForMe, worstForMe }
+})
+
+const mineMultiHitRiskText = computed(() => {
+  const r = mineMultiHitRisk.value
+  if (!r) return []
+  const describe = (res, label) => {
+    if (res.outcome === 'defender') return `${label}: ${res.atHit}회째에 상대를 쓰러뜨립니다.`
+    if (res.outcome === 'attacker') return `${label}: 상대를 쓰러뜨리기 전에 ${r.punishLabel}로 ${res.atHit}회째에 자신이 먼저 쓰러집니다!`
+    return `${label}: ${r.maxHits}회를 다 때려도 상대가 쓰러지지 않습니다.`
+  }
+  return [
+    `⚠ 상대의 ${r.punishLabel} 때문에 연속 공격 도중 자멸할 수 있습니다.`,
+    describe(r.bestForMe, '최대 데미지 기준'),
+    describe(r.worstForMe, '최소 데미지 기준'),
+  ]
+})
+
+// ── 반대 방향: 상대가 연속기로 나를 공격하다가, 내 반격 특성/도구 때문에 상대가 자멸하는 경우 ─────────────
+const oppMultiHitRisk = computed(() => {
+  if (oppAction.type !== '기술사용') return null
+  if (activeMineIndex.value === null || activeOppIndex.value === null) return null
+  const moveName = oppSelectedMoves.value[activeOppIndex.value]?.[oppAction.moveIndex]
+  const move = moveName ? getMoveData(moveName) : null
+  if (!move || move.Category !== '물리') return null
+
+  const hitInfo = getMoveHitInfo(move, moveName)
+  const isMulti = hitInfo.mode === 'chance' || hitInfo.max > 1
+  if (!isMulti) return null
+  if (!isContactMove(move, moveName)) return null
+
+  const mineAbility = mineAbilityForCalc(activeMineIndex.value)
+  const mineItem = selectedTool.value[activeMineIndex.value]
+  const punish = getContactPunish(mineAbility, mineItem)
+  if (!punish) return null
+
+  const atkStats = oppDisplayStats(activeOppIndex.value)
+  const attack = (atkStats?.A || 0) * rankMultiplier(oppRanks.A)
+  const defStats = mineDisplayStats(activeMineIndex.value)
+  const defense = (defStats?.B || 0) * rankMultiplier(mineRanks.B)
+  const ability = oppAbilityForCalc(activeOppIndex.value)
+  const item = oppSelectedTool.value[activeOppIndex.value]
+
+  const defenderMaxHp = mineMaxHp.value
+  const defenderCurrentHp = mineCurrentHp[activeMineIndex.value] ?? defenderMaxHp
+  const attackerMaxHp = oppMaxHp.value
+  const attackerCurrentHp = attackerMaxHp * ((oppHpPercent[activeOppIndex.value] ?? 100) / 100)
+
+  const maxHits = hitInfo.mode === 'fixed' ? hitInfo.max : hitInfo.maxHits
+  const minHits = hitInfo.mode === 'fixed' ? hitInfo.min : hitInfo.minHits
+
+  const { maxDamages, minDamages } = buildPerHitDamageArrays(move, hitInfo, attack, defense, ability, item, maxHits)
+
+  // "최대 데미지 기준"은 나를 빨리 쓰러뜨려서 히트 수가 적게 끝나는(=반격도 적게 맞는) 상대에게 유리한 쪽,
+  // "최소 데미지 기준"은 오래 때려야 해서 반격을 더 많이 맞는 상대에게 불리한 쪽이다.
+  const bestForOpp = simulateMultiHitTrajectory(maxDamages, defenderCurrentHp, attackerCurrentHp, attackerMaxHp, punish)
+  const worstForOpp = simulateMultiHitTrajectory(minDamages, defenderCurrentHp, attackerCurrentHp, attackerMaxHp, punish)
+
+  return { moveName, punishLabel: punish.label, minHits, maxHits, bestForOpp, worstForOpp }
+})
+
+const oppMultiHitRiskText = computed(() => {
+  const r = oppMultiHitRisk.value
+  if (!r) return []
+  const describe = (res, label) => {
+    if (res.outcome === 'defender') return `${label}: ${res.atHit}회째에 내가 쓰러집니다.`
+    if (res.outcome === 'attacker') return `${label}: 나를 쓰러뜨리기 전에 내 ${r.punishLabel}로 ${res.atHit}회째에 상대가 먼저 쓰러집니다!`
+    return `${label}: ${r.maxHits}회를 다 맞아도 내가 쓰러지지 않습니다.`
+  }
+  return [
+    `⚠ 내 ${r.punishLabel} 때문에 상대가 연속 공격 도중 자멸할 수 있습니다.`,
+    describe(r.worstForOpp, '최대 데미지 기준'),
+    describe(r.bestForOpp, '최소 데미지 기준'),
+  ]
+})
+
 
 // ── 중앙 하단: 스피드 기준 행동 순서 미리보기 ─────────────
 const oppActiveSpeed = computed(() => {
@@ -2562,7 +2838,7 @@ const turnOrderScenarioFlows = computed(() => {
     const atkStats = mineDisplayStats(activeMineIndex.value)
     const attack = (atkStats?.[atkKey] || 0) * rankMultiplier(mineRanks[atkKey])
 
-    const cell = buildCell(move, attack, oppDef, mineAbilityForCalc(activeMineIndex.value), selectedTool.value[activeMineIndex.value], oppHp, false)
+    const cell = buildCell(move, attack, oppDef, mineAbilityForCalc(activeMineIndex.value), selectedTool.value[activeMineIndex.value], oppHp, false, moveName)
 
     if (oppHp <= 0 || cell.dmgMin >= oppHp) {
       lines.push(`${mineMoveName}(으)로 이 시나리오에서는 확정 1타로 ${oppLabel}이(가) 쓰러집니다.`)
@@ -2667,7 +2943,7 @@ const mineCellScenarioForIndex = (attackerIdx, moveIndex, oppIdx, scenario, useC
   const defense = scenarioDefenseValue(oppIdx, defKey, scenario) * rankMultiplier(defRank)
   const defHp = scenarioHpValue(oppIdx, scenario)
 
-  return buildCell(move, attack, defense, mineAbilityForCalc(attackerIdx), selectedTool.value[attackerIdx], defHp, useCrit)
+  return buildCell(move, attack, defense, mineAbilityForCalc(attackerIdx), selectedTool.value[attackerIdx], defHp, useCrit, moveName)
 }
 
 const mineCellScenario = (moveIndex, oppIdx, scenario, useCrit) => mineCellScenarioForIndex(previewMineIndex.value, moveIndex, oppIdx, scenario, useCrit)
@@ -2714,7 +2990,7 @@ const oppDamageScenario = (moveIndex, scenario, useCrit) => {
   const defStats = mineDisplayStats(activeMineIndex.value)
   const defense = (defStats?.[defKey] || 0) * rankMultiplier(mineRanks[defKey])
 
-  const cell = buildCell(move, attack, defense, oppAbilityForCalc(activeOppIndex.value), oppSelectedTool.value[activeOppIndex.value], defStats?.H || 0, useCrit)
+  const cell = buildCell(move, attack, defense, oppAbilityForCalc(activeOppIndex.value), oppSelectedTool.value[activeOppIndex.value], defStats?.H || 0, useCrit, moveName)
   if (scenario === 'itemBoost') {
     const defHp = defStats?.H || 0
     const dmgMin = Math.floor(cell.dmgMin * 1.2)
@@ -2728,6 +3004,7 @@ const oppDamageScenario = (moveIndex, scenario, useCrit) => {
       pctMax,
       isLethalRange: isLethalPercentRange(pctMax),
       koLabel: cell.koLabel,
+      hitRange: cell.hitRange,
     }
   }
   return cell
@@ -2772,7 +3049,7 @@ const oppCellVsMine = (moveIndex, idx, forceMega, useCrit) => {
   const defRank = idx === activeMineIndex.value ? mineRanks[defKey] : 0
   const defense = (defStats?.[defKey] || 0) * rankMultiplier(defRank)
 
-  return buildCell(move, attack, defense, oppAbilityForCalc(activeOppIndex.value), oppSelectedTool.value[activeOppIndex.value], defStats?.H || 0, useCrit)
+  return buildCell(move, attack, defense, oppAbilityForCalc(activeOppIndex.value), oppSelectedTool.value[activeOppIndex.value], defStats?.H || 0, useCrit, moveName)
 }
 
 const oppScenarioMatches = computed(() => {
@@ -2817,6 +3094,7 @@ const oppScenarioEstimateText = computed(() => formatScenarioEstimate(oppScenari
 .sb-input-label { font-size:10px; color:#999; }
 .sb-preview { font-size:10px; color:#8bc34a; }
 .sb-preview--none { color:#ff8a65; }
+.sb-multihit-warning { display:flex; flex-direction:column; gap:1px; font-size:10px; color:#ff5252; font-weight:bold; width:100%; }
 .sb-inflict-status-block { display:flex; flex-direction:column; gap:4px; border-top:1px solid #666; padding-top:8px; }
 .sb-inflict-checkbox { display:flex; align-items:center; gap:4px; font-size:11px; cursor:pointer; }
 .sb-status-forecast { display:flex; flex-direction:column; gap:2px; font-size:10px; color:#ffb74d; border-top:1px solid #666; padding-top:6px; }
