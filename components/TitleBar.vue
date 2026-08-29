@@ -94,14 +94,14 @@
 
       <button
         v-if="showBattleButton"
-        :disabled="!isPartyComplete"
+        :disabled="!isEntryComplete"
         :style="{
           fontSize: '12px',
           padding: '6px 12px',
           border: 'none',
           borderRadius: '4px',
-          cursor: isPartyComplete ? 'pointer' : 'not-allowed',
-          background: isPartyComplete ? '#4caf50' : '#555',
+          cursor: isEntryComplete ? 'pointer' : 'not-allowed',
+          background: isEntryComplete ? '#4caf50' : '#555',
           color: '#fff',
           whiteSpace: 'nowrap'
         }"
@@ -112,14 +112,14 @@
 
       <button
         v-if="showBattleButton"
-        :disabled="!isPartyComplete"
+        :disabled="!isEntryComplete"
         :style="{
           fontSize: '12px',
           padding: '6px 12px',
           border: 'none',
           borderRadius: '4px',
-          cursor: isPartyComplete ? 'pointer' : 'not-allowed',
-          background: isPartyComplete ? '#4caf50' : '#555',
+          cursor: isEntryComplete ? 'pointer' : 'not-allowed',
+          background: isEntryComplete ? '#4caf50' : '#555',
           color: '#fff',
           whiteSpace: 'nowrap'
         }"
@@ -190,6 +190,17 @@ const onResetParty = () => {
   }
 }
 
+// 선출 화면(entrySelect.vue)에서 쓰는 전역 상태를 그대로 참조해서
+// 배틀 시작 가능 여부(상대 6마리 전부 선택 + 내 선출 3마리 확정)를 판단
+const { selectedMineIndices } = useMineOrderSelection()
+const { selectedPokemon: oppSelectedPokemonForCheck } = useOpponentParty()
+
+const isOppPartyComplete = computed(() =>
+  oppSelectedPokemonForCheck.value.every((name) => !!name)
+)
+const isMineEntrySelected = computed(() => selectedMineIndices.value.length === 3)
+const isEntryComplete = computed(() => isOppPartyComplete.value && isMineEntrySelected.value)
+
 const pad = (n) => String(n).padStart(2, '0')
 
 const formattedTime = computed(() => {
@@ -228,12 +239,12 @@ const goToEntrySelect = () => {
 }
 
 const goToSingleBattle = () => {
-  if (!isPartyComplete.value) return
+  if (!isEntryComplete.value) return
   router.push('/singleBattle')
 }
 
 const goToDoubleBattle = () => {
-  if (!isPartyComplete.value) return
+  if (!isEntryComplete.value) return
   router.push('/doubleBattle')
 }
 
