@@ -76,7 +76,7 @@
                         class="sb-ko-label"
                       >{{ mineCellScenario(k, idx, sc, showCritMine).koLabel }}</span>
                       <span
-                        v-else-if="mineCellScenario(k, idx, sc, showCritMine).hitRange"
+                        v-if="mineCellScenario(k, idx, sc, showCritMine).hitRange"
                         class="sb-ko-label"
                       >{{ formatHitRange(mineCellScenario(k, idx, sc, showCritMine).hitRange) }}</span>
                     </template>
@@ -1303,7 +1303,7 @@
                   class="sb-ko-label"
                 >{{ oppCellVsMine(k - 1, col.idx, col.mega, showCritOpp).koLabel }}</span>
                 <span
-                  v-else-if="oppCellVsMine(k - 1, col.idx, col.mega, showCritOpp).hitRange"
+                  v-if="oppCellVsMine(k - 1, col.idx, col.mega, showCritOpp).hitRange"
                   class="sb-ko-label"
                 >{{ formatHitRange(oppCellVsMine(k - 1, col.idx, col.mega, showCritOpp).hitRange) }}</span>
               </template>
@@ -2445,6 +2445,29 @@ const getMineMoveBaseDamage = (idx, moveIndex) => {
 // 1타가 가능한지(최대 데미지가 100%를 넘는지) 판정
 const isLethalPercentRange = (pctMax) => Number(pctMax) >= 100
 
+// 연속기 중 몇 번째 타에 상대가 쓰러지는지 판정: 히트별 데미지를 순서대로 누적하다가
+// 상대 체력(defHp)을 넘어서는 최초의 히트 번호(1부터 시작)를 반환. 끝까지 못 넘기면 null.
+const computeMultiHitKoHit = (damages, defHp) => {
+  if (defHp <= 0) return 1
+  let cumulative = 0
+  for (let i = 0; i < damages.length; i++) {
+    cumulative += damages[i]
+    if (cumulative >= defHp) return i + 1
+  }
+  return null
+}
+
+// bestHit: 매 타 최대 데미지 기준(가장 빨리 쓰러뜨리는 경우) / worstHit: 매 타 최소 데미지 기준(가장 늦게 쓰러뜨리는 경우)
+// 최대 데미지로 다 때려도 못 쓰러뜨리면 빈 문자열, 그 외에는 "N회째 KO 가능" 또는 "N~M회째 KO 가능" 형식으로 반환
+const formatMultiHitKoLabel = (maxDamages, minDamages, defHp) => {
+  const bestHit = computeMultiHitKoHit(maxDamages, defHp)
+  if (!bestHit) return ''
+  const worstHit = computeMultiHitKoHit(minDamages, defHp)
+  if (bestHit === worstHit) return `${bestHit}회째 KO 가능`
+  if (worstHit) return `${bestHit}~${worstHit}회째 KO 가능`
+  return `최소 ${bestHit}회째부터 KO 가능`
+}
+
 const buildCell = (move, attack, defense, ability, item, defHp, useCrit, moveName) => {
   const hitInfo = getMoveHitInfo(move, moveName)
   const isMultiHit = hitInfo.mode === 'chance' || hitInfo.max > 1
@@ -2455,30 +2478,37 @@ const buildCell = (move, attack, defense, ability, item, defHp, useCrit, moveNam
   let hitRange = null
 
   if (isMultiHit) {
-    // 연속기: 한 방(1회분) 데미지에 히트수를 곱해서 총합 범위로 넓힌다.
-    // 확정 1타 판정용 koLabel(난수별 몇 번째 시도에 죽는지)은 단일 히트 전제라 연속기에는 그대로 못 쓰므로 생략한다.
     const minHits = hitInfo.mode === 'fixed' ? hitInfo.min : hitInfo.minHits
     const maxHits = hitInfo.mode === 'fixed' ? hitInfo.max : hitInfo.maxHits
 
+    let maxDamages
+    let minDamages
     if (hitInfo.powerPerHit) {
-      // 트리플악셀처럼 히트마다 위력이 다른 기술: 각 히트를 실제 위력으로 각각 계산해서 그대로 합산한다
-      // (min/max 히트수 개념이 없고 항상 powerPerHit 배열 길이만큼 전부 맞는다는 전제).
-      dmgMin = 0
-      dmgMax = 0
-      hitInfo.powerPerHit.forEach((power) => {
-        const hitDmg = calculateDamage(power, attack, defense, true, move.Type || '', move.Category, ability, battleWeather.value, item, '', battleField.value, 50)
-        dmgMin += useCrit ? hitDmg.critMin : hitDmg.min
-        dmgMax += useCrit ? hitDmg.critMax : hitDmg.max
+      // 트리플악셀류: 히트마다 위력이 다르므로 각 히트를 실제 위력으로 계산해서 배열로 만든다
+      maxDamages = hitInfo.powerPerHit.map((power) => {
+        const d = calculateDamage(power, attack, defense, true, move.Type || '', move.Category, ability, battleWeather.value, item, '', battleField.value, 50)
+        return useCrit ? d.critMax : d.max
+      })
+      minDamages = hitInfo.powerPerHit.map((power) => {
+        const d = calculateDamage(power, attack, defense, true, move.Type || '', move.Category, ability, battleWeather.value, item, '', battleField.value, 50)
+        return useCrit ? d.critMin : d.min
       })
     } else {
+      // 균일 연속기(찍찍베기 포함): 1회분 데미지를 최대 타수만큼 반복한 배열로 만든다
       const dmg = calculateDamage(move.Power || 0, attack, defense, true, move.Type || '', move.Category, ability, battleWeather.value, item, '', battleField.value, 50)
-      const singleMin = useCrit ? dmg.critMin : dmg.min
       const singleMax = useCrit ? dmg.critMax : dmg.max
-      dmgMin = singleMin * minHits
-      dmgMax = singleMax * maxHits
+      const singleMin = useCrit ? dmg.critMin : dmg.min
+      maxDamages = Array(maxHits).fill(singleMax)
+      minDamages = Array(maxHits).fill(singleMin)
     }
 
+    // 총 데미지 범위: 최소 타수×1회 최소데미지 ~ 최대 타수×1회 최대데미지 (기존 로직과 동일한 결과)
+    dmgMin = minDamages.slice(0, minHits).reduce((sum, v) => sum + v, 0)
+    dmgMax = maxDamages.reduce((sum, v) => sum + v, 0)
+
     hitRange = { min: minHits, max: maxHits, avg: expectedHitCount(hitInfo), isChance: hitInfo.mode === 'chance' }
+    // 몇 번째 타에 상대가 쓰러질 수 있는지 표시 (예: 찍찍베기 "2~5회째 KO 가능")
+    koLabel = formatMultiHitKoLabel(maxDamages, minDamages, defHp)
   } else {
     const dmg = calculateDamage(move.Power || 0, attack, defense, true, move.Type || '', move.Category, ability, battleWeather.value, item, '', battleField.value, 50)
     dmgMin = useCrit ? dmg.critMin : dmg.min
