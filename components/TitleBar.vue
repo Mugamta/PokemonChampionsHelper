@@ -55,9 +55,9 @@
         파티 초기화
       </button>
 
-
+      <!-- 싱글 선출 화면으로: partySelect(싱글 선출 화면으로) / singleBattle(선출 화면으로)에서 노출 -->
       <button
-        v-if="showEntryButton"
+        v-if="showSingleEntryButton"
         :disabled="!isPartyComplete"
         :style="{
           fontSize: '12px',
@@ -69,9 +69,28 @@
           color: '#fff',
           whiteSpace: 'nowrap'
         }"
-        @click="goToEntrySelect"
+        @click="goToSingleEntrySelect"
       >
-        선출 화면으로
+        {{ singleEntryButtonLabel }}
+      </button>
+
+      <!-- 더블 선출 화면으로: partySelect(더블 선출 화면으로) / doubleBattle(선출 화면으로)에서 노출 -->
+      <button
+        v-if="showDoubleEntryButton"
+        :disabled="!isPartyComplete"
+        :style="{
+          fontSize: '12px',
+          padding: '6px 12px',
+          border: 'none',
+          borderRadius: '4px',
+          cursor: isPartyComplete ? 'pointer' : 'not-allowed',
+          background: isPartyComplete ? '#4caf50' : '#555',
+          color: '#fff',
+          whiteSpace: 'nowrap'
+        }"
+        @click="goToDoubleEntrySelect"
+      >
+        {{ doubleEntryButtonLabel }}
       </button>
 
       <button
@@ -92,8 +111,9 @@
         파티 선택 화면으로
       </button>
 
+      <!-- 싱글 엔트리 화면(singleEntrySelect)에서는 싱글 배틀 시작 버튼만 노출 -->
       <button
-        v-if="showBattleButton"
+        v-if="isSingleEntryPage"
         :disabled="!isEntryComplete"
         :style="{
           fontSize: '12px',
@@ -110,8 +130,9 @@
         싱글 배틀 시작
       </button>
 
+      <!-- 더블 엔트리 화면(doubleEntrySelect)에서는 더블 배틀 시작 버튼만 노출 -->
       <button
-        v-if="showBattleButton"
+        v-if="isDoubleEntryPage"
         :disabled="!isEntryComplete"
         :style="{
           fontSize: '12px',
@@ -190,7 +211,7 @@ const onResetParty = () => {
   }
 }
 
-// 선출 화면(entrySelect.vue)에서 쓰는 전역 상태를 그대로 참조해서
+// 선출 화면(singleEntrySelect.vue / doubleEntrySelect.vue)에서 쓰는 전역 상태를 그대로 참조해서
 // 배틀 시작 가능 여부(상대 6마리 전부 선택 + 내 선출 3마리 확정)를 판단
 const { selectedMineIndices } = useMineOrderSelection()
 const { selectedPokemon: oppSelectedPokemonForCheck } = useOpponentParty()
@@ -220,22 +241,37 @@ const onRegulationChange = (value) => {
   }
 }
 
-// 파티 화면은 메인, 선출 화면에서 가능
-const showPartyButton = computed(() => route.path === '/' || route.path === '/entrySelect')
+// 현재 싱글/더블 엔트리 화면 여부 (배틀 시작 버튼을 각각 하나씩만 보여주기 위한 분기)
+const isSingleEntryPage = computed(() => route.path === '/singleEntrySelect')
+const isDoubleEntryPage = computed(() => route.path === '/doubleEntrySelect')
+
+// 파티 화면은 메인, 싱글/더블 선출 화면에서 가능
+const showPartyButton = computed(() => route.path === '/' || route.path === '/singleEntrySelect' || route.path === '/doubleEntrySelect')
 const showPartyResetButton = computed(() => route.path === '/partySelect')
-// 선출 화면은 파티, 배틀 화면에서 가능
-const showEntryButton = computed(() => route.path === '/partySelect' || route.path === '/singleBattle' || route.path === '/doubleBattle')
-// 배틀 화면은 선출 화면에서만 가능
-const showBattleButton = computed(() => route.path === '/entrySelect')
+
+// 싱글/더블 선출 화면으로 가는 버튼을 각각 분리해서 노출
+// - partySelect: 두 버튼 모두 노출("싱글 선출 화면으로" / "더블 선출 화면으로")
+// - singleBattle: 싱글 버튼만 노출("선출 화면으로")
+// - doubleBattle: 더블 버튼만 노출("선출 화면으로")
+const showSingleEntryButton = computed(() => route.path === '/partySelect' || route.path === '/singleBattle')
+const showDoubleEntryButton = computed(() => route.path === '/partySelect' || route.path === '/doubleBattle')
+
+const singleEntryButtonLabel = computed(() => route.path === '/partySelect' ? '싱글 선출 화면으로' : '선출 화면으로')
+const doubleEntryButtonLabel = computed(() => route.path === '/partySelect' ? '더블 선출 화면으로' : '선출 화면으로')
 
 const goToPartySelect = () => {
   if (!isPartyComplete.value) return
   router.push('/partySelect')
 }
 
-const goToEntrySelect = () => {
+const goToSingleEntrySelect = () => {
   if (!isPartyComplete.value) return
-  router.push('/entrySelect')
+  router.push('/singleEntrySelect')
+}
+
+const goToDoubleEntrySelect = () => {
+  if (!isPartyComplete.value) return
+  router.push('/doubleEntrySelect')
 }
 
 const goToSingleBattle = () => {

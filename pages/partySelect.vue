@@ -827,9 +827,13 @@ export default {
     ]
 
     const router = useRouter()
-    const goToBattle = () => {
+    const goToSingleBattle = () => {
       if (!isPartyComplete.value) return
-      router.push('/entrySelect')
+      router.push('/singleEntrySelect')
+    }
+    const goToDoubleBattle = () => {
+      if (!isPartyComplete.value) return
+      router.push('/doubleEntrySelect')
     }
 
     // 전역 저장소가 아직 안 채워졌으면 로드 트리거 (이미 로드됐으면 내부적으로 아무 일도 안 함)
@@ -888,7 +892,8 @@ export default {
       getBaseDamage,
       getInputClass,
       isPartyComplete,
-      goToBattle,
+      goToSingleBattle,
+      goToDoubleBattle,
       quickBlur,
       formatMoveInfo,
     }
