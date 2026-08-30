@@ -359,7 +359,7 @@
               :title="abilityDescription(oppAbilityForCalc(activeOppIndex))"
             >{{ oppAbilityForCalc(activeOppIndex) || '-' }}</span>
             <label
-              v-if="getOppMegaData(activeOppIndex) && oppMegaToggle[activeOppIndex] !== true"
+              v-if="getOppMegaData(activeOppIndex) && !oppMegaUsed[activeOppIndex]"
               class="sb-mega-toggle"
             >
               <input
@@ -564,7 +564,7 @@
             </div>
             <span class="sb-hp-text">{{ Math.round(mineCurrentHp[idx] ?? mineDisplayStats(idx)?.H ?? 0) }}/{{ mineDisplayStats(idx)?.H ?? 0 }} ({{ mineHpPercentFor(idx) }}%)</span>
             <label
-              v-if="getMineMegaData(idx) && mineMegaToggle[idx] !== true"
+              v-if="getMineMegaData(idx) && !mineMegaUsed[idx]"
               class="sb-mega-toggle"
               @click.stop
             >
@@ -644,7 +644,7 @@
             :title="abilityDescription(mineAbilityForCalc(activeMineIndex))"
           >{{ mineAbilityForCalc(activeMineIndex) || '-' }}</span>
           <label
-            v-if="getMineMegaData(activeMineIndex) && mineMegaToggle[activeMineIndex] !== true"
+            v-if="getMineMegaData(activeMineIndex) && !mineMegaUsed[activeMineIndex]"
             class="sb-mega-toggle"
           >
             <input
@@ -825,7 +825,7 @@
             </option>
           </select>
           <label
-            v-if="activeMineIndex !== null && getMineMegaData(activeMineIndex) && mineMegaToggle[activeMineIndex] !== true"
+            v-if="activeMineIndex !== null && getMineMegaData(activeMineIndex) && !mineMegaUsed[activeMineIndex]"
             class="sb-mega-toggle"
           >
             <input
@@ -932,7 +932,7 @@
             </option>
           </select>
           <label
-            v-if="activeOppIndex !== null && getOppMegaData(activeOppIndex) && oppMegaToggle[activeOppIndex] !== true"
+            v-if="activeOppIndex !== null && getOppMegaData(activeOppIndex) && !oppMegaUsed[activeOppIndex]"
             class="sb-mega-toggle"
           >
             <input
@@ -1542,6 +1542,11 @@ const mineCurrentHp = reactive({})
 const mineMegaToggle = reactive({})
 const oppMegaToggle = reactive({})
 const oppHpPercent = reactive({})
+// 실제로 메가진화를 "사용"했는지(중앙 하단 시뮬레이션에서 이번 턴 적용으로 확정된 경우)만 true.
+// mineMegaToggle/oppMegaToggle은 아직 사용 전이라도 카드에서 미리보기로 자유롭게 켰다 껐다 할 수 있지만,
+// 한 번 진짜로 사용되면(mineMegaUsed/oppMegaUsed = true) 토글 버튼 자체가 사라져 되돌릴 수 없다.
+const mineMegaUsed = reactive({})
+const oppMegaUsed = reactive({})
 
 const isMineFainted = (idx) => mineCurrentHp[idx] !== undefined && mineCurrentHp[idx] <= 0
 const isOppFainted = (idx) => oppHpPercent[idx] !== undefined && oppHpPercent[idx] <= 0
@@ -1607,6 +1612,9 @@ const ensureMineHpInit = (index) => {
   if (mineMegaToggle[index] === undefined) {
     mineMegaToggle[index] = false
   }
+  if (mineMegaUsed[index] === undefined) {
+    mineMegaUsed[index] = false
+  }
 }
 const ensureOppHpInit = (index) => {
   if (oppHpPercent[index] === undefined) {
@@ -1614,6 +1622,9 @@ const ensureOppHpInit = (index) => {
   }
   if (oppMegaToggle[index] === undefined) {
     oppMegaToggle[index] = false
+  }
+  if (oppMegaUsed[index] === undefined) {
+    oppMegaUsed[index] = false
   }
 }
 
@@ -2187,6 +2198,8 @@ const captureBattleSnapshot = () => JSON.parse(JSON.stringify({
   oppHpPercent,
   mineMegaToggle,
   oppMegaToggle,
+  mineMegaUsed,
+  oppMegaUsed,
   revealedOppIndices: revealedOppIndices.value,
   mineRanks,
   oppRanks,
@@ -2225,6 +2238,8 @@ const restoreBattleSnapshot = (snap) => {
   replaceReactiveObject(oppHpPercent, snap.oppHpPercent)
   replaceReactiveObject(mineMegaToggle, snap.mineMegaToggle)
   replaceReactiveObject(oppMegaToggle, snap.oppMegaToggle)
+  replaceReactiveObject(mineMegaUsed, snap.mineMegaUsed)
+  replaceReactiveObject(oppMegaUsed, snap.oppMegaUsed)
   revealedOppIndices.value = snap.revealedOppIndices || []
   replaceReactiveObject(mineRanks, snap.mineRanks)
   replaceReactiveObject(oppRanks, snap.oppRanks)
@@ -2285,6 +2300,7 @@ const executeTurn = () => {
   if (mineAction.type === '기술사용') {
     if (mineAction.useMega && activeMineIndex.value !== null) {
       mineMegaToggle[activeMineIndex.value] = true
+      mineMegaUsed[activeMineIndex.value] = true
       checkMegaFormWeather('mine', activeMineIndex.value)
     }
     if (activeMineIndex.value !== null) {
@@ -2300,6 +2316,7 @@ const executeTurn = () => {
   if (oppAction.type === '기술사용') {
     if (oppAction.useMega && activeOppIndex.value !== null) {
       oppMegaToggle[activeOppIndex.value] = true
+      oppMegaUsed[activeOppIndex.value] = true
       checkMegaFormWeather('opp', activeOppIndex.value)
     }
     if (activeOppIndex.value !== null) {
