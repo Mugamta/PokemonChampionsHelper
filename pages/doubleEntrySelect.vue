@@ -142,9 +142,21 @@
           >
           급소
         </label>
+        <label class="one-vs-one-toggle">
+          <input
+            v-model="isOneVsOne"
+            type="checkbox"
+          >
+          1:1 상황 (광역기 100%)
+        </label>
         <span class="spread-legend">
           <span class="dmg-move-spread-badge">광역</span>
-          더블 배틀 광역기는 75% 데미지가 자동 적용됩니다
+          <template v-if="isOneVsOne">
+            1:1 상황 적용 중 — 광역기도 100% 데미지로 계산됩니다
+          </template>
+          <template v-else>
+            더블 배틀 광역기는 75% 데미지가 자동 적용됩니다
+          </template>
         </span>
       </div>
       <div class="dmg-scroll-area">
@@ -464,7 +476,7 @@ import { NatureMap } from '@/data/nature'
 import { MegaEvolutionMap } from '@/data/mega-evolutions'
 import { abilities } from '@/data/abilities'
 
-const { selectedMineIndices, isMineSelected, getMineOrder, toggleMineSelect } = useMineOrderSelection()
+const { selectedMineIndices, isMineSelected, getMineOrder, toggleMineSelect } = useMineOrderSelection(4)
 
 const abilityDescription = (name) => abilities[name] || ''
 
@@ -493,6 +505,8 @@ const fieldOptions = ['일렉트릭필드', '그래스필드', '미스트필드'
 const battleWeather = ref('없음')
 const battleField = ref('없음')
 const showCrit = ref(false)
+// 더블 배틀이라도 상대가 1마리만 남은 1:1 상황이면 광역기도 100% 데미지가 들어감 (75% 감소 미적용)
+const isOneVsOne = ref(false)
 
 const toggleBattleWeather = (value) => {
   battleWeather.value = battleWeather.value === value ? '없음' : value
@@ -501,25 +515,27 @@ const toggleBattleField = (value) => {
   battleField.value = battleField.value === value ? '없음' : value
 }
 
-// ── 광역기(더블 배틀에서 상대 전체를 대상으로 하는 기술) 판별 ─────────────
-// getMoveData()가 반환하는 기술 데이터에서 사거리를 나타내는 필드(Target/Range 등)를 확인해
-// "상대 전체", "전체" 같은 문구가 포함되어 있으면 광역기로 판단합니다.
-// 실제 @/utils/move-info.js 쪽 데이터의 필드명이 다르면 아래 SPREAD_TARGET_FIELDS만 맞춰 주세요.
-const SPREAD_TARGET_FIELDS = ['Target', 'Range', 'target', 'range']
-const SPREAD_TARGET_KEYWORDS = ['전체', '모두']
+// ── 광역기(더블 배틀에서 상대 전체 또는 자신 이외 전체를 대상으로 하는 기술) 판별 ─────────────
+// @/data/moves.ts의 Target 필드 값 기준:
+//   '모든 상대'     → 상대 전체 타겟 (예: 눈보라, 매지컬샤인, 하이퍼보이스, 분화)
+//   '다른 모든 포켓몬' → 자신 이외 전체 타겟, 아군도 맞음 (예: 지진, 파도타기, 자폭, 대폭발, 방전)
+// 위 두 경우만 더블 배틀에서 75% 데미지가 적용되는 광역기입니다.
+// '무작위 상대'(꽃잎댄스, 역린 등)는 상대 1마리만 무작위로 맞히므로 광역기가 아닙니다.
+const SPREAD_TARGETS = ['모든 상대', '다른 모든 포켓몬']
 
 const isSpreadMove = (moveName) => {
   if (!moveName) return false
   const move = getMoveData(moveName)
   if (!move) return false
-  const targetText = SPREAD_TARGET_FIELDS.map((field) => move[field]).find((v) => v) || ''
-  return SPREAD_TARGET_KEYWORDS.some((kw) => targetText.includes(kw))
+  return SPREAD_TARGETS.includes(move.Target)
 }
 
 // 더블 배틀 기준 광역기 데미지 보정(75%) 적용 여부 분기
+// - 광역기가 아니면 100% 그대로
+// - 광역기라도 1:1 상황(isOneVsOne)이면 실제로 대상이 1마리뿐이라 75% 감소가 적용되지 않고 100% 그대로
 const applySpreadModifier = (dmg, moveName) => {
   if (!dmg) return dmg
-  if (!isSpreadMove(moveName)) return dmg // 광역기가 아니면 100% 그대로
+  if (!isSpreadMove(moveName) || isOneVsOne.value) return dmg
   return {
     min: Math.floor(dmg.min * 0.75),
     max: Math.floor(dmg.max * 0.75),
@@ -1444,6 +1460,15 @@ watch(
   gap: 4px;
   font-size: 12px;
   color: #ffeb3b;
+  cursor: pointer;
+}
+
+.one-vs-one-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #4caf50;
   cursor: pointer;
 }
 

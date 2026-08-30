@@ -219,7 +219,9 @@ const { selectedPokemon: oppSelectedPokemonForCheck } = useOpponentParty()
 const isOppPartyComplete = computed(() =>
   oppSelectedPokemonForCheck.value.every((name) => !!name)
 )
-const isMineEntrySelected = computed(() => selectedMineIndices.value.length === 3)
+// 더블 배틀은 4마리 선출, 싱글 배틀은 3마리 선출
+const requiredMineCount = computed(() => route.path === '/doubleEntrySelect' || route.path === '/doubleBattle' ? 4 : 3)
+const isMineEntrySelected = computed(() => selectedMineIndices.value.length === requiredMineCount.value)
 const isEntryComplete = computed(() => isOppPartyComplete.value && isMineEntrySelected.value)
 
 const pad = (n) => String(n).padStart(2, '0')
