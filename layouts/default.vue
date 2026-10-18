@@ -1,50 +1,61 @@
-<!-- default.vue -->
 <template>
-  <div class="page">
-    <TitleBar />
-
+  <div class="shell">
+    <AppHeader />
     <main class="content">
-      <slot />
+      <slot v-if="ready" />
+      <div
+        v-else
+        class="boot"
+      >
+        <v-progress-circular
+          indeterminate
+          color="primary"
+          size="56"
+          width="5"
+        />
+        <span>{{ t('app.loading') }}</span>
+      </div>
     </main>
-
-    <footer
-      class="footer"
-      style="display: flex; justify-content: space-between; align-items: center; width: 100%;"
-    >
-      <p style="margin: 0; height: 36px;">
-        © 2026 Pokemon Champions Helper. All rights reserved.
-      </p>
-
-      <span style="margin: 0; text-align: right; font-size: 10px">
-        Pokémon and Pokémon character names are trademarks of Nintendo. <br>
-        Pokémon content and materials are trademarks and copyrights of Nintendo or its licensors.
-      </span>
+    <footer class="footer">
+      <span>{{ t('footer.rights') }}</span>
+      <span class="tm">{{ t('footer.trademark') }}</span>
+      <nav class="footer-links">
+        <NuxtLink to="/about">{{ t('nav.about') }}</NuxtLink>
+        <NuxtLink to="/contact">{{ t('nav.contact') }}</NuxtLink>
+      </nav>
     </footer>
   </div>
 </template>
 
-<style>
-html,
-body,
-#__nuxt {
-  margin: 0;
-  padding: 0;
-  min-height: 100%;
-}
+<script setup lang="ts">
+const { t, locale } = useI18n()
+const { ready } = useGameData()
+useHead({ htmlAttrs: { lang: locale } })
+</script>
 
-.page {
+<style scoped>
+.shell { min-height: 100vh; display: flex; flex-direction: column; }
+.content { flex: 1; }
+.boot {
+  min-height: 60vh;
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  color: var(--text-2);
 }
-
-.content {
-  flex: 1;
-}
-
 .footer {
-  padding: 0 16px;
-  background: #333;
-  color: #fff;
+  border-top: 1px solid var(--line);
+  padding: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  justify-content: center;
+  font-size: 12px;
+  color: var(--text-3);
 }
+.footer-links { display: flex; gap: 12px; }
+.footer-links a { color: var(--text-2); text-decoration: none; }
+.footer-links a:hover { color: var(--accent); }
 </style>

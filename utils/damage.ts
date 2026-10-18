@@ -195,12 +195,44 @@ export function calcDamage(
     return { rolls: Array(16).fill(v), min: v, max: v, effectiveness: 1, type, power: 0 }
   }
 
+  const { power, attack } = offense(move, attacker, defender, field, crit, type, skinBoost, weather)
+  const physical = move.category === 'physical'
+  const contact = move.flags.includes('contact')
+  const ab = attacker.ability
+  const dAb = defender.ability
+  const dHp = defender.hp ?? defender.stats.hp
+  const terrainNow = terrain
+
+  // 방어 실능치
+  const defStat = physical || ['psyshock', 'psystrike', 'secretsword'].includes(move.id) ? 'def' : 'spd'
+  let defBoost = defender.boosts?.[defStat] || 0
+  if (ab === 'unaware') defBoost = 0
+  if (crit && defBoost > 0) defBoost = 0
+  let defense = applyBoost(defender.stats[defStat], defBoost)
+  if (weather === 'sand' && defStat === 'spd' && defender.species.types.includes('rock')) defense = applyMod(defense, M.x1_5)
+  if (weather === 'snow' && defStat === 'def' && defender.species.types.includes('ice')) defense = applyMod(defense, M.x1_5)
+  let defMod = 4096
+  if (defStat === 'def' && dAb === 'furcoat') defMod = chain(defMod, M.x2)
+  if (defStat === 'def' && dAb === 'marvelscale' && defender.status) defMod = chain(defMod, M.x1_5)
+  if (defStat === 'def' && dAb === 'grasspelt' && terrainNow === 'grassy') defMod = chain(defMod, M.x1_5)
+  if (defStat === 'spd' && defender.item === 'assaultvest') defMod = chain(defMod, M.x1_5)
+  if (defender.item === 'eviolite') defMod = chain(defMod, M.x1_5)
+  defense = Math.max(1, applyMod(defense, defMod))
+
+  return finishDamage({ move, attacker, defender, field, opts, crit, weather, type, eff: eff.mult, power, attack, defense, physical, contact, ab, dAb, dHp, level })
+}
+
+// 위력 + 공격 실능치 (방어 측 특성 중 공격 보정에 관여하는 것 포함). 결정력 표시에도 쓴다.
+function offense(
+  move: Move, attacker: Combatant, defender: Combatant, field: FieldState, crit: boolean,
+  type: TypeId, skinBoost: boolean, weather: Weather,
+): { power: number; attack: number } {
+  const terrain = field.terrain || ''
   const physical = move.category === 'physical'
   const contact = move.flags.includes('contact')
   const aGrounded = isGrounded(attacker, field)
   const dGrounded = isGrounded(defender, field)
   const aHp = attacker.hp ?? attacker.stats.hp
-  const dHp = defender.hp ?? defender.stats.hp
 
   // ── 1. 위력 ─────────────
   const basePower = resolveBasePower(move, attacker, defender, weather, terrain)
@@ -232,11 +264,10 @@ export function calcDamage(
   }
   const power = Math.max(1, applyMod(basePower, bpMod))
 
-  // ── 2. 공격 / 방어 ─────────────
-  // 바디프레스: 자신의 방어 / 속임수: 상대의 공격 / 사이코쇼크류: 상대의 방어
+  // ── 2. 공격 ─────────────
+  // 바디프레스: 자신의 방어 / 속임수: 상대의 공격
   const atkSource = move.id === 'foulplay' ? defender : attacker
   const atkStat = move.id === 'bodypress' ? 'def' : physical ? 'atk' : 'spa'
-  const defStat = physical || ['psyshock', 'psystrike', 'secretsword'].includes(move.id) ? 'def' : 'spd'
 
   let atkBoost = atkSource.boosts?.[atkStat] || 0
   if (defender.ability === 'unaware') atkBoost = 0
@@ -263,21 +294,18 @@ export function calcDamage(
   if (dAb === 'waterbubble' && type === 'fire') atkMod = chain(atkMod, M.x0_5)
   if (dAb === 'purifyingsalt' && type === 'ghost') atkMod = chain(atkMod, M.x0_5)
   attack = Math.max(1, applyMod(attack, atkMod))
+  return { power, attack }
+}
 
-  let defBoost = defender.boosts?.[defStat] || 0
-  if (ab === 'unaware') defBoost = 0
-  if (crit && defBoost > 0) defBoost = 0
-  let defense = applyBoost(defender.stats[defStat], defBoost)
-  if (weather === 'sand' && defStat === 'spd' && defender.species.types.includes('rock')) defense = applyMod(defense, M.x1_5)
-  if (weather === 'snow' && defStat === 'def' && defender.species.types.includes('ice')) defense = applyMod(defense, M.x1_5)
-  let defMod = 4096
-  if (defStat === 'def' && dAb === 'furcoat') defMod = chain(defMod, M.x2)
-  if (defStat === 'def' && dAb === 'marvelscale' && defender.status) defMod = chain(defMod, M.x1_5)
-  if (defStat === 'def' && dAb === 'grasspelt' && terrain === 'grassy') defMod = chain(defMod, M.x1_5)
-  if (defStat === 'spd' && defender.item === 'assaultvest') defMod = chain(defMod, M.x1_5)
-  if (defender.item === 'eviolite') defMod = chain(defMod, M.x1_5)
-  defense = Math.max(1, applyMod(defense, defMod))
+interface FinishArgs {
+  move: Move; attacker: Combatant; defender: Combatant; field: FieldState; opts: DamageOptions; crit: boolean
+  weather: Weather; type: TypeId; eff: number; power: number; attack: number; defense: number
+  physical: boolean; contact: boolean; ab: string; dAb: string; dHp: number; level: number
+}
 
+function finishDamage(x: FinishArgs): DamageResult {
+  const { move, attacker, defender, field, opts, crit, weather, type, power, attack, defense, physical, contact, ab, dAb, dHp, level } = x
+  const eff = { mult: x.eff }
   // ── 3. 기본 데미지 ─────────────
   let base = tr(tr(tr((2 * level) / 5 + 2) * power * attack / defense) / 50) + 2
 
@@ -325,7 +353,29 @@ export function calcDamage(
     d = applyMod(d, finalMod)
     rolls.push(Math.max(1, d))
   }
-  return { rolls, min: rolls[0], max: rolls[15], effectiveness: eff.mult, type, power }
+  return { rolls, min: rolls[0]!, max: rolls[15]!, effectiveness: eff.mult, type, power }
+}
+
+// 더블에서 여러 대상을 맞히는 광역기 (상대 전체 / 자신 외 전체). '무작위 상대'(역린 등)는 아님
+export const SPREAD_TARGETS = ['allAdjacentFoes', 'allAdjacent']
+export const isSpreadMove = (move: Move | null | undefined) => !!move && move.category !== 'status' && SPREAD_TARGETS.includes(move.target)
+
+// ── 결정력 (공격 실능치 × 위력 × 자속 × 날씨 × 화상) ─────────────
+// 방어 측과 무관한 화력 지표. 위력/공격 보정은 calcDamage 와 같은 offense() 를 그대로 쓴다.
+export function powerIndex(move: Move, attacker: Combatant, field: FieldState = {}): number | null {
+  if (move.category === 'status' || !move.power) return null
+  const weather: Weather = IGNORES_WEATHER.has(attacker.ability) ? '' : (field.weather || '')
+  const dummy: Combatant = { species: { ...attacker.species, types: [], abilities: [], weight: 1 }, stats: attacker.stats, ability: '', item: '' }
+  const { type, skinBoost } = resolveMoveType(move, attacker, weather, field.terrain || '')
+  const { power, attack } = offense(move, attacker, dummy, field, false, type, skinBoost, weather)
+  let v = power * attack
+  const ab = attacker.ability
+  if (ab === 'protean' || ab === 'libero' || attacker.species.types.includes(type)) v *= ab === 'adaptability' ? 2 : 1.5
+  if (weather === 'sun' || weather === 'harshsun' || ab === 'megasol') v *= type === 'fire' ? 1.5 : type === 'water' && ab !== 'megasol' ? 0.5 : 1
+  else if (weather === 'rain' || weather === 'heavyrain') v *= type === 'water' ? 1.5 : type === 'fire' ? 0.5 : 1
+  if (attacker.status === 'brn' && move.category === 'physical' && ab !== 'guts' && move.id !== 'facade') v *= 0.5
+  if (attacker.item === 'lifeorb') v *= 1.3
+  return Math.floor(v)
 }
 
 // ── 연속기 ─────────────

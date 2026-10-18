@@ -49,9 +49,9 @@ export default defineNuxtConfig({
     defaultLocale: 'ko',
     langDir: 'locales',
     locales: [
-      { code: 'ko', language: 'ko-KR', name: '한국어', file: 'ko.json' },
-      { code: 'en', language: 'en-US', name: 'English', file: 'en.json' },
-      { code: 'ja', language: 'ja-JP', name: '日本語', file: 'ja.json' },
+      { code: 'ko', language: 'ko-KR', name: '한국어', file: 'ko.ts' },
+      { code: 'en', language: 'en-US', name: 'English', file: 'en.ts' },
+      { code: 'ja', language: 'ja-JP', name: '日本語', file: 'ja.ts' },
     ],
     detectBrowserLanguage: { useCookie: true, cookieKey: 'pch_lang', redirectOn: 'root', fallbackLocale: 'ko' },
   },

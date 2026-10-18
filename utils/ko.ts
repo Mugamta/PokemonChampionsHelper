@@ -8,7 +8,7 @@ export interface KoInfo {
 
 // 16개 난수의 N회 합 분포를 컨볼루션해서 처음으로 KO 확률 > 0 이 되는 N 을 찾는다
 export function koChance(rolls: number[], hp: number, maxHits = 4): KoInfo | null {
-  if (!hp || hp <= 0 || !rolls.length || rolls[rolls.length - 1] <= 0) return null
+  if (!hp || hp <= 0 || !rolls.length || rolls[rolls.length - 1]! <= 0) return null
   const n = rolls.length
   let dist = new Map<number, number>([[0, 1]])
   for (let hit = 1; hit <= maxHits; hit++) {
@@ -30,7 +30,7 @@ export function koHitIndex(damages: number[], hp: number): number | null {
   if (hp <= 0) return 1
   let sum = 0
   for (let i = 0; i < damages.length; i++) {
-    sum += damages[i]
+    sum += damages[i]!
     if (sum >= hp) return i + 1
   }
   return null
@@ -44,7 +44,7 @@ export function simulateMultiHit(
   let def = defHp
   let atk = atkHp
   for (let i = 0; i < perHit.length; i++) {
-    def -= perHit[i]
+    def -= perHit[i]!
     if (def <= 0) return { outcome: 'defender', atHit: i + 1 }
     if (punishFraction > 0) {
       atk -= Math.floor(atkMaxHp * punishFraction)

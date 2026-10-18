@@ -88,9 +88,11 @@ export function useGameData() {
 
   return {
     data,
+    names,
     ready,
     loading,
     load,
+    loadLocale,
     name,
     text,
     pokemon,
