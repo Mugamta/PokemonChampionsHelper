@@ -22,3 +22,7 @@ logs
 .env
 .env.*
 !.env.example
+
+# 데이터 빌드 소스 캐시
+scripts/.cache
+scripts/.debug
