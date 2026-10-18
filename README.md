@@ -1,75 +1,21 @@
-# Nuxt Minimal Starter
+# Pokémon Champions Helper
 
-Look at the [Nuxt documentation](https://nuxt.com/docs/getting-started/introduction) to learn more.
+포켓몬 챔피언스 랭크배틀을 위한 비공식 팬 도구 — 데미지 계산 · 선출 · 턴 관리 (한국어 / English / 日本語)
 
-## Setup
+- **파티 관리**: 6마리의 특성·성격·도구·능력 포인트·기술, 실능치·HP 배수·내구·결정력
+- **싱글/더블 선출**: 상대 6마리 입력, 양방향 데미지 표 (확정/난수 N타, 더블 광역기 0.75배)
+- **배틀**: HP·랭크·상태이상·날씨·필드·설치기 관리, 스피드 비교와 역산, 행동 순서 예측, 배분 추정, 되돌리기
 
-Make sure to install dependencies:
+## 개발
 
 ```bash
-# npm
 npm install
-
-# pnpm
-pnpm install
-
-# yarn
-yarn install
-
-# bun
-bun install
+npm run dev          # http://localhost:3000
+npm test             # 계산 엔진 테스트 (@smogon/calc 대조)
+npm run build:data   # 게임 데이터 재생성 (Showdown + PokeAPI)
 ```
 
-## Development Server
+구조와 데이터는 [CLAUDE.md](CLAUDE.md) 와 [docs/](docs/) 참고.
 
-Start the development server on `http://localhost:3000`:
-
-```bash
-# npm
-npm run dev
-
-# pnpm
-pnpm dev
-
-# yarn
-yarn dev
-
-# bun
-bun run dev
-```
-
-## Production
-
-Build the application for production:
-
-```bash
-# npm
-npm run build
-
-# pnpm
-pnpm build
-
-# yarn
-yarn build
-
-# bun
-bun run build
-```
-
-Locally preview production build:
-
-```bash
-# npm
-npm run preview
-
-# pnpm
-pnpm preview
-
-# yarn
-yarn preview
-
-# bun
-bun run preview
-```
-
-Check out the [deployment documentation](https://nuxt.com/docs/getting-started/deployment) for more information.
+데이터: Pokémon Showdown (Champions mod), PokeAPI · 이미지: Pokémon Champions 인게임 스프라이트 (Bulbagarden Archives).
+Pokémon 및 포켓몬 캐릭터 이름은 Nintendo · Creatures · GAME FREAK · The Pokémon Company 의 상표입니다.

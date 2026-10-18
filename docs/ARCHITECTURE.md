@@ -3,83 +3,64 @@
 ## 디렉터리
 
 ```
-components/TitleBar.vue      헤더: 시계, 레귤레이션 선택, 로딩 진행률, 화면 이동 버튼(진입 조건 검사)
-layouts/default.vue          TitleBar + <slot> + 푸터(저작권 고지)
-pages/                       파일 기반 라우팅 (아래 표)
-composables/                 useState 기반 전역 상태 / 데이터 로더
-utils/                       순수 계산 함수 (실능치, 데미지, N타, 기술 정보 포맷, 성격 라벨)
-data/                        정적 게임 데이터 (TS 모듈로 번들에 포함)
-public/                      런타임 fetch 데이터(JSON) + 스프라이트 이미지
-scripts/                     데이터 수집/스프라이트 다운로드용 1회성 Node 스크립트 (빌드와 무관)
+pages/                 라우트 (아래 표)
+layouts/default.vue    AppHeader + 데이터 로딩 대기 + 푸터
+components/
+  AppHeader.vue        로고, 메뉴, 레귤레이션 선택, 시계, 언어 전환. onMounted 에서 데이터 로드 + 예전 파티 이전
+  ui/                  PokeSprite, ItemIcon, TypeBadge, CategoryBadge, HpBar, DamageCell, RankControl
+  team/                SlotEditor(슬롯 편집), SlotCard(읽기 전용 카드), SpeciesPicker / ItemPicker / MovePicker
+  battle/              EntryView(선출), BattleView(배틀) 와 그 하위 패널들
+composables/           상태 + 계산 연결 (아래 표)
+utils/                 순수 계산: types.ts, stats.ts, damage.ts, ko.ts  (tests/ 에서 테스트)
+plugins/locale.client.ts  언어 선택 (localStorage 'pch_lang' → 브라우저 언어 → ko)
+i18n/locales/          화면 문구 ko/en/ja (.json) + Vuetify 문구 병합(.ts)
+public/data/           게임 데이터 (scripts/build-data.mjs 생성물)
+public/sprites/        포켓몬/도구 스프라이트 (생성물)
+scripts/               build-data.mjs + sources/ (PP, 한국어 도구명 보강, 레귤레이션 목록)
+tests/                 vitest
 ```
+
+Nuxt 컴포넌트 이름은 폴더 접두사가 붙는다: `components/team/SlotEditor.vue` → `<TeamSlotEditor>`,
+`components/battle/BattleView.vue` → `<BattleView>` (파일명이 폴더명으로 시작하면 중복 제거).
 
 ## 화면 흐름
 
 ```
-index ──▶ partySelect ──┬──▶ singleEntrySelect ──▶ singleBattle
- (메인)   (내 파티 6마리)  │     (상대 6마리 입력 + 내 3마리 선출, 데미지 매트릭스)
-                         └──▶ doubleEntrySelect ──▶ doubleBattle  ※ 페이지 미구현
-                               (상대 6마리 입력 + 내 4마리 선출, 광역기 75% 행 추가)
+/  ──▶ /party ──┬──▶ /single ──▶ /single/battle   (선출 3마리, 1:1)
+                └──▶ /double ──▶ /double/battle   (선출 4마리, 2:2, 광역기 0.75배)
+/help  /about  /contact
 ```
 
-화면 간 이동 버튼은 대부분 **TitleBar**에 있고, `route.path`로 노출 여부를 정한다.
-- 선출 화면으로 가려면 `useParty().isPartyComplete` (6마리 모두 선택 + 각자 기술 1개 이상)
-- 배틀 화면으로 가려면 상대 6마리 모두 입력 + 내 선출 3마리(싱글)/4마리(더블)
-
-| 페이지 | 상태 | 역할 |
+| 라우트 | 컴포넌트 | 내용 |
 |---|---|---|
-| `index.vue` | 사용 중 | 메인 메뉴. "멀티배틀" 버튼은 없는 `/multi`로 감 |
-| `partySelect.vue` | 사용 중 | 내 파티 편집. 포켓몬/특성/성격/도구/기술/능력포인트 입력 → 실능치·결정력·내구·HP 배수 표시. 슬롯별 날씨/필드/상태이상 토글. **Options API 형태(`export default { setup() }`)** — 다른 페이지는 `<script setup>` |
-| `singleEntrySelect.vue` | 사용 중 | 상대 파티 입력 + 내 3마리 선출 순서 지정 + 내→상대 / 상대→내 데미지 매트릭스, 날씨/필드/치명타 토글 |
-| `doubleEntrySelect.vue` | 사용 중(작업 중) | 위와 동일 + 4마리 선출, 광역기(`Target`이 `'모든 상대'`/`'다른 모든 포켓몬'`)는 `(광역기)` 75% / `(1:1)` 100% 두 행 |
-| `singleBattle.vue` | 사용 중 | 턴 단위 배틀 시뮬레이터 (아래 참고) |
-| `entrySelect.vue` | 레거시 | `singleEntrySelect.vue`의 이전 사본 (주석/인자 1줄 차이) |
-| `single.vue` | 레거시 | 초기 프로토타입. baseURL 미적용, 1025개 동시 fetch |
-| `about.vue`, `help.vue`, `contact.vue` | 플레이스홀더 | index와 같은 메뉴 버튼만 있음 |
+| `/` | pages/index.vue | 모드 카드, 현재 레귤레이션, 파티 진행도 |
+| `/party` | pages/party.vue → TeamSlotEditor ×6 | 포켓몬/특성/도구/성격/능력P/기술, 실능치·HP 배수·내구·결정력, 결정력 미리보기 조건 |
+| `/single`, `/double` | BattleEntryView(mode) | 왼쪽 내 파티(눌러서 선출), 가운데 데미지 표(방향 탭), 오른쪽 상대 6마리 입력(compact SlotEditor) |
+| `/single/battle`, `/double/battle` | BattleView(mode) | 필드 포켓몬 패널, 필드 상태, 행동 입력·턴 적용, 예상 흐름, 스피드, 데미지 표 2종 |
 
-### singleBattle.vue 주요 기능 (Grep 키워드)
+## composables
 
-`<script setup>`은 1322행부터, 스타일은 3112행부터. 섹션 구분선 `// ── … ──` 로 찾으면 된다.
-- 활성/벤치 포켓몬 선택: `selectMine`, `selectOpp`, `activeMineIndex`, `revealedOppIndices`
-- HP: 내 쪽은 실제 수치 `mineCurrentHp`, 상대는 퍼센트 `oppHpPercent`
-- 상태이상/특수상태 + 턴 카운트: `STATUS_CONDITIONS`, `SPECIAL_CONDITION_DURATIONS`, `applyEndOfTurnStatusDamage`
-- 날씨 자동 발동(특성/기술/원시·메가레쿠쟈): `setWeather`, `WEATHER_ABILITY_MAP`, `WEATHER_MOVE_MAP`, `PRIMAL_WEATHER_MAP`
-- 필드·룸·해저드·스크린: `battleField`, `activeRooms`, `mineHazards`, `mineScreens`
-- 랭크: `mineRanks`, `rankMultiplier` (기술의 `effects`로 자동 적용 — `applyMoveEffectsForMove`)
-- 스피드 비교 / 선후공 관찰로 상대 스피드 역산: `speedRows`, `inferredOppSpeedBound`
-- 데미지 셀/연속기/접촉 반격 자멸 위험: `buildCell`, `getMoveHitInfo`, `mineMultiHitRisk`
-- 턴 진행 / 되돌리기(최대 30턴 스냅샷): `executeTurn`, `captureBattleSnapshot`, `undoLastTurn`
-- 행동 순서 예측 / 시나리오: `turnOrderForecast`, `turnOrderScenarioFlows`
+| 이름 | 역할 |
+|---|---|
+| `useGameData()` | `public/data` 로드(1회), 현재 언어 이름/설명 로드, `name/text/pokemon/move/learnset/megaFor/pokemonSprite/itemSprite/options` |
+| `useRegulation()` | 레귤레이션 목록, 현재 시각 자동 선택/수동 선택, `isAllowed(id)`, `selectableSpecies` |
+| `useTeam(side)` | `'mine' | 'opp'` 6슬롯 (`TeamSlot`), 메가 미리보기 토글. localStorage `pch-team-mine-v2` / `pch-team-opp-v2` 자동 저장. `migrateLegacyTeam()` 은 예전 한글 저장분 이전 |
+| `useEntry(mode)` | 선출 순서(내 파티 인덱스 배열), 싱글 3 / 더블 4 |
+| `useTeamCalc()` | 슬롯 → `ResolvedSlot`(메가 폼·실능치·특성), `combatant()`, 데미지 표 칸 `cell()`, 결정력 `power()` |
+| `useBattle(mode)` | 배틀 상태 머신. `useState('battle-{mode}')` 에 저장(화면 이동해도 유지, 선출/상대 구성이 바뀌면 자동 초기화) |
+| `useBattleAnalysis(b)` | 스피드 비교·역산, 시나리오 데미지, ①②③ 흐름, 배분 추정, 연속기 자멸 위험, 상태이상 예고. 문구는 `{key, params}` |
+| `useLine()` | 위 문구를 현재 언어로 렌더링 (`@키` / `@키|이름` 파라미터 번역) |
 
-배틀 화면 내부 상태(HP, 랭크, 날씨 등)는 페이지 로컬 `ref`/`reactive`라서 화면을 떠나면 사라진다.
+## 배틀 상태 (useBattle)
 
-## 전역 상태 (composables)
+- 로스터: 내 쪽 = 선출 순서, 상대 = 상대 파티 6마리. 필드 칸 `active[N]` 이 로스터 인덱스를 가리킨다.
+- 포켓몬별 `MonState`: `hp`(내 쪽 실수치 / 상대 %), `megaOn`, `megaUsed`, `status`, `toxicTurn`, `volatiles{키:경과턴}`, `boosts`
+- 진영별: 해저드(`hazards`), 벽/순풍 등(`screens`), 확인된 상대(`revealed`)
+- 전역: 날씨(원시 날씨는 `permanent` + 원인 포켓몬), 필드, 공간(트릭룸 등), 페어리록, 턴, 관찰한 선후공, 분석 대상 칸(`focus`)
+- `executeTurn()`: 교체 → 기술(메가진화, 효과 자동 반영, 입력한 데미지) → 원시 날씨 원인 기절 체크 → 이번 턴 상태이상
+  → 턴 종료 상태이상 데미지·특수상태 경과 → 날씨/필드/공간/벽 경과 → 입력 초기화. 실행 전 스냅샷(최대 30) 저장.
 
-모두 Nuxt `useState`라서 어느 컴포넌트에서 호출해도 같은 인스턴스를 공유한다.
+## 스타일
 
-| composable | useState 키 | 내용 |
-|---|---|---|
-| `useParty()` | `party-*` | 내 파티 6슬롯: `selectedPokemon/Ability/Nature/Tool/Moves`, `inputStats`(능력 포인트), `calcStats`(실능치). **localStorage(`pokemon-champions-my-party`)에 자동 저장/복원** (모듈 전역 `hydrated` 플래그로 1회만). `isPartyComplete`, `resetParty()` |
-| `useOpponentParty()` | `opponent-*` | 상대 파티 6슬롯, 구조는 useParty와 동일. 저장 안 됨 |
-| `useMineOrderSelection(mode)` | `mineOrderSelectionSingle` / `…Double` | 선출한 내 파티 인덱스 배열(순서 = 선출 순서). 최대 3/4. `toggleMineSelect`, `getMineOrder` |
-| `usePokemonList()` | `pkmn-*` | `public/pokemon_list/{id}.json` 로드 (동시성 20 제한, 1회만). `pokemons` 배열 + 이름→데이터 `pokemonMap` |
-| `useRegulations()` | `reg-*` | `public/regulation/index.json` → 각 레귤레이션 로드. 현재 시각으로 자동 선택 또는 수동 선택. 1초 시계 `currentTime`. `allowedDexIds` = 모든 레귤레이션 도감번호 합집합 |
-| `useEligiblePokemon()` | (조합) | 위 두 개를 합쳐 활성 레귤레이션에 속한 포켓몬만 `pokemonNames`로 제공 |
-| `usePublicAsset()` | — | `asset(path)` → baseURL 붙인 public 경로 |
-
-### 데이터 로딩 순서
-
-`TitleBar`의 `onMounted`가 담당한다 (모든 페이지가 default 레이아웃을 쓰므로 앱 시작 시 1회):
-1. `startClock()`
-2. `loadRegulations()` — index.json → 각 파일
-3. `loadPokemonList(allowedDexIds)` — 레귤레이션에 등장하는 도감번호만 fetch
-
-레귤레이션이 바뀌어 `pokemonNames`가 달라지면 partySelect가 목록에 없는 선택을 해제한다.
-
-## 페이지 공통 패턴
-
-- 슬롯 함수는 인덱스를 받는다: `mineDisplayStats(i)`, `oppDisplayName(i)`, `getMineToOppCell(mIdx, oIdx, moveIdx, crit)` 등
-- `mine*` = 내 파티, `opp*` = 상대 파티 접두사
-- 성격 값에 `"고집(공격↑ …)"` 같은 라벨이 섞여 들어올 수 있어서 계산 전에 `.replace(/\([^)]*\)/g, '')`로 괄호를 제거한다
-- 같은 파티 안에서 포켓몬/도구 중복 선택은 옵션 목록에서 걸러서 막는다 (`availablePokemonNames`, `toolOptions`)
-- 스타일은 대부분 인라인 `style` + 페이지별 `<style scoped>`. 전역 CSS 파일 없음(`assets/css/` 비어 있음)
+- 디자인 토큰과 공통 클래스는 `assets/css/main.css` (`.panel`, `.btn`, `.chip`, `.type-badge`, `--t-{type}` 타입 색, `--mine`/`--opp`)
+- 다크 게임 UI 단일 테마 (Vuetify 테마 `champions`), 폰트 Rubik(숫자/제목) + Noto Sans KR/JP

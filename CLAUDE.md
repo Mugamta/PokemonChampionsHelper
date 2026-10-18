@@ -1,47 +1,32 @@
 # CLAUDE.md
 
-포켓몬 챔피언스(Pokémon Champions) 랭크배틀 보조 도구. 내 파티/상대 파티를 입력하면
-실능치·결정력·데미지 매트릭스·확정/난수 N타·스피드 비교·턴 진행 시뮬레이션을 보여준다.
-UI·데이터·주석은 전부 **한국어**이며, 포켓몬/기술/특성/도구는 **한글 이름을 키**로 쓴다.
+포켓몬 챔피언스(Pokémon Champions) 랭크배틀 보조 도구. 내 파티/상대 파티를 입력하면 실능치·결정력·데미지 표·
+확정/난수 N타·스피드 비교·턴 진행 시뮬레이션(싱글/더블)을 보여준다. **화면은 한/영/일 3개 언어**, 데이터 키는 **전부 영어 id**.
 
 상세 문서 (작업 전에 관련 문서를 먼저 읽을 것):
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — 화면 흐름, 페이지별 역할, 전역 상태(composables), 데이터 로딩
-- [docs/DATA.md](docs/DATA.md) — `public/` JSON, `data/*.ts` 형식, 스프라이트, 수집/다운로드 스크립트
-- [docs/BATTLE_MECHANICS.md](docs/BATTLE_MECHANICS.md) — 실능치/결정력/데미지/N타 공식과 보정 규칙
-- [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) — 없는 라우트, 레거시 파일, 미구현(자속·타입상성 등) 목록
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — 화면/라우트, composable, 컴포넌트 구조, 상태 저장
+- [docs/DATA.md](docs/DATA.md) — `public/data/*.json` 형식, `scripts/build-data.mjs` 파이프라인, 스프라이트, 레귤레이션 추가 방법
+- [docs/BATTLE_MECHANICS.md](docs/BATTLE_MECHANICS.md) — 실능치/데미지 공식, 반영된 특성·도구 목록, 테스트 방법
+- [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) — 확인 필요한 데이터, 미반영 효과, 환경 주의사항
 
 ## 스택 / 명령어
 
-- Nuxt 4 + Vue 3 + Vuetify 4 (`vuetify-nuxt-module`, 기본 다크 테마), **`ssr: false` (SPA)**
-- `srcDir` = 레포 루트 (`app/` 폴더 없음 — 만들면 Nuxt 4가 srcDir을 바꿔버리니 만들지 말 것). `@/` = 루트.
-- `npm run dev` (localhost:3000), `npm run generate` / `npm run build`
-- 린트: `npx eslint .` (스크립트 없음). 포맷: Prettier — 2칸, 세미콜론 없음, 작은따옴표, printWidth 100
-- **테스트 없음.** 변경 확인은 dev 서버에서 화면으로 한다.
-- 배포: `main` push → GitHub Actions(`.github/workflows/deploy.yml`) → GitHub Pages
-  (`NUXT_APP_BASE_URL=/PokemonChampionsHelper/`)
+- Nuxt 4 + Vue 3 + Vuetify 4 + @nuxtjs/i18n, **`ssr: false` (SPA)**, TypeScript(새 코드)
+- `srcDir` = 레포 루트 (`app/` 폴더를 만들지 말 것). `~/` = 루트.
+- `npm run dev` (localhost:3000) / `npm test` (vitest, 데미지 계산을 @smogon/calc 와 대조) / `npm run build:data`
+- 배포: `main` push → GitHub Actions(`npm install` → `npm test` → `nuxt build --preset github_pages`, base `/PokemonChampionsHelper/`)
+- Windows Git Bash 에서 base URL 로 빌드할 때는 `MSYS_NO_PATHCONV=1` 필수 (안 하면 경로가 변환돼 모든 HTML 이 "Redirecting..." 이 됨)
 
 ## 반드시 지킬 규칙
 
-1. **baseURL**: GitHub Pages 서브경로 배포라서 `public/` 파일을 `fetch`/`<img src>` 할 때
-   절대경로(`/pokemon_list/...`)를 쓰면 배포본에서 깨진다. `usePublicAsset().asset(path)` 또는
-   `useRuntimeConfig().app.baseURL` 접두사를 붙일 것.
-2. **전역 상태는 `useState` 기반 composable**을 통해서만 공유한다 (`useParty`, `useOpponentParty`,
-   `useMineOrderSelection(mode)`, `usePokemonList`, `useRegulations`). Pinia 없음.
-   새 상태 키를 만들 때 기존 키와 겹치지 않게 접두사를 붙인다 (`party-`, `opponent-`, `pkmn-`, `reg-`).
-3. **싱글/더블 분리**: 선출 상태는 `useMineOrderSelection('single')`(3마리) /
-   `useMineOrderSelection('double')`(4마리)로 키가 분리돼 있다. 더블 화면에서 인자를 빠뜨리면
-   기본값 `'single'`이 되어 싱글 상태를 오염시킨다.
-4. **6슬롯 병렬 배열 구조**: 파티 데이터는 `selectedPokemon[i]`, `selectedTool[i]`, `selectedMoves[i][k]`,
-   `inputStats[i]`, `calcStats[i]` … 처럼 인덱스로 맞물린 배열이다. 한 슬롯을 바꾸면 같은 인덱스의
-   다른 배열도 함께 초기화/갱신해야 한다 (partySelect의 `selectedPokemon` watch 참고).
-5. **메가진화**: `selectedPokemon`에는 항상 원래 종족명을 저장하고, 메가 여부는 도구가
-   `MegaEvolutionMap[이름][].stoneName`과 일치하는지 + 토글로 판단한다. 메가 이름/종족값/특성은
-   `data/mega-evolutions.ts`에서 가져온다.
-6. **코드 스타일**: 기존 파일의 관용구를 따른다 — 한국어 주석, `// ── 섹션명 ─────` 구분선,
-   Nuxt auto-import(`useState`, `computed`, `navigateTo` 등) 사용. 대형 페이지(`singleBattle.vue` ~3400줄,
-   `*EntrySelect.vue` ~1400줄)는 통째로 읽지 말고 Grep으로 함수 위치를 찾아 부분만 읽는다.
-7. **중복 코드 주의**: `singleEntrySelect.vue`와 `doubleEntrySelect.vue`는 거의 같은 코드(더블은 광역기
-   75% 행만 추가)다. 공통 로직을 고칠 때는 양쪽 모두(필요하면 `partySelect.vue`, `singleBattle.vue`도) 반영한다.
-8. 데이터 파일(`data/abilities.ts`, `data/item.ts`, `public/pokemon_list/*.json`)은 스크래퍼가 생성한 것이다.
-   손으로 고쳐도 되지만 스크래퍼 재실행 시 덮어써진다는 점을 염두에 둔다.
-9. 커밋은 사용자가 요청할 때만. 커밋 메시지는 한국어 짧은 문장이 관례 (예: `싱글더블수정`).
+1. **키는 영어 id** (Showdown id: `garchompmegaz`, `thunderbolt`, `choicescarf`, `adamant`, 타입 `fire`, 스탯 `hp atk def spa spd spe`).
+   화면 표시 이름은 `useGameData().name(kind, id)`, 설명은 `.text(kind, id)`. 한글 문자열 비교로 로직을 짜지 말 것.
+2. **화면 문구는 i18n**: `i18n/locales/{ko,en,ja}.json` 세 파일에 **같은 키를 모두** 추가. 컴포넌트에서 하드코딩 금지.
+3. **public 경로**: `usePublicAsset().asset(path)` 또는 `useGameData()` 의 sprite 헬퍼로 baseURL 을 붙인다 (서브경로 배포).
+4. **게임 데이터는 직접 고치지 말고** `scripts/sources/` 를 고친 뒤 `npm run build:data` 로 재생성 (`public/data/*.json` 은 생성물).
+5. **계산 로직은 `utils/`(순수 TS)** 에 두고 `tests/` 에 테스트 추가. 데미지 공식을 바꾸면 `npm test` 로 @smogon/calc 대조가 통과해야 한다.
+6. **composable 자동 import 함정**: 같은 모듈에서 `import type { X }` 만 하면 그 모듈의 함수 자동 import 가 빠질 수 있다.
+   타입을 import 하는 파일에서는 함수도 명시적으로 import (`import { useEntry, type BattleMode } from '~/composables/useEntry'`).
+7. 메가진화: 슬롯의 `species` 는 항상 원종 id. 메가 폼은 `useGameData().megaFor(species, item)` (도구가 메가스톤일 때)로 결정.
+8. 코드 스타일: Prettier (2칸, 세미콜론 없음, 작은따옴표, printWidth 100), 한국어 주석, `// ── 섹션 ─────` 구분선.
+9. 커밋은 사용자가 요청할 때만. 메시지는 한국어. `main` push = 배포이므로 push 도 요청 시에만.
