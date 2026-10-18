@@ -3,6 +3,8 @@
 포켓몬 챔피언스(Pokémon Champions) 랭크배틀 보조 도구. 내 파티/상대 파티를 입력하면 실능치·결정력·데미지 표·
 확정/난수 N타·스피드 비교·턴 진행 시뮬레이션(싱글/더블)을 보여준다. **화면은 한/영/일 3개 언어**, 데이터 키는 **전부 영어 id**.
 
+**이어서 작업할 때는 [docs/STATUS.md](docs/STATUS.md) 부터 읽을 것** — 한 것 / 남은 것 / 판단이 필요한 것, 현재 브랜치 상태.
+
 상세 문서 (작업 전에 관련 문서를 먼저 읽을 것):
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — 화면/라우트, composable, 컴포넌트 구조, 상태 저장
 - [docs/DATA.md](docs/DATA.md) — `public/data/*.json` 형식, `scripts/build-data.mjs` 파이프라인, 스프라이트, 레귤레이션 추가 방법
