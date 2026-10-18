@@ -29,6 +29,17 @@
 - 메가진화는 도구가 해당 메가스톤일 때만 인식. 스톤 slug가 없는 신규 메가는 기본 이미지로 대체
 - singleBattle은 `ABILITY_DESCRIPTIONS`라는 자체 특성 설명 맵을 쓰고, 다른 페이지는 `data/abilities.ts`를 씀
 
+## 데이터 확인 필요 (M-C 반영 시 발생)
+
+- `data/moves.ts`에 `// PP 추정` 주석이 붙은 12개 기술(베어가르기, 스타어설트 등)은 챔피언스 PP를 확인하지 못해
+  추정값을 넣었다. 기존 기술 기준 경향: 구세대 기술은 본가 PP 10→12, 15→16, 5→8로 오르고 8·9세대 기술은 그대로
+- Showdown `champions` 모드와 기존 op.gg 기반 `moves.ts`의 위력이 다른 기술 12개 (moves.ts 쪽 값을 유지 중):
+  그림자꿰매기 80/90, 나이트버스트 85/90, 만나자마자 90/100, 백귀야행 60/65, 본러시 25/30, 부리캐논 100/120,
+  불꽃채찍 80/90, 빙산바람 100/120, 사과산 80/90, 트로피컬킥 70/85, G의힘 80/90 (moves.ts/Showdown)
+- 신규 23종의 습득 기술은 Showdown `data/mods/champions/learnsets.ts` 기준 (op.gg가 자동 수집을 차단해서 대체)
+- M-C의 Vivillon/Floette/Meowstic♀ 폼 코드는 M-B 값을 그대로 유지. 신규 폼 코드(페르시온 알로라 0053-001 등)는
+  Showdown `otherFormes` 순서로 부여한 것이라 공식 코드와 다를 수 있음 (앱은 도감번호만 사용하므로 동작 영향 없음)
+
 ## 코드 중복
 
 - `singleEntrySelect.vue` ↔ `doubleEntrySelect.vue` ↔ `entrySelect.vue`: 1400줄대 거의 동일

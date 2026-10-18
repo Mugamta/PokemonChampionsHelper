@@ -38,6 +38,20 @@ export const ItemSpriteSlug: Record<string, string> = {
 
   '조개껍질방울': 'shell-bell',
 
+  // M-C 신규 지닌 아이템
+  '풍선': 'air-balloon',
+  '조임밴드': 'binding-band',
+  '탈출버튼': 'eject-button',
+  '레드카드': 'red-card',
+  '울퉁불퉁멧': 'rocky-helmet',
+  '노말주얼': 'normal-gem',
+  '대파': 'stick', // PokeAPI 스프라이트 파일명은 구 영문명(Stick)
+  '그라운드코트': 'terrain-extender',
+  '일렉트릭시드': 'electric-seed',
+  '그래스시드': 'grassy-seed',
+  '미스트시드': 'misty-seed',
+  '사이코시드': 'psychic-seed',
+
   // 상태이상 회복 열매
   '버치열매': 'cheri-berry',   // 마비
   '유루열매': 'chesto-berry',  // 잠듦

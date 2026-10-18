@@ -74,6 +74,7 @@ export const moves: Record<string, {
     '기선제압': {Type: '격투', Category: '물리', Power: 65, Accuracy: 100, PP: 15, Priority: 3, Target: '선택한 포켓몬'},
     '기습': {Type: '악', Category: '물리', Power: 70, Accuracy: 100, PP: 8, Priority: 1, Target: '선택한 포켓몬'},
     '기어오르기': {Type: '악', Category: '물리', Power: 20, Accuracy: 100, PP: 10, Target: '선택한 포켓몬'},
+    '기어체인지': {Type: '강철', Category: '변화', PP: 12, Target: '사용자', Effect: '공격 1랭크 상승, 스피드 2랭크 상승', effects: [{ type: 'rank', target: 'self', stat: 'A', amount: 1 }, { type: 'rank', target: 'self', stat: 'S', amount: 2 }]}, // M-C. PP 추정
     '기충전': {Type: '노말', Category: '변화', PP: 20, Target: '사용자'},
     '기합구슬': {Type: '격투', Category: '특수', Power: 120, Accuracy: 70, PP: 8, Target: '선택한 포켓몬', Effect: '특방 1랭크 하락', effects: [{ type: 'rank', target: 'opponent', stat: 'D', amount: -1 }]},
     '길동무': {Type: '고스트', Category: '변화', PP: 5, Target: '사용자'},
@@ -101,6 +102,7 @@ export const moves: Record<string, {
     '냉동빔': {Type: '얼음', Category: '특수', Power: 90, Accuracy: 100, PP: 12, Target: '선택한 포켓몬', Effect: '10% 확률로 상대를 얼음', effects: [{ type: 'status', target: 'opponent', status: '얼음', chance: 10 }]},
     '냉동펀치': {Type: '얼음', Category: '물리', Power: 75, Accuracy: 100, PP: 16, Target: '선택한 포켓몬', Effect: '10% 확률로 상대를 얼음', effects: [{ type: 'status', target: 'opponent', status: '얼음', chance: 10 }]},
     '노래하기': {Type: '노말', Category: '변화', Accuracy: 55, PP: 16, Target: '선택한 포켓몬', Effect: '상대를 잠듦', effects: [{ type: 'status', target: 'opponent', status: '잠듦', chance: 100 }]},
+    '노려맞히기': {Type: '물', Category: '특수', Power: 85, Accuracy: 100, PP: 15, Target: '선택한 포켓몬', Effect: '급소 1랭크 상승', effects: [{ type: 'rank', target: 'self', stat: 'CRIT', amount: 1 }]}, // M-C (위력 80→85). PP 추정
     '녹기': {Type: '독', Category: '변화', PP: 20, Target: '사용자', Effect: '방어 2랭크 상승', effects: [{ type: 'rank', target: 'self', stat: 'B', amount: 2 }]},
     '농성': {Type: '강철', Category: '변화', Power: 0, PP: 10, Target: '사용자'},
     '누르기': {Type: '노말', Category: '물리', Power: 85, Accuracy: 100, PP: 16, Target: '선택한 포켓몬', Effect: '30% 확률로 상대를 마비', effects: [{ type: 'status', target: 'opponent', status: '마비', chance: 30 }]},
@@ -115,6 +117,7 @@ export const moves: Record<string, {
     '달빛': {Type: '페어리', Category: '변화', PP: 8, Target: '사용자', Effect: '회복 +50%', effects: [{ type: 'heal', ratio: 0.5 }]},
     '달콤한향기': {Type: '노말', Category: '변화', Accuracy: 100, PP: 20, Target: '모든 상대', Effect: '회피 2랭크 하락', effects: [{ type: 'rank', target: 'opponent', stat: 'EVA', amount: -2 }]},
     '당신먼저': {Type: '노말', Category: '변화', PP: 15, Target: '선택한 포켓몬'},
+    '대검돌격': {Type: '드래곤', Category: '물리', Power: 120, Accuracy: 100, PP: 5, Target: '선택한 포켓몬', Effect: '다음 턴까지 받는 데미지 2배', effects: [{ type: 'special', raw: '다음 턴까지 받는 데미지 2배' }]}, // M-C. PP 추정
     '대격분': {Type: '불꽃', Category: '물리', Power: 120, Accuracy: 100, PP: 10, Target: '무작위 상대'},
     '대지의파동': {Type: '노말', Category: '특수', Power: 50, Accuracy: 100, PP: 10, Target: '선택한 포켓몬'},
     '대지의힘': {Type: '땅', Category: '특수', Power: 90, Accuracy: 100, PP: 12, Target: '선택한 포켓몬', Effect: '특방 1랭크 하락', effects: [{ type: 'rank', target: 'opponent', stat: 'D', amount: -1 }]},
@@ -143,6 +146,7 @@ export const moves: Record<string, {
     '드래곤옐': {Type: '드래곤', Category: '변화', Power: 0, Accuracy: 0, PP: 15, Target: '모든 아군'},
     '드래곤클로': {Type: '드래곤', Category: '물리', Power: 80, Accuracy: 100, PP: 16, Target: '선택한 포켓몬'},
     '드래곤테일': {Type: '드래곤', Category: '물리', Power: 60, Accuracy: 90, PP: 12, Priority: -6, Target: '선택한 포켓몬'},
+    '드럼어택': {Type: '풀', Category: '물리', Power: 80, Accuracy: 100, PP: 10, Target: '선택한 포켓몬', Effect: '스피드 1랭크 하락', effects: [{ type: 'rank', target: 'opponent', stat: 'S', amount: -1 }]}, // M-C. PP 추정
     '드레인키스': {Type: '페어리', Category: '특수', Power: 50, Accuracy: 100, PP: 12, Target: '선택한 포켓몬', Effect: '흡수 +75%', effects: [{ type: 'drain', ratio: 0.75 }]},
     '드레인펀치': {Type: '격투', Category: '물리', Power: 75, Accuracy: 100, PP: 12, Target: '선택한 포켓몬', Effect: '흡수 +50%', effects: [{ type: 'drain', ratio: 0.5 }]},
     '드릴라이너': {Type: '땅', Category: '물리', Power: 80, Accuracy: 95, PP: 12, Target: '선택한 포켓몬', Effect: '급소 1랭크 상승', effects: [{ type: 'rank', target: 'self', stat: 'CRIT', amount: 1 }]},
@@ -189,8 +193,10 @@ export const moves: Record<string, {
     '목숨걸기': {Type: '격투', Category: '특수', Accuracy: 100, PP: 5, Target: '선택한 포켓몬'},
     '목화포자': {Type: '풀', Category: '변화', Accuracy: 100, PP: 40, Target: '모든 상대', Effect: '스피드 2랭크 하락', effects: [{ type: 'rank', target: 'opponent', stat: 'S', amount: -2 }]},
     '무릎차기': {Type: '격투', Category: '물리', Power: 130, Accuracy: 90, PP: 12, Target: '선택한 포켓몬'},
+    '문어굳히기': {Type: '격투', Category: '변화', Accuracy: 100, PP: 15, Target: '선택한 포켓몬', Effect: '상대를 교체 불가로 만들고 매 턴 방어·특방 1랭크 하락', effects: [{ type: 'special', raw: '상대를 교체 불가로 만들고 매 턴 방어·특방 1랭크 하락' }]}, // M-C. PP 추정
     '문포스': {Type: '페어리', Category: '특수', Power: 95, Accuracy: 100, PP: 16, Target: '선택한 포켓몬', Effect: '특공 1랭크 하락', effects: [{ type: 'rank', target: 'opponent', stat: 'C', amount: -1 }]},
     '물거품아리아': {Type: '물', Category: '특수', Power: 90, Accuracy: 100, PP: 10, Target: '다른 모든 포켓몬'},
+    '물고버티기': {Type: '악', Category: '물리', Power: 80, Accuracy: 100, PP: 10, Target: '선택한 포켓몬', Effect: '서로 교체 불가', effects: [{ type: 'special', raw: '서로 교체 불가' }]}, // M-C. PP 추정
     '물기': {Type: '악', Category: '물리', Power: 60, Accuracy: 100, PP: 20, Target: '선택한 포켓몬', Effect: '30% 확률로 상대를 풀죽음', effects: [{ type: 'status', target: 'opponent', status: '풀죽음', chance: 30 }]},
     '물붓기': {Type: '물', Category: '변화', Accuracy: 100, PP: 20, Target: '선택한 포켓몬'},
     '물수리검': {Type: '물', Category: '특수', Power: 15, Accuracy: 100, PP: 20, Priority: 1, Target: '선택한 포켓몬', Effect: '2~5회 연속 공격', effects: [{ type: 'multiHit', min: 2, max: 5 }]},
@@ -227,6 +233,7 @@ export const moves: Record<string, {
     '벌레의저항': {Type: '벌레', Category: '특수', Power: 50, Accuracy: 100, PP: 20, Target: '모든 상대', Effect: '특공 1랭크 하락', effects: [{ type: 'rank', target: 'opponent', stat: 'C', amount: -1 }]},
     '벌크업': {Type: '격투', Category: '변화', PP: 20, Target: '사용자', Effect: '공격 1랭크 상승, 방어 1랭크 상승', effects: [{ type: 'rank', target: 'self', stat: 'A', amount: 1 }, { type: 'rank', target: 'self', stat: 'B', amount: 1 }]},
     '베놈쇼크': {Type: '독', Category: '특수', Power: 65, Accuracy: 100, PP: 12, Target: '선택한 포켓몬'},
+    '베어가르기': {Type: '노말', Category: '물리', Power: 80, Accuracy: 100, PP: 20, Target: '선택한 포켓몬', Effect: '급소 1랭크 상승', effects: [{ type: 'rank', target: 'self', stat: 'CRIT', amount: 1 }]}, // M-C 신규 (위력 70→80). PP 추정
     '변덕레이저': {Type: '드래곤', Category: '특수', Power: 80, Accuracy: 100, PP: 5, Target: '선택한 포켓몬'},
     '변신': {Type: '노말', Category: '변화', PP: 10, Target: '선택한 포켓몬'},
     '병상첨병': {Type: '고스트', Category: '특수', Power: 65, Accuracy: 100, PP: 12, Target: '선택한 포켓몬'},
@@ -310,6 +317,7 @@ export const moves: Record<string, {
     '스케일노이즈': {Type: '드래곤', Category: '특수', Power: 110, Accuracy: 100, PP: 5, Target: '모든 상대', Effect: '방어 1랭크 하락', effects: [{ type: 'rank', target: 'self', stat: 'B', amount: -1 }]},
     '스케일샷': {Type: '드래곤', Category: '물리', Power: 25, Accuracy: 90, PP: 20, Target: '선택한 포켓몬', Effect: '2~5회 연속 공격', effects: [{ type: 'multiHit', min: 2, max: 5 }]},
     '스킬스왑': {Type: '에스퍼', Category: '변화', PP: 10, Target: '선택한 포켓몬'},
+    '스타어설트': {Type: '격투', Category: '물리', Power: 170, Accuracy: 100, PP: 5, Target: '선택한 포켓몬', Effect: '다음 턴 행동 불가', effects: [{ type: 'special', raw: '다음 턴 행동 불가' }]}, // M-C (위력 150→170). PP 추정
     '스텔스록': {Type: '바위', Category: '변화', PP: 20, Target: '상대 필드', Effect: '상대의 주위에 무수한 바위를 띄워 교체되어 나온 상대 포켓몬에게 데미지를 준다.교체되어 나온 포켓몬의 바위타입 상성에 따라 데미지가 달라진다.', effects: [{ type: 'unmatched', raw: '상대의 주위에 무수한 바위를 띄워 교체되어 나온 상대 포켓몬에게 데미지를 준다.교체되어 나온 포켓몬의 바위타입 상성에 따라 데미지가 달라진다.' }, { type: 'field', scope: 'opponent', key: '스텔스록', maxStack: 1 }]},
     '스톤샤워': {Type: '바위', Category: '물리', Power: 75, Accuracy: 90, PP: 12, Target: '모든 상대', Effect: '30% 확률로 상대를 풀죽음', effects: [{ type: 'status', target: 'opponent', status: '풀죽음', chance: 30 }]},
     '스톤에지': {Type: '바위', Category: '물리', Power: 100, Accuracy: 80, PP: 8, Target: '선택한 포켓몬', Effect: '급소 1랭크 상승', effects: [{ type: 'rank', target: 'self', stat: 'CRIT', amount: 1 }]},
@@ -383,6 +391,7 @@ export const moves: Record<string, {
     '오로라베일': {Type: '얼음', Category: '변화', PP: 20, Target: '사용자 필드', effects: [{ type: 'field', scope: 'self', key: '오로라베일' }]},
     '오물웨이브': {Type: '독', Category: '특수', Power: 95, Accuracy: 100, PP: 12, Target: '다른 모든 포켓몬', Effect: '10% 확률로 상대를 독', effects: [{ type: 'status', target: 'opponent', status: '독', chance: 10 }]},
     '오물폭탄': {Type: '독', Category: '특수', Power: 90, Accuracy: 100, PP: 12, Target: '선택한 포켓몬', Effect: '30% 확률로 상대를 독', effects: [{ type: 'status', target: 'opponent', status: '독', chance: 30 }]},
+    '오버드라이브': {Type: '전기', Category: '특수', Power: 80, Accuracy: 100, PP: 10, Target: '모든 상대'}, // M-C. PP 추정
     '오버히트': {Type: '불꽃', Category: '특수', Power: 130, Accuracy: 90, PP: 8, Target: '선택한 포켓몬', Effect: '특공 2랭크 하락', effects: [{ type: 'rank', target: 'self', stat: 'C', amount: -2 }]},
     '와이드가드': {Type: '바위', Category: '변화', PP: 12, Priority: 3, Target: '사용자 필드', effects: [{ type: 'field', scope: 'self', key: '와이드가드' }]},
     '와이드브레이커': {Type: '드래곤', Category: '물리', Power: 60, Accuracy: 100, PP: 15, Target: '모든 상대', Effect: '공격 1랭크 하락', effects: [{ type: 'rank', target: 'opponent', stat: 'A', amount: -1 }]},
@@ -393,7 +402,7 @@ export const moves: Record<string, {
     '용의파동': {Type: '드래곤', Category: '특수', Power: 85, Accuracy: 100, PP: 12, Target: '선택한 포켓몬'},
     '우드해머': {Type: '풀', Category: '물리', Power: 120, Accuracy: 100, PP: 16, Target: '선택한 포켓몬', Effect: '반동 -33%', effects: [{ type: 'recoil', ratio: 0.33 }]},
     '우드혼': {Type: '풀', Category: '물리', Power: 75, Accuracy: 100, PP: 10, Target: '선택한 포켓몬', Effect: '흡수 +50%', effects: [{ type: 'drain', ratio: 0.5 }]},
-    '우유마시기': {Type: '노말', Category: '변화', PP: 5, Target: '사용자', Effect: '회복 +50%', effects: [{ type: 'heal', ratio: 0.5 }]},
+    '우유마시기': {Type: '노말', Category: '변화', PP: 5, Target: '사용자 또는 아군', Effect: '회복 +50%', effects: [{ type: 'heal', ratio: 0.5 }]},
     '울부짖기': {Type: '노말', Category: '변화', PP: 20, Priority: -6, Target: '선택한 포켓몬'},
     '원념의칼': {Type: '불꽃', Category: '물리', Power: 90, Accuracy: 100, PP: 10, Target: '선택한 포켓몬'},
     '원더룸': {Type: '에스퍼', Category: '변화', PP: 10, Target: '필드 전체', effects: [{ type: 'field', scope: 'global', key: '원더룸' }]},
@@ -442,6 +451,7 @@ export const moves: Record<string, {
     '집게해머': {Type: '물', Category: '물리', Power: 100, Accuracy: 90, PP: 12, Target: '선택한 포켓몬', Effect: '급소 1랭크 상승', effects: [{ type: 'rank', target: 'self', stat: 'CRIT', amount: 1 }]},
     '집단구타': {Type: '악', Category: '물리', Accuracy: 100, PP: 10, Target: '선택한 포켓몬', Effect: '6~6회 연속 공격', effects: [{ type: 'multiHit', min: 6, max: 6 }]},
     '쪼아대기': {Type: '비행', Category: '물리', Power: 60, Accuracy: 100, PP: 20, Target: '선택한 포켓몬'},
+    '찌리리따끔따끔': {Type: '전기', Category: '물리', Power: 80, Accuracy: 100, PP: 12, Target: '선택한 포켓몬', Effect: '30% 확률로 상대를 풀죽음', effects: [{ type: 'status', target: 'opponent', status: '풀죽음', chance: 30 }]}, // M-C. PP 추정
     '찍찍베기': {Type: '노말', Category: '물리', Power: 20, Accuracy: 90, PP: 10, Target: '선택한 포켓몬'},
     '차지빔': {Type: '전기', Category: '특수', Power: 50, Accuracy: 90, PP: 12, Target: '선택한 포켓몬', Effect: '특공 1랭크 상승', effects: [{ type: 'rank', target: 'self', stat: 'C', amount: 1 }]},
     '찬물끼얹기': {Type: '물', Category: '특수', Power: 50, Accuracy: 100, PP: 20, Target: '선택한 포켓몬', Effect: '공격 1랭크 하락', effects: [{ type: 'rank', target: 'opponent', stat: 'A', amount: -1 }]},
@@ -463,6 +473,7 @@ export const moves: Record<string, {
     '코멧펀치': {Type: '강철', Category: '물리', Power: 90, Accuracy: 90, PP: 12, Target: '선택한 포켓몬', Effect: '공격 1랭크 상승', effects: [{ type: 'rank', target: 'self', stat: 'A', amount: 1 }]},
     '코스믹파워': {Type: '에스퍼', Category: '변화', PP: 20, Target: '사용자', Effect: '방어 1랭크 상승, 특방 1랭크 상승', effects: [{ type: 'rank', target: 'self', stat: 'B', amount: 1 }, { type: 'rank', target: 'self', stat: 'D', amount: 1 }]},
     '코칭': {Type: '격투', Category: '변화', PP: 10, Target: '사용자 및 아군', Effect: '공격 1랭크 상승, 방어 1랭크 상승', effects: [{ type: 'rank', target: 'self', stat: 'A', amount: 1 }, { type: 'rank', target: 'self', stat: 'B', amount: 1 }]},
+    '코트체인지': {Type: '노말', Category: '변화', Accuracy: 100, PP: 10, Target: '필드 전체', Effect: '양쪽 필드의 효과를 서로 바꾼다', effects: [{ type: 'special', raw: '양쪽 필드의 효과를 서로 바꾼다' }]}, // M-C. PP 추정
     '코튼가드': {Type: '풀', Category: '변화', PP: 12, Target: '사용자', Effect: '방어 3랭크 상승', effects: [{ type: 'rank', target: 'self', stat: 'B', amount: 3 }]},
     '쾌청': {Type: '불꽃', Category: '변화', PP: 8, Target: '필드 전체', effects: [{ type: 'field', scope: 'global', key: '쾌청' }]},
     '퀵턴': {Type: '물', Category: '물리', Power: 60, Accuracy: 100, PP: 20, Target: '선택한 포켓몬'},
@@ -523,6 +534,7 @@ export const moves: Record<string, {
     '헤롱헤롱': {Type: '노말', Category: '변화', Accuracy: 100, PP: 15, Target: '선택한 포켓몬', Effect: '상대를 매혹', effects: [{ type: 'status', target: 'opponent', status: '매혹', chance: 100 }]},
     '헤비봄버': {Type: '강철', Category: '물리', Accuracy: 100, PP: 12, Target: '선택한 포켓몬'},
     '화염방사': {Type: '불꽃', Category: '특수', Power: 90, Accuracy: 100, PP: 16, Target: '선택한 포켓몬', Effect: '10% 확률로 상대를 화상', effects: [{ type: 'status', target: 'opponent', status: '화상', chance: 10 }]},
+    '화염볼': {Type: '불꽃', Category: '물리', Power: 120, Accuracy: 90, PP: 5, Target: '선택한 포켓몬', Effect: '10% 확률로 상대를 화상', effects: [{ type: 'status', target: 'opponent', status: '화상', chance: 10 }]}, // M-C. PP 추정
     '회생의기도': {Type: '노말', Category: '변화', Power: 0, PP: 1, Target: '기절한 포켓몬'},
     '회오리불꽃': {Type: '불꽃', Category: '특수', Power: 35, Accuracy: 85, PP: 16, Target: '선택한 포켓몬', Effect: '100% 확률로 상대를 결박', effects: [{ type: 'status', target: 'opponent', status: '결박', chance: 100 }]},
     '회전부리': {Type: '비행', Category: '물리', Power: 80, Accuracy: 100, PP: 20, Target: '선택한 포켓몬'},
@@ -531,10 +543,10 @@ export const moves: Record<string, {
     '흑안개': {Type: '얼음', Category: '변화', PP: 30, Target: '필드 전체', effects: [{ type: 'field', scope: 'global', key: '흑안개' }]},
     '흔들흔들댄스': {Type: '노말', Category: '변화', Accuracy: 100, PP: 20, Target: '다른 모든 포켓몬', Effect: '상대를 혼란', effects: [{ type: 'status', target: 'opponent', status: '혼란', chance: 100 }]},
     '흡혈': {Type: '벌레', Category: '물리', Power: 80, Accuracy: 100, PP: 12, Target: '선택한 포켓몬', Effect: '흡수 +50%', effects: [{ type: 'drain', ratio: 0.5 }]},
-    '희망사항': {Type: '노말', Category: '변화', PP: 12, Target: '사용자'},
+    '희망사항': {Type: '노말', Category: '변화', PP: 8, Target: '사용자'},
     '히트스탬프': {Type: '불꽃', Category: '물리', Accuracy: 100, PP: 10, Target: '선택한 포켓몬'},
     '힘껏펀치': {Type: '격투', Category: '물리', Power: 150, Accuracy: 100, PP: 20, Priority: -3, Target: '선택한 포켓몬'},
-    '힘흡수': {Type: '풀', Category: '변화', Accuracy: 100, PP: 10, Target: '선택한 포켓몬', Effect: '공격 1랭크 하락', effects: [{ type: 'rank', target: 'opponent', stat: 'A', amount: -1 }]},
+    '힘흡수': {Type: '풀', Category: '변화', Accuracy: 100, PP: 8, Target: '선택한 포켓몬', Effect: '공격 1랭크 하락', effects: [{ type: 'rank', target: 'opponent', stat: 'A', amount: -1 }]},
     'DD래리어트': {Type: '악', Category: '물리', Power: 85, Accuracy: 100, PP: 10, Target: '선택한 포켓몬'},
     'G의힘': {Type: '풀', Category: '물리', Power: 80, Accuracy: 100, PP: 12, Target: '선택한 포켓몬', Effect: '방어 1랭크 하락', effects: [{ type: 'rank', target: 'opponent', stat: 'B', amount: -1 }]},
     'HP회복': {Type: '노말', Category: '변화', PP: 8, Target: '사용자', Effect: '회복 +50%', effects: [{ type: 'heal', ratio: 0.5 }]},

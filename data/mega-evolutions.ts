@@ -137,6 +137,8 @@ export const MegaEvolutionMap: Record<string, MegaEvolutionData[]> = {
   ],
   '앱솔': [
     { megaName: '메가앱솔', id: 10057, ability: '매직미러', stoneName: '앱솔나이트', stone: 'absolite', stats: { H: 65, A: 150, B: 60, C: 115, D: 60, S: 115 } },
+    // M-C 신규 (Pokemon Champions 전용, 악/고스트)
+    { megaName: '메가앱솔Z', id: 10307, ability: '예리함', stoneName: '앱솔나이트Z', stone: 'absolite-z', stats: { H: 65, A: 154, B: 60, C: 75, D: 60, S: 151 } },
   ],
   '얼음귀신': [
     { megaName: '메가얼음귀신', id: 10074, ability: '아이스스킨', stoneName: '얼음귀신나이트', stone: 'glalitite', stats: { H: 80, A: 120, B: 80, C: 120, D: 80, S: 100 } },
@@ -175,9 +177,13 @@ export const MegaEvolutionMap: Record<string, MegaEvolutionData[]> = {
   ],
   '한카리아스': [
     { megaName: '메가한카리아스', id: 10058, ability: '모래헤치기', stoneName: '한카리아스나이트', stone: 'garchompite', stats: { H: 108, A: 170, B: 115, C: 120, D: 95, S: 92 } },
+    // M-C 신규 (Pokemon Champions 전용, 드래곤 단일)
+    { megaName: '메가한카리아스Z', id: 10309, ability: '부유', stoneName: '한카리아스나이트Z', stone: 'garchompite-z', stats: { H: 108, A: 130, B: 85, C: 141, D: 85, S: 151 } },
   ],
   '루카리오': [
     { megaName: '메가루카리오', id: 10059, ability: '적응력', stoneName: '루카리오나이트', stone: 'lucarionite', stats: { H: 70, A: 145, B: 88, C: 140, D: 70, S: 112 } },
+    // M-C 신규 (Pokemon Champions 전용, 격투/강철)
+    { megaName: '메가루카리오Z', id: 10310, ability: '파동의방호', stoneName: '루카리오나이트Z', stone: 'lucarionite-z', stats: { H: 70, A: 100, B: 70, C: 164, D: 70, S: 151 } },
   ],
   '눈설왕': [
     { megaName: '메가눈설왕', id: 10060, ability: '눈퍼뜨리기', stoneName: '눈설왕나이트', stone: 'abomasite', stats: { H: 90, A: 132, B: 105, C: 132, D: 105, S: 30 } },
@@ -187,5 +193,13 @@ export const MegaEvolutionMap: Record<string, MegaEvolutionData[]> = {
   ],
   '다부니': [
     { megaName: '메가다부니', id: 10069, ability: '힐링하트', stoneName: '다부니나이트', stone: 'audinite', stats: { H: 103, A: 60, B: 126, C: 80, D: 126, S: 50 } },
+  ],
+
+  // --- 7세대 이후 (M-C 신규, Pokemon Champions 전용) ---
+  '갑주무사': [
+    { megaName: '메가갑주무사', id: 10316, ability: '단단한발톱', stoneName: '갑주무사나이트', stone: 'golisopite', stats: { H: 75, A: 150, B: 175, C: 70, D: 120, S: 40 } },
+  ],
+  '드닐레이브': [
+    { megaName: '메가드닐레이브', id: 10325, ability: '열교환', stoneName: '드닐레이브나이트', stone: 'baxcalibrite', stats: { H: 115, A: 175, B: 117, C: 105, D: 101, S: 87 } },
   ],
 }
