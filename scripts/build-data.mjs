@@ -4,7 +4,8 @@
 //   - Pokemon Showdown (smogon/pokemon-showdown) data/mods/champions + data/
 //       → 출전 가능 포켓몬/폼/메가, 타입, 종족값, 특성, 습득 기술, 기술 수치, 도구, 성격, 타입 상성
 //   - PokeAPI CSV (PokeAPI/pokeapi data/v2/csv) → ko/ja/en 이름과 설명
-//   - scripts/sources/champions-pp.json → 챔피언스 PP (Showdown은 챔피언스 PP를 반영하지 않음. 직접 수정 가능)
+//   - 챔피언스 PP = Showdown 챔피언스 모드의 기본 PP 를 5→8, 10→12, 15→16, 20 이상→20 으로 변환 (1 은 그대로)
+//     (Serebii 챔피언스 기술 목록 512개와 전부 일치 확인, 2026-10-18). 예외는 scripts/sources/champions-pp.json 으로 덮어씀
 //   - scripts/sources/item-names-ko.json → PokeAPI에 한국어 이름이 없는 도구(챔피언스 신규 메가스톤 등)
 //   - scripts/sources/regulation/*.json (도감코드 목록, index.json 에 파일명 등록) → 레귤레이션별 출전 가능 포켓몬
 //
@@ -183,7 +184,7 @@ const isFormatLegal = (id) => champFormats[id] && !champFormats[id].isNonstandar
 // 메가: 챔피언스에서 합법 + 원종 도감번호가 어느 레귤레이션에 있음 + 필요한 메가스톤이 도구로 존재
 const megaIds = Object.keys(dex).filter((id) => {
   const s = dex[id]
-  return /^Mega/.test(s.forme || '') && isFormatLegal(id) && regNums.has(s.num) && (!s.requiredItem || isLegalItem(toID(s.requiredItem)))
+  return /Mega/.test(s.forme || '') && isFormatLegal(id) && regNums.has(s.num) && (!s.requiredItem || isLegalItem(toID(s.requiredItem)))
 })
 const STAT = { hp: 'hp', atk: 'atk', def: 'def', spa: 'spa', spd: 'spd', spe: 'spe' }
 const learnsetOf = (id) => {
@@ -198,7 +199,10 @@ const pokemon = {}
 for (const id of [...inReg, ...megaIds].sort()) {
   const s = dex[id]
   const isMega = megaIds.includes(id)
-  const base = toID(s.changesFrom || s.baseSpecies)
+  // 메가의 원종: 메가스톤 데이터에서 이 메가로 바뀌는 종을 찾는다 (메가냐오닉스처럼 성별별 원종이 다른 경우 대비)
+  const stoneMap = isMega && s.requiredItem ? itemData(toID(s.requiredItem))?.megaStone : null
+  const stoneFrom = stoneMap && Object.entries(stoneMap).find(([, to]) => toID(to) === id)?.[0]
+  const base = toID(stoneFrom || s.changesFrom || s.baseSpecies)
   pokemon[id] = {
     id,
     num: s.num,
@@ -221,16 +225,15 @@ for (const id of megaIds) {
 }
 
 // ── 4. 기술 ─────────────
-// 챔피언스 PP: scripts/sources/champions-pp.json ({ id: pp } 또는 { id: { pp, estimated: true } })
+// 챔피언스 PP 예외 (보통 비어 있음): scripts/sources/champions-pp.json ({ id: pp } 또는 { id: { pp, estimated: true } })
 const champPP = {}
 for (const [id, v] of Object.entries(JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts/sources/champions-pp.json'), 'utf8')))) {
   champPP[id] = typeof v === 'number' ? { pp: v, estimated: false } : v
 }
 const moveIdent = apiIdent(csv.moves)
 const moveNames = byLang(csv.move_names, 'move_id')
-// PP 정보가 없는 기술: 기존 데이터 경향(구세대 기술은 상향, 8세대 이후 기술은 본가 그대로)으로 추정
-const PP_UP = { 5: 8, 10: 12, 15: 16 }
-const estimatePP = (m) => (m.num >= 743 ? m.pp : (PP_UP[m.pp] ?? Math.min(m.pp, 20)))
+// 챔피언스 PP 는 8/12/16/20 네 단계 (포인트업 없음). 희망사항·힘흡수 등 챔피언스에서 바뀐 기술은 Showdown 기본 PP 에 이미 반영돼 있다
+const championsPP = (basePP) => (basePP <= 1 ? basePP : basePP <= 5 ? 8 : basePP <= 10 ? 12 : basePP <= 15 ? 16 : 20)
 
 const WEATHER = { sunnyday: 'sun', raindance: 'rain', sandstorm: 'sand', snowscape: 'snow', hail: 'snow' }
 const TERRAIN = { electricterrain: 'electric', grassyterrain: 'grassy', mistyterrain: 'misty', psychicterrain: 'psychic' }
@@ -275,7 +278,6 @@ const moves = {}
 for (const id of [...usedMoves].sort()) {
   const m = moveData(id)
   const pp = champPP[id]
-  if (!pp) warn.push(`PP 추정: ${id}`)
   moves[id] = {
     id,
     num: m.num,
@@ -283,8 +285,8 @@ for (const id of [...usedMoves].sort()) {
     category: toID(m.category),
     power: m.basePower || 0,
     accuracy: m.accuracy === true ? null : m.accuracy,
-    pp: pp ? pp.pp : estimatePP(m),
-    ...((!pp || pp.estimated) && { ppEstimated: true }),
+    pp: pp ? pp.pp : championsPP(m.pp),
+    ...(pp?.estimated && { ppEstimated: true }),
     priority: m.priority || 0,
     target: m.target,
     flags: FLAGS.filter((f) => m.flags?.[f]),
@@ -351,7 +353,7 @@ for (const f of csv.pokemon_forms) {
   if (sp) (formsBySpecies[sp] ??= []).push(f)
 }
 const normForm = (ident) =>
-  toID(ident.replace(/-female$/, '-f').replace(/-breed$/, '').replace(/-plumage$/, '').replace(/-(male|shield|average|midday|disguised|full-belly|family-of-four|zero|amped|green|meadow)$/, ''))
+  toID(ident.replace(/-female-mega$/, '-f-mega').replace(/-male-mega$/, '-m-mega').replace(/-female$/, '-f').replace(/-breed$/, '').replace(/-plumage$/, '').replace(/-(male|shield|average|midday|disguised|full-belly|family-of-four|zero|amped|green|meadow)$/, ''))
 // PokeAPI에 한국어 폼 이름이 없는 것들
 const FORM_NAME_OVERRIDES = {
   taurospaldeacombat: { ko: '켄타로스 (팔데아의 모습 컴뱃종)' },
@@ -361,7 +363,7 @@ const FORM_NAME_OVERRIDES = {
   squawkabillyyellow: { ko: '시비꼬 (옐로 페더)' },
   squawkabillywhite: { ko: '시비꼬 (화이트 페더)' },
 }
-const MEGA_SUFFIX = (forme) => (forme.match(/^Mega-?(.*)$/)?.[1] || '').replace('-', '')
+const MEGA_SUFFIX = (forme) => (forme.match(/Mega-?(.*)$/)?.[1] || '').replace('-', '')
 
 const names = { ko: {}, ja: {}, en: {} }
 for (const L of Object.keys(names)) for (const k of ['pokemon', 'moves', 'abilities', 'items', 'natures', 'types']) names[L][k] = {}
@@ -457,7 +459,7 @@ console.log(
 // Bulbagarden Archives 의 포켓몬 챔피언스 인게임 이미지
 //   포켓몬: Category:Champions menu sprites  "Menu Champs 0026-Alola.png" (128x128)
 //   도구:   Category:Champions Bag sprites   "Bag Rocky Helmet Champs Sprite.png"
-const ARCHIVE_FORME = { F: 'Female', Super: 'Jumbo' }
+const ARCHIVE_FORME = { F: 'Female', Super: 'Jumbo', 'M-Mega': 'Mega', 'F-Mega': 'Mega' } // 메가냐오닉스는 성별 공용 스프라이트
 const archiveFileFor = (p) => {
   const num = String(p.num).padStart(4, '0')
   if (!p.forme) return `Menu Champs ${num}.png`

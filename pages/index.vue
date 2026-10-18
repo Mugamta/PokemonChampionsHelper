@@ -43,7 +43,7 @@
       <div class="reg-row">
         <span class="reg-id">{{ reg.active.value.id }}</span>
         <span class="reg-badge">{{ t('regulation.' + reg.phase(reg.active.value)) }}</span>
-        <span class="muted">{{ t('regulation.period', { start: reg.active.value.start, end: reg.active.value.end }) }}</span>
+        <span class="muted">{{ t('regulation.period', { start: reg.formatDate(reg.active.value.startDate), end: reg.formatDate(reg.active.value.endDate) }) }}</span>
         <span class="muted">· {{ t('regulation.count', { n: reg.active.value.pokemon.length }) }}</span>
       </div>
     </section>

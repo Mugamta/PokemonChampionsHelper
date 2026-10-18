@@ -4,11 +4,12 @@
 
 let clockTimer: ReturnType<typeof setInterval> | null = null
 
+// 레귤레이션 기간은 공식 공지 기준 한국/일본 표준시(UTC+9)로 적혀 있다 → 사용자 시간대와 무관하게 UTC+9 로 해석
 const parseDate = (s: string) => {
   const [d, t] = s.trim().split(' ')
   const [y, m, day] = (d || '').split('/').map(Number)
   const [hh, mm] = (t || '00:00').split(':').map(Number)
-  return new Date(y!, (m || 1) - 1, day || 1, hh || 0, mm || 0)
+  return new Date(Date.UTC(y!, (m || 1) - 1, day || 1, (hh || 0) - 9, mm || 0))
 }
 
 export function useRegulation() {
@@ -46,5 +47,10 @@ export function useRegulation() {
       .map((p) => p.id),
   )
 
-  return { list, active, selectedId, now, startClock, phase, isAllowed, selectableSpecies }
+  // 기간 표시: 보는 사람의 시간대/언어로
+  const { locale } = useI18n()
+  const formatDate = (d: Date) =>
+    d.toLocaleString(locale.value, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+
+  return { list, active, selectedId, now, startClock, phase, isAllowed, selectableSpecies, formatDate }
 }
