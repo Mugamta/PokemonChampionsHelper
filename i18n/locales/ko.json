@@ -33,7 +33,14 @@
     "spa": "특공",
     "spd": "특방",
     "spe": "스피드",
-    "short": { "hp": "H", "atk": "A", "def": "B", "spa": "C", "spd": "D", "spe": "S" },
+    "short": {
+      "hp": "H",
+      "atk": "A",
+      "def": "B",
+      "spa": "C",
+      "spd": "D",
+      "spe": "S"
+    },
     "base": "종족값",
     "sp": "능력P",
     "actual": "실능치",
@@ -311,7 +318,14 @@
     },
     "spreadNote": "광역 0.75배 적용",
     "focus": "분석 대상",
-    "focusHint": "아래 분석은 선택한 내 포켓몬과 상대 포켓몬 기준입니다"
+    "focusHint": "아래 분석은 선택한 내 포켓몬과 상대 포켓몬 기준입니다",
+    "atkScenario": {
+      "neutral": "무보정",
+      "ev32": "A/C32",
+      "ev32Nature": "A/C32 보정",
+      "itemBoost": "A/C32 보정 + 도구(1.2배)"
+    },
+    "resetConfirm": "진행 중인 배틀을 초기화할까요?"
   },
   "help": {
     "title": "도움말",

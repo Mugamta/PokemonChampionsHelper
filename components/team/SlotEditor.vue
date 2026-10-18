@@ -331,7 +331,8 @@ const accentStyle = computed(() => {
 }
 .small { font-size: 11px; }
 
-.row3 { display: grid; grid-template-columns: 1fr 1.3fr 1.3fr; gap: 8px; }
+.row3 { display: grid; grid-template-columns: 1fr 1.4fr; gap: 8px; }
+.row3 .fld:last-child { grid-column: span 2; }
 .fld { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 
 .stats { display: grid; gap: 3px; }
@@ -358,8 +359,6 @@ const accentStyle = computed(() => {
 
 /* compact: 선출 화면의 상대 입력 */
 .slot.compact { padding: 10px; gap: 8px; }
-.compact .row3 { grid-template-columns: 1fr 1fr; }
-.compact .row3 .fld:last-child { grid-column: span 2; }
 .compact .stats-head, .compact .stat-row { grid-template-columns: 1fr 52px 44px; }
 .compact .stats { grid-template-columns: 1fr 1fr; column-gap: 14px; }
 .compact .stats-head { display: none; }
@@ -368,6 +367,7 @@ const accentStyle = computed(() => {
 
 @media (max-width: 720px) {
   .row3 { grid-template-columns: 1fr; }
+  .row3 .fld:last-child { grid-column: auto; }
   .moves { grid-template-columns: 1fr; }
   .stats-head, .stat-row { grid-template-columns: 48px 1fr 50px 40px; }
   .extra { display: none; }

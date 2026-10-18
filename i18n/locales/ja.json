@@ -33,7 +33,14 @@
     "spa": "とくこう",
     "spd": "とくぼう",
     "spe": "すばやさ",
-    "short": { "hp": "H", "atk": "A", "def": "B", "spa": "C", "spd": "D", "spe": "S" },
+    "short": {
+      "hp": "H",
+      "atk": "A",
+      "def": "B",
+      "spa": "C",
+      "spd": "D",
+      "spe": "S"
+    },
     "base": "種族値",
     "sp": "能力P",
     "actual": "実数値",
@@ -311,7 +318,14 @@
     },
     "spreadNote": "全体技0.75倍を適用",
     "focus": "分析対象",
-    "focusHint": "以下の分析は選択した自分と相手のポケモン基準です"
+    "focusHint": "以下の分析は選択した自分と相手のポケモン基準です",
+    "atkScenario": {
+      "neutral": "無振り",
+      "ev32": "A/C32",
+      "ev32Nature": "A/C32補正",
+      "itemBoost": "A/C32補正＋道具(1.2倍)"
+    },
+    "resetConfirm": "進行中のバトルをリセットしますか？"
   },
   "help": {
     "title": "ヘルプ",

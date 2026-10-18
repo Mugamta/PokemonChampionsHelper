@@ -33,7 +33,14 @@
     "spa": "SpA",
     "spd": "SpD",
     "spe": "Spe",
-    "short": { "hp": "HP", "atk": "Atk", "def": "Def", "spa": "SpA", "spd": "SpD", "spe": "Spe" },
+    "short": {
+      "hp": "HP",
+      "atk": "Atk",
+      "def": "Def",
+      "spa": "SpA",
+      "spd": "SpD",
+      "spe": "Spe"
+    },
     "base": "Base",
     "sp": "SP",
     "actual": "Stat",
@@ -311,7 +318,14 @@
     },
     "spreadNote": "0.75× spread applied",
     "focus": "Analysis target",
-    "focusHint": "Analysis below uses the selected Pokémon on each side"
+    "focusHint": "Analysis below uses the selected Pokémon on each side",
+    "atkScenario": {
+      "neutral": "Neutral",
+      "ev32": "A/C32",
+      "ev32Nature": "A/C32+",
+      "itemBoost": "A/C32+ with 1.2× item"
+    },
+    "resetConfirm": "Reset the current battle?"
   },
   "help": {
     "title": "Help",

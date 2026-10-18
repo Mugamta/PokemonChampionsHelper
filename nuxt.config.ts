@@ -53,7 +53,9 @@ export default defineNuxtConfig({
       { code: 'en', language: 'en-US', name: 'English', file: 'en.ts' },
       { code: 'ja', language: 'ja-JP', name: '日本語', file: 'ja.ts' },
     ],
-    detectBrowserLanguage: { useCookie: true, cookieKey: 'pch_lang', redirectOn: 'root', fallbackLocale: 'ko' },
+    // 모듈의 언어 감지/리다이렉트는 끈다: 정적 빌드(prerender) 시 모든 HTML 이 "Redirecting..." 으로 생성되는 문제가 있음.
+    // 대신 plugins/locale.client.ts 에서 저장된 언어 → 브라우저 언어 순으로 고른다.
+    detectBrowserLanguage: false,
   },
 
   nitro: {

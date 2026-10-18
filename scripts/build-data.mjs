@@ -4,8 +4,9 @@
 //   - Pokemon Showdown (smogon/pokemon-showdown) data/mods/champions + data/
 //       → 출전 가능 포켓몬/폼/메가, 타입, 종족값, 특성, 습득 기술, 기술 수치, 도구, 성격, 타입 상성
 //   - PokeAPI CSV (PokeAPI/pokeapi data/v2/csv) → ko/ja/en 이름과 설명
-//   - 기존 data/moves.ts (op.gg 기반) → 챔피언스 PP (Showdown은 챔피언스 PP를 반영하지 않음)
-//   - public/regulation/M-*.json (기존 형식, 도감코드 목록) → 레귤레이션별 출전 가능 포켓몬
+//   - scripts/sources/champions-pp.json → 챔피언스 PP (Showdown은 챔피언스 PP를 반영하지 않음. 직접 수정 가능)
+//   - scripts/sources/item-names-ko.json → PokeAPI에 한국어 이름이 없는 도구(챔피언스 신규 메가스톤 등)
+//   - scripts/sources/regulation/*.json (도감코드 목록, index.json 에 파일명 등록) → 레귤레이션별 출전 가능 포켓몬
 //
 // 실행:  node scripts/build-data.mjs            (데이터만)
 //        node scripts/build-data.mjs --sprites  (+ Bulbagarden Archives 에서 포챔스 메뉴/가방 스프라이트 다운로드)
@@ -161,10 +162,10 @@ const codeToId = (code) => {
   const f = dex[base].otherFormes?.[form - 1]
   return f ? toID(f) : null
 }
-const regIndex = JSON.parse(fs.readFileSync(path.join(ROOT, 'public/regulation/index.json'), 'utf8'))
+const regIndex = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts/sources/regulation/index.json'), 'utf8'))
 const regulations = []
 for (const file of regIndex) {
-  const r = JSON.parse(fs.readFileSync(path.join(ROOT, 'public/regulation', file), 'utf8'))
+  const r = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts/sources/regulation', file), 'utf8'))
   const ids = []
   for (const code of r.pokemon_list) {
     const id = codeToId(code)
@@ -220,18 +221,13 @@ for (const id of megaIds) {
 }
 
 // ── 4. 기술 ─────────────
-// 챔피언스 PP: 기존 op.gg 기반 data/moves.ts 에서 가져온다 (한글명 → PokeAPI 로 영어 id 매칭)
+// 챔피언스 PP: scripts/sources/champions-pp.json ({ id: pp } 또는 { id: { pp, estimated: true } })
+const champPP = {}
+for (const [id, v] of Object.entries(JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts/sources/champions-pp.json'), 'utf8')))) {
+  champPP[id] = typeof v === 'number' ? { pp: v, estimated: false } : v
+}
 const moveIdent = apiIdent(csv.moves)
 const moveNames = byLang(csv.move_names, 'move_id')
-const koMoveToId = {}
-for (const [mid, n] of Object.entries(moveNames)) if (n.ko) koMoveToId[n.ko.replace(/\s/g, '')] = toID(moveIdent[mid])
-Object.assign(koMoveToId, { 깨트리기: 'brickbreak', 탐내기: 'covet' }) // op.gg 표기 차이
-const oldMovesSrc = fs.readFileSync(path.join(ROOT, 'data/moves.ts'), 'utf8')
-const champPP = {}
-for (const m of oldMovesSrc.matchAll(/^\s+'([^']+)': \{[^\n]*?PP: (\d+)[^\n]*$/gm)) {
-  const id = koMoveToId[m[1]]
-  if (id) champPP[id] = { pp: Number(m[2]), estimated: m[0].includes('PP 추정') }
-}
 // PP 정보가 없는 기술: 기존 데이터 경향(구세대 기술은 상향, 8세대 이후 기술은 본가 그대로)으로 추정
 const PP_UP = { 5: 8, 10: 12, 15: 16 }
 const estimatePP = (m) => (m.num >= 743 ? m.pp : (PP_UP[m.pp] ?? Math.min(m.pp, 20)))
@@ -411,10 +407,8 @@ for (const id of Object.keys(abilities)) {
     if (t) texts[L].abilities[id] = t
   }
 }
-// 메가스톤 한국어 이름 보강: 기존 data/mega-evolutions.ts 의 stone slug → stoneName
-const oldMega = fs.readFileSync(path.join(ROOT, 'data/mega-evolutions.ts'), 'utf8')
-const stoneKo = { roseliberry: '로셀열매' } // PokeAPI에 한국어 이름이 없는 도구도 여기서 보강
-for (const m of oldMega.matchAll(/stoneName: '([^']+)', stone: '([^']+)'/g)) stoneKo[toID(m[2])] = m[1]
+// PokeAPI에 한국어 이름이 없는 도구 (챔피언스 신규 메가스톤 등)
+const stoneKo = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts/sources/item-names-ko.json'), 'utf8'))
 for (const id of Object.keys(items)) {
   const aid = itemById[id]
   for (const L of Object.keys(names)) {
