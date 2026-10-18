@@ -446,7 +446,7 @@ import { NatureMap } from '@/data/nature'
 import { MegaEvolutionMap } from '@/data/mega-evolutions'
 import { abilities } from '@/data/abilities'
 
-const { selectedMineIndices, isMineSelected, getMineOrder, toggleMineSelect } = useMineOrderSelection()
+const { selectedMineIndices, isMineSelected, getMineOrder, toggleMineSelect } = useMineOrderSelection('single')
 
 const abilityDescription = (name) => abilities[name] || ''
 

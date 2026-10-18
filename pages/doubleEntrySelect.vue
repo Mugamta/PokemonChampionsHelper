@@ -142,21 +142,8 @@
           >
           급소
         </label>
-        <label class="one-vs-one-toggle">
-          <input
-            v-model="isOneVsOne"
-            type="checkbox"
-          >
-          1:1 상황 (광역기 100%)
-        </label>
         <span class="spread-legend">
-          <span class="dmg-move-spread-badge">광역</span>
-          <template v-if="isOneVsOne">
-            1:1 상황 적용 중 — 광역기도 100% 데미지로 계산됩니다
-          </template>
-          <template v-else>
-            더블 배틀 광역기는 75% 데미지가 자동 적용됩니다
-          </template>
+          광역기는 (광역기)=75% / (1:1)=100% 두 행으로 표시됩니다
         </span>
       </div>
       <div class="dmg-scroll-area">
@@ -184,26 +171,22 @@
               </thead>
               <tbody>
                 <tr
-                  v-for="k in 4"
-                  :key="'mine-move-' + k"
+                  v-for="(row, rIdx) in mineMoveRows(mIdx)"
+                  :key="'mine-move-' + rIdx"
                 >
                   <td class="dmg-move-name">
-                    {{ selectedMoves[mIdx]?.[k - 1] || '-' }}
-                    <span
-                      v-if="isSpreadMove(selectedMoves[mIdx]?.[k - 1])"
-                      class="dmg-move-spread-badge"
-                    >광역</span>
+                    {{ row.label }}
                   </td>
                   <td
                     v-for="oIdx in 6"
                     :key="'mine-cell-' + oIdx"
                   >
-                    <template v-if="getMineToOppCell(mIdx, oIdx - 1, k - 1, showCrit)">
+                    <template v-if="getMineToOppCell(mIdx, oIdx - 1, row.moveIndex, showCrit, row.multiplier)">
                       <div :class="['dmg-value', { 'dmg-value--crit': showCrit }]">
-                        {{ getMineToOppCell(mIdx, oIdx - 1, k - 1, showCrit).dmgMin }}~{{ getMineToOppCell(mIdx, oIdx - 1, k - 1, showCrit).dmgMax }}
+                        {{ getMineToOppCell(mIdx, oIdx - 1, row.moveIndex, showCrit, row.multiplier).dmgMin }}~{{ getMineToOppCell(mIdx, oIdx - 1, row.moveIndex, showCrit, row.multiplier).dmgMax }}
                       </div>
                       <div class="dmg-percent">
-                        {{ getMineToOppCell(mIdx, oIdx - 1, k - 1, showCrit).pctMin }}~{{ getMineToOppCell(mIdx, oIdx - 1, k - 1, showCrit).pctMax }}%
+                        {{ getMineToOppCell(mIdx, oIdx - 1, row.moveIndex, showCrit, row.multiplier).pctMin }}~{{ getMineToOppCell(mIdx, oIdx - 1, row.moveIndex, showCrit, row.multiplier).pctMax }}%
                       </div>
                     </template>
                     <template v-else>
@@ -238,26 +221,22 @@
               </thead>
               <tbody>
                 <tr
-                  v-for="k in 4"
-                  :key="'opp-move-' + k"
+                  v-for="(row, rIdx) in oppMoveRows(oIdx - 1)"
+                  :key="'opp-move-' + rIdx"
                 >
                   <td class="dmg-move-name">
-                    {{ oppSelectedMoves[oIdx - 1]?.[k - 1] || '-' }}
-                    <span
-                      v-if="isSpreadMove(oppSelectedMoves[oIdx - 1]?.[k - 1])"
-                      class="dmg-move-spread-badge"
-                    >광역</span>
+                    {{ row.label }}
                   </td>
                   <td
                     v-for="mIdx in selectedMineIndices"
                     :key="'opp-cell-' + mIdx"
                   >
-                    <template v-if="getOppToMineCell(oIdx - 1, mIdx, k - 1, showCrit)">
+                    <template v-if="getOppToMineCell(oIdx - 1, mIdx, row.moveIndex, showCrit, row.multiplier)">
                       <div :class="['dmg-value', { 'dmg-value--crit': showCrit }]">
-                        {{ getOppToMineCell(oIdx - 1, mIdx, k - 1, showCrit).dmgMin }}~{{ getOppToMineCell(oIdx - 1, mIdx, k - 1, showCrit).dmgMax }}
+                        {{ getOppToMineCell(oIdx - 1, mIdx, row.moveIndex, showCrit, row.multiplier).dmgMin }}~{{ getOppToMineCell(oIdx - 1, mIdx, row.moveIndex, showCrit, row.multiplier).dmgMax }}
                       </div>
                       <div class="dmg-percent">
-                        {{ getOppToMineCell(oIdx - 1, mIdx, k - 1, showCrit).pctMin }}~{{ getOppToMineCell(oIdx - 1, mIdx, k - 1, showCrit).pctMax }}%
+                        {{ getOppToMineCell(oIdx - 1, mIdx, row.moveIndex, showCrit, row.multiplier).pctMin }}~{{ getOppToMineCell(oIdx - 1, mIdx, row.moveIndex, showCrit, row.multiplier).pctMax }}%
                       </div>
                     </template>
                     <template v-else>
@@ -476,7 +455,7 @@ import { NatureMap } from '@/data/nature'
 import { MegaEvolutionMap } from '@/data/mega-evolutions'
 import { abilities } from '@/data/abilities'
 
-const { selectedMineIndices, isMineSelected, getMineOrder, toggleMineSelect } = useMineOrderSelection(4)
+const { selectedMineIndices, isMineSelected, getMineOrder, toggleMineSelect } = useMineOrderSelection('double')
 
 const abilityDescription = (name) => abilities[name] || ''
 
@@ -505,8 +484,6 @@ const fieldOptions = ['일렉트릭필드', '그래스필드', '미스트필드'
 const battleWeather = ref('없음')
 const battleField = ref('없음')
 const showCrit = ref(false)
-// 더블 배틀이라도 상대가 1마리만 남은 1:1 상황이면 광역기도 100% 데미지가 들어감 (75% 감소 미적용)
-const isOneVsOne = ref(false)
 
 const toggleBattleWeather = (value) => {
   battleWeather.value = battleWeather.value === value ? '없음' : value
@@ -530,18 +507,28 @@ const isSpreadMove = (moveName) => {
   return SPREAD_TARGETS.includes(move.Target)
 }
 
-// 더블 배틀 기준 광역기 데미지 보정(75%) 적용 여부 분기
-// - 광역기가 아니면 100% 그대로
-// - 광역기라도 1:1 상황(isOneVsOne)이면 실제로 대상이 1마리뿐이라 75% 감소가 적용되지 않고 100% 그대로
-const applySpreadModifier = (dmg, moveName) => {
-  if (!dmg) return dmg
-  if (!isSpreadMove(moveName) || isOneVsOne.value) return dmg
-  return {
-    min: Math.floor(dmg.min * 0.75),
-    max: Math.floor(dmg.max * 0.75),
-    critMin: Math.floor(dmg.critMin * 0.75),
-    critMax: Math.floor(dmg.critMax * 0.75),
-  }
+// 더블 배틀 기준 광역기 데미지 배율(75%) — 표에서 "(광역기)" 행에만 곱해서 사용
+const SPREAD_DAMAGE_RATIO = 0.75
+
+// 데미지 매트릭스에 표시할 행 목록을 만듭니다.
+// - 광역기가 아닌 기술: 1행 그대로 (배율 100%)
+// - 광역기인 기술: "기술명 (광역기)"(75%)와 "기술명 (1:1)"(100%) 두 행으로 분리
+//   → 실제로 더블에서 상대가 2마리일 때는 (광역기) 행을, 1마리뿐인 1:1 상황일 때는 (1:1) 행을 보면 됩니다.
+const buildMoveRows = (moveList) => {
+  const rows = []
+  ;(moveList || []).forEach((moveName, moveIndex) => {
+    if (!moveName) {
+      rows.push({ moveIndex, label: '-', multiplier: 1 })
+      return
+    }
+    if (isSpreadMove(moveName)) {
+      rows.push({ moveIndex, label: `${moveName} (광역기)`, multiplier: SPREAD_DAMAGE_RATIO })
+      rows.push({ moveIndex, label: `${moveName} (1:1)`, multiplier: 1 })
+    } else {
+      rows.push({ moveIndex, label: moveName, multiplier: 1 })
+    }
+  })
+  return rows
 }
 
 // ── 메가진화 반영 시 실능치 재계산 공용 함수 (mine/opp 둘 다 사용) ─────────────
@@ -652,7 +639,7 @@ const getMineBaseDamage = (index, moveIndex) => {
 }
 
 // ── 좌측(선택된 최대 3마리) → 우측 6마리 매트릭스 ─────────────
-const getMineToOppDamage = (mineIndex, oppIndex, moveIndex) => {
+const getMineToOppDamage = (mineIndex, oppIndex, moveIndex, multiplier = 1) => {
   const moveName = selectedMoves.value[mineIndex]?.[moveIndex]
   if (!moveName) return null
   const move = getMoveData(moveName)
@@ -672,12 +659,17 @@ const getMineToOppDamage = (mineIndex, oppIndex, moveIndex) => {
     ability, battleWeather.value, item, '', battleField.value, 50
   )
 
-  // 더블 배틀: 광역기면 75% 데미지, 아니면 100% 그대로 분기
-  return applySpreadModifier(rawDamage, moveName)
+  if (!rawDamage || multiplier === 1) return rawDamage
+  return {
+    min: Math.floor(rawDamage.min * multiplier),
+    max: Math.floor(rawDamage.max * multiplier),
+    critMin: Math.floor(rawDamage.critMin * multiplier),
+    critMax: Math.floor(rawDamage.critMax * multiplier),
+  }
 }
 
 // ── 우측 6마리 → 좌측(선택된 최대 3마리) 매트릭스 ─────────────
-const getOppToMineDamage = (oppIndex, mineIndex, moveIndex) => {
+const getOppToMineDamage = (oppIndex, mineIndex, moveIndex, multiplier = 1) => {
   const moveName = oppSelectedMoves.value[oppIndex]?.[moveIndex]
   if (!moveName) return null
   const move = getMoveData(moveName)
@@ -697,13 +689,18 @@ const getOppToMineDamage = (oppIndex, mineIndex, moveIndex) => {
     ability, battleWeather.value, item, '', battleField.value, 50
   )
 
-  // 더블 배틀: 광역기면 75% 데미지, 아니면 100% 그대로 분기
-  return applySpreadModifier(rawDamage, moveName)
+  if (!rawDamage || multiplier === 1) return rawDamage
+  return {
+    min: Math.floor(rawDamage.min * multiplier),
+    max: Math.floor(rawDamage.max * multiplier),
+    critMin: Math.floor(rawDamage.critMin * multiplier),
+    critMax: Math.floor(rawDamage.critMax * multiplier),
+  }
 }
 
 // 좌측 → 우측 셀 (데미지 + 체력 퍼센트, 치명타 반영)
-const getMineToOppCell = (mineIndex, oppIndex, moveIndex, crit) => {
-  const dmg = getMineToOppDamage(mineIndex, oppIndex, moveIndex)
+const getMineToOppCell = (mineIndex, oppIndex, moveIndex, crit, multiplier = 1) => {
+  const dmg = getMineToOppDamage(mineIndex, oppIndex, moveIndex, multiplier)
   if (!dmg) return null
   const defHp = oppDisplayStats(oppIndex)?.H || 0
   const dmgMin = crit ? dmg.critMin : dmg.min
@@ -714,8 +711,8 @@ const getMineToOppCell = (mineIndex, oppIndex, moveIndex, crit) => {
 }
 
 // 우측 → 좌측 셀 (데미지 + 체력 퍼센트, 치명타 반영)
-const getOppToMineCell = (oppIndex, mineIndex, moveIndex, crit) => {
-  const dmg = getOppToMineDamage(oppIndex, mineIndex, moveIndex)
+const getOppToMineCell = (oppIndex, mineIndex, moveIndex, crit, multiplier = 1) => {
+  const dmg = getOppToMineDamage(oppIndex, mineIndex, moveIndex, multiplier)
   if (!dmg) return null
   const defHp = mineDisplayStats(mineIndex)?.H || 0
   const dmgMin = crit ? dmg.critMin : dmg.min
@@ -724,6 +721,10 @@ const getOppToMineCell = (oppIndex, mineIndex, moveIndex, crit) => {
   const pctMax = defHp > 0 ? ((dmgMax / defHp) * 100).toFixed(1) : '0.0'
   return { dmgMin, dmgMax, pctMin, pctMax }
 }
+
+// 매트릭스 표에 쓰일 행 목록 (광역기면 (광역기)/(1:1) 두 행으로 분리됨)
+const mineMoveRows = (mIdx) => buildMoveRows(selectedMoves.value[mIdx])
+const oppMoveRows = (oIdx) => buildMoveRows(oppSelectedMoves.value[oIdx])
 
 // ── 상대 파티 (이 화면에서 직접 입력, 메가진화 지원) ─────────────
 const {
@@ -1460,15 +1461,6 @@ watch(
   gap: 4px;
   font-size: 12px;
   color: #ffeb3b;
-  cursor: pointer;
-}
-
-.one-vs-one-toggle {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  color: #4caf50;
   cursor: pointer;
 }
 

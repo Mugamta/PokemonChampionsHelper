@@ -212,16 +212,22 @@ const onResetParty = () => {
 }
 
 // 선출 화면(singleEntrySelect.vue / doubleEntrySelect.vue)에서 쓰는 전역 상태를 그대로 참조해서
-// 배틀 시작 가능 여부(상대 6마리 전부 선택 + 내 선출 3마리 확정)를 판단
-const { selectedMineIndices } = useMineOrderSelection()
+// 배틀 시작 가능 여부(상대 6마리 전부 선택 + 내 선출 3/4마리 확정)를 판단
+// 싱글/더블은 서로 다른 상태를 쓰므로 각각 따로 가져옴
+const { selectedMineIndices: singleSelectedMineIndices } = useMineOrderSelection('single')
+const { selectedMineIndices: doubleSelectedMineIndices } = useMineOrderSelection('double')
 const { selectedPokemon: oppSelectedPokemonForCheck } = useOpponentParty()
 
 const isOppPartyComplete = computed(() =>
   oppSelectedPokemonForCheck.value.every((name) => !!name)
 )
 // 더블 배틀은 4마리 선출, 싱글 배틀은 3마리 선출
-const requiredMineCount = computed(() => route.path === '/doubleEntrySelect' || route.path === '/doubleBattle' ? 4 : 3)
-const isMineEntrySelected = computed(() => selectedMineIndices.value.length === requiredMineCount.value)
+const isDoubleContext = computed(() => route.path === '/doubleEntrySelect' || route.path === '/doubleBattle')
+const isMineEntrySelected = computed(() => {
+  return isDoubleContext.value
+    ? doubleSelectedMineIndices.value.length === 4
+    : singleSelectedMineIndices.value.length === 3
+})
 const isEntryComplete = computed(() => isOppPartyComplete.value && isMineEntrySelected.value)
 
 const pad = (n) => String(n).padStart(2, '0')
