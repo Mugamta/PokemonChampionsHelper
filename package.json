@@ -15,9 +15,11 @@
     "download:mega-stones": "node scripts/download-mega-stones.mjs",
     "fix:move-sets": "node scripts/fix-movesets.mjs",
     "build:data": "node scripts/build-data.mjs",
-    "build:data:sprites": "node scripts/build-data.mjs --sprites"
+    "build:data:sprites": "node scripts/build-data.mjs --sprites",
+    "test": "vitest run"
   },
   "dependencies": {
+    "@nuxtjs/i18n": "^10.6.0",
     "nuxt": "^4.4.2",
     "vite-plugin-vuetify": "^2.1.3",
     "vue": "^3.5.32",
@@ -27,6 +29,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@smogon/calc": "^0.12.0",
     "cheerio": "^1.2.0",
     "eslint": "^10.4.1",
     "eslint-config-prettier": "^10.1.8",
@@ -34,6 +37,7 @@
     "eslint-plugin-vue": "^10.9.1",
     "globals": "^17.6.0",
     "playwright": "^1.62.1",
-    "prettier": "^3.8.3"
+    "prettier": "^3.8.3",
+    "vitest": "^5.0.3"
   }
 }
