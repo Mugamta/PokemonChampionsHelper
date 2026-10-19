@@ -18,8 +18,14 @@ export function calcStat(stat: StatKey, base: number, sp: number, nature?: Natur
   return v
 }
 
-export function calcStats(base: StatTable, sp: Partial<StatTable>, nature?: Nature | null): StatTable {
-  return Object.fromEntries(STAT_KEYS.map((k) => [k, calcStat(k, base[k] || 0, sp[k] || 0, nature)])) as StatTable
+export function calcStats(
+  base: StatTable,
+  sp: Partial<StatTable>,
+  nature?: Nature | null,
+): StatTable {
+  return Object.fromEntries(
+    STAT_KEYS.map((k) => [k, calcStat(k, base[k] || 0, sp[k] || 0, nature)]),
+  ) as StatTable
 }
 
 export const natureMultiplier = (nature: Nature | null | undefined, stat: StatKey) =>
@@ -27,12 +33,14 @@ export const natureMultiplier = (nature: Nature | null | undefined, stat: StatKe
 
 // 랭크 배율: +n → (2+n)/2, -n → 2/(2+n)
 export const boostMultiplier = (stage: number) => (stage >= 0 ? (2 + stage) / 2 : 2 / (2 - stage))
-export const applyBoost = (value: number, stage: number) => Math.floor(value * boostMultiplier(stage))
+export const applyBoost = (value: number, stage: number) =>
+  Math.floor(value * boostMultiplier(stage))
 export const clampBoost = (stage: number) => Math.max(-6, Math.min(6, stage))
 
 export const spTotal = (sp: Partial<StatTable>) => STAT_KEYS.reduce((s, k) => s + (sp[k] || 0), 0)
 export const isSpValid = (sp: Partial<StatTable>) =>
-  spTotal(sp) <= SP_TOTAL_MAX && STAT_KEYS.every((k) => (sp[k] || 0) >= 0 && (sp[k] || 0) <= SP_PER_STAT_MAX)
+  spTotal(sp) <= SP_TOTAL_MAX &&
+  STAT_KEYS.every((k) => (sp[k] || 0) >= 0 && (sp[k] || 0) <= SP_PER_STAT_MAX)
 
 // 실전 스피드: 랭크 + 도구/상태/특성/순풍 반영
 export interface SpeedContext {
@@ -43,6 +51,7 @@ export interface SpeedContext {
   weather?: string
   terrain?: string
   tailwind?: boolean
+  itemLost?: boolean // 곡예(unburden): 지닌 도구를 잃으면 2배
 }
 export function effectiveSpeed(spe: number, ctx: SpeedContext = {}): number {
   let s = applyBoost(spe, ctx.boost || 0)
@@ -53,7 +62,9 @@ export function effectiveSpeed(spe: number, ctx: SpeedContext = {}): number {
     (a === 'sandrush' && ctx.weather === 'sand') ||
     (a === 'slushrush' && ctx.weather === 'snow') ||
     (a === 'surgesurfer' && ctx.terrain === 'electric')
-  ) s *= 2
+  )
+    s *= 2
+  if (a === 'unburden' && ctx.itemLost) s *= 2
   if (a === 'quickfeet' && ctx.status) s = Math.floor(s * 1.5)
   if (ctx.item === 'choicescarf') s = Math.floor(s * 1.5)
   if (ctx.item === 'ironball') s = Math.floor(s * 0.5)
@@ -61,6 +72,10 @@ export function effectiveSpeed(spe: number, ctx: SpeedContext = {}): number {
   if (ctx.status === 'par' && a !== 'quickfeet') s = Math.floor(s * 0.5)
   return s
 }
+
+// 가장 높은 능력 (HP 제외, 같으면 공격 → 방어 → 특공 → 특방 → 스피드 순). 천정부지(쓰러뜨리면 +1) 용
+export const highestStat = (s: StatTable): BoostKey =>
+  (['atk', 'def', 'spa', 'spd', 'spe'] as const).reduce((a, b) => (s[b] > s[a] ? b : a))
 
 // 성격으로 특정 스탯을 올리는 대표 성격 (시나리오 계산용)
 export const BOOSTING_NATURE: Record<BoostKey, string> = {

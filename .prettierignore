@@ -1,0 +1,12 @@
+# 생성물 / 외부 소스
+.nuxt
+.output
+dist
+node_modules
+public
+scripts/.cache
+scripts/sources
+package-lock.json
+
+# 문서는 손으로 정리 (표 정렬 등을 바꾸지 않음)
+*.md

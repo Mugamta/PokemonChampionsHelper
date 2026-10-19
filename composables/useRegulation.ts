@@ -24,10 +24,20 @@ export function useRegulation() {
   }
 
   const list = computed(() =>
-    (gd.data.value?.regulations || []).map((r) => ({ ...r, startDate: parseDate(r.start), endDate: parseDate(r.end) })),
+    (gd.data.value?.regulations || []).map((r) => ({
+      ...r,
+      startDate: parseDate(r.start),
+      endDate: parseDate(r.end),
+    })),
   )
-  const timeMatched = computed(() => list.value.find((r) => now.value >= r.startDate && now.value <= r.endDate) || null)
-  const active = computed(() => (selectedId.value ? list.value.find((r) => r.id === selectedId.value) : null) || timeMatched.value)
+  const timeMatched = computed(
+    () => list.value.find((r) => now.value >= r.startDate && now.value <= r.endDate) || null,
+  )
+  const active = computed(
+    () =>
+      (selectedId.value ? list.value.find((r) => r.id === selectedId.value) : null) ||
+      timeMatched.value,
+  )
 
   const phase = (r: { startDate: Date; endDate: Date }) =>
     now.value < r.startDate ? 'upcoming' : now.value > r.endDate ? 'ended' : 'current'
@@ -50,7 +60,23 @@ export function useRegulation() {
   // 기간 표시: 보는 사람의 시간대/언어로
   const { locale } = useI18n()
   const formatDate = (d: Date) =>
-    d.toLocaleString(locale.value, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+    d.toLocaleString(locale.value, {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
 
-  return { list, active, selectedId, now, startClock, phase, isAllowed, selectableSpecies, formatDate }
+  return {
+    list,
+    active,
+    selectedId,
+    now,
+    startClock,
+    phase,
+    isAllowed,
+    selectableSpecies,
+    formatDate,
+  }
 }

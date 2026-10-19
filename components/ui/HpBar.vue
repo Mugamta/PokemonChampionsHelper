@@ -8,10 +8,7 @@
         :style="{ width: Math.max(0, Math.min(100, percent)) + '%' }"
       />
     </div>
-    <span
-      v-if="label"
-      class="label num"
-    >{{ label }}</span>
+    <span v-if="label" class="label num">{{ label }}</span>
   </div>
 </template>
 
@@ -21,17 +18,37 @@ const level = computed(() => (props.percent > 50 ? 'high' : props.percent > 20 ?
 </script>
 
 <style scoped>
-.hp { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.hp {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
 .track {
   height: 8px;
   border-radius: 6px;
-  background: rgba(0, 0, 0, 0.45);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--well-strong);
+  border: 1px solid var(--line);
   overflow: hidden;
 }
-.fill { height: 100%; border-radius: 6px; transition: width 0.35s ease, background 0.35s; }
-.high { background: linear-gradient(90deg, #2fd27d, #6cf0a8); }
-.mid { background: linear-gradient(90deg, #f4b82b, #ffd86b); }
-.low { background: linear-gradient(90deg, #f0405e, #ff7d93); }
-.label { font-size: 12px; color: var(--text-2); }
+.fill {
+  height: 100%;
+  border-radius: 6px;
+  transition:
+    width 0.35s ease,
+    background 0.35s;
+}
+.high {
+  background: linear-gradient(90deg, #2fd27d, #6cf0a8);
+}
+.mid {
+  background: linear-gradient(90deg, #f4b82b, #ffd86b);
+}
+.low {
+  background: linear-gradient(90deg, #f0405e, #ff7d93);
+}
+.label {
+  font-size: 12px;
+  color: var(--text-2);
+}
 </style>

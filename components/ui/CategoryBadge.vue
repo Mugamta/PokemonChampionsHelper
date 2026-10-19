@@ -1,10 +1,8 @@
 <!-- 기술 분류 (물리/특수/변화) 작은 아이콘 -->
 <template>
-  <span
-    class="cat"
-    :class="category"
-    :title="t('category.' + category)"
-  >{{ t('category.' + category) }}</span>
+  <span class="cat" :class="category" :title="t('category.' + category)">{{
+    t('category.' + category)
+  }}</span>
 </template>
 
 <script setup lang="ts">
@@ -22,7 +20,11 @@ const { t } = useI18n()
   line-height: 16px;
   white-space: nowrap;
 }
-.physical { background: #c92112; color: #ffe7d6; }
-.special { background: #4f5870; color: #dfe8ff; }
-.status { background: #8c888c; color: #fff; }
+.physical,
+.special,
+.status {
+  border: 1px solid var(--line-strong);
+  color: var(--text-2);
+  line-height: 14px;
+}
 </style>

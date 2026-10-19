@@ -35,7 +35,10 @@ const JA_KANA = '1' // ja-Hrkt (일부 데이터는 ja 대신 이쪽에만 있�
 const require = createRequire(import.meta.url)
 const esbuild = require('esbuild')
 
-const toID = (s) => String(s ?? '').toLowerCase().replace(/[^a-z0-9]/g, '')
+const toID = (s) =>
+  String(s ?? '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
 const warn = []
 
 // ── 소스 다운로드 ─────────────
@@ -66,46 +69,86 @@ async function loadCSV(name) {
   const text = await cached(`${PA}/${name}.csv`, `pokeapi/${name}.csv`)
   const rows = []
   // 설명문에 따옴표/쉼표/줄바꿈이 들어있으므로 간단한 RFC4180 파서 사용
-  let row = [], field = '', q = false
+  let row = [],
+    field = '',
+    q = false
   for (let i = 0; i < text.length; i++) {
     const ch = text[i]
     if (q) {
-      if (ch === '"' && text[i + 1] === '"') { field += '"'; i++ }
-      else if (ch === '"') q = false
+      if (ch === '"' && text[i + 1] === '"') {
+        field += '"'
+        i++
+      } else if (ch === '"') q = false
       else field += ch
     } else if (ch === '"') q = true
-    else if (ch === ',') { row.push(field); field = '' }
-    else if (ch === '\n' || ch === '\r') {
+    else if (ch === ',') {
+      row.push(field)
+      field = ''
+    } else if (ch === '\n' || ch === '\r') {
       if (ch === '\r' && text[i + 1] === '\n') i++
-      row.push(field); rows.push(row); row = []; field = ''
+      row.push(field)
+      rows.push(row)
+      row = []
+      field = ''
     } else field += ch
   }
-  if (field || row.length) { row.push(field); rows.push(row) }
+  if (field || row.length) {
+    row.push(field)
+    rows.push(row)
+  }
   const [head, ...body] = rows
-  return body.filter((r) => r.length > 1).map((r) => Object.fromEntries(head.map((h, i) => [h, r[i]])))
+  return body
+    .filter((r) => r.length > 1)
+    .map((r) => Object.fromEntries(head.map((h, i) => [h, r[i]])))
 }
 
 // ── 1. 소스 로드 ─────────────
 console.log('소스 로드 중...')
-const [dex, baseMoves, champMoves, baseItems, champItems, champFormats, learnsets, natures, typechart] =
-  await Promise.all([
-    loadSD('pokedex.ts'),
-    loadSD('moves.ts'),
-    loadSD('mods/champions/moves.ts'),
-    loadSD('items.ts'),
-    loadSD('mods/champions/items.ts'),
-    loadSD('mods/champions/formats-data.ts'),
-    loadSD('mods/champions/learnsets.ts'),
-    loadSD('natures.ts'),
-    loadSD('typechart.ts'),
-  ])
+const [
+  dex,
+  baseMoves,
+  champMoves,
+  baseItems,
+  champItems,
+  champFormats,
+  learnsets,
+  natures,
+  typechart,
+] = await Promise.all([
+  loadSD('pokedex.ts'),
+  loadSD('moves.ts'),
+  loadSD('mods/champions/moves.ts'),
+  loadSD('items.ts'),
+  loadSD('mods/champions/items.ts'),
+  loadSD('mods/champions/formats-data.ts'),
+  loadSD('mods/champions/learnsets.ts'),
+  loadSD('natures.ts'),
+  loadSD('typechart.ts'),
+])
 const baseAbilities = await loadSD('abilities.ts')
 const csv = {}
 for (const n of [
-  'pokemon_species', 'pokemon_species_names', 'pokemon', 'pokemon_forms', 'pokemon_form_names',
-  'moves', 'move_names', 'move_flavor_text', 'abilities', 'ability_names', 'ability_flavor_text',
-  'items', 'item_names', 'item_flavor_text', 'types', 'type_names', 'natures', 'nature_names', 'version_groups',
-]) csv[n] = await loadCSV(n)
+  'pokemon_species',
+  'pokemon_species_names',
+  'pokemon',
+  'pokemon_forms',
+  'pokemon_form_names',
+  'moves',
+  'move_names',
+  'move_flavor_text',
+  'abilities',
+  'ability_names',
+  'ability_flavor_text',
+  'items',
+  'item_names',
+  'item_flavor_text',
+  'types',
+  'type_names',
+  'natures',
+  'nature_names',
+  'version_groups',
+])
+  csv[n] = await loadCSV(n)
 
 const merged = (base, mod, id) => {
   const m = mod[id] || {}
@@ -116,8 +159,14 @@ const merged = (base, mod, id) => {
 }
 const moveData = (id) => merged(baseMoves, champMoves, id)
 const itemData = (id) => merged(baseItems, champItems, id)
-const isLegalMove = (id) => { const m = moveData(id); return m && !m.isNonstandard }
-const isLegalItem = (id) => { const m = itemData(id); return m && !m.isNonstandard }
+const isLegalMove = (id) => {
+  const m = moveData(id)
+  return m && !m.isNonstandard
+}
+const isLegalItem = (id) => {
+  const m = itemData(id)
+  return m && !m.isNonstandard
+}
 
 // PokeAPI identifier → id 맵 + 다국어 이름/설명 헬퍼
 const byLang = (rows, key, nameKey = 'name') => {
@@ -141,7 +190,14 @@ const flavorByLang = (rows, key) => {
     if (!lang) continue
     const ord = vgOrder[r.version_group_id] ?? 0
     const cur = (best[r[key]] ??= {})[lang]
-    if (!cur || ord > cur.ord) best[r[key]][lang] = { ord, text: r.flavor_text.replace(/\s*\n\s*/g, ' ').replace(/\f/g, ' ').trim() }
+    if (!cur || ord > cur.ord)
+      best[r[key]][lang] = {
+        ord,
+        text: r.flavor_text
+          .replace(/\s*\n\s*/g, ' ')
+          .replace(/\f/g, ' ')
+          .trim(),
+      }
   }
   for (const v of Object.values(best)) for (const l in v) v[l] = v[l].text
   return best
@@ -151,9 +207,14 @@ const apiIdent = (rows) => Object.fromEntries(rows.map((r) => [r.id, r.identifie
 // ── 2. 레귤레이션 → 출전 가능 포켓몬 id ─────────────
 // 기존 형식("0026-001")을 Showdown id로 변환. 폼 번호는 baseSpecies.otherFormes 순서(1부터).
 // 공식 폼 번호가 이 규칙과 다른 경우만 아래 표로 고정.
-const CODE_OVERRIDES = { '0666-018': 'vivillon', '0670-005': 'floetteeternal', '0678-001': 'meowsticf' }
+const CODE_OVERRIDES = {
+  '0666-018': 'vivillon',
+  '0670-005': 'floetteeternal',
+  '0678-001': 'meowsticf',
+}
 const byNum = {}
-for (const [id, s] of Object.entries(dex)) if (!s.forme || s.baseSpecies === s.name) byNum[s.num] ??= id
+for (const [id, s] of Object.entries(dex))
+  if (!s.forme || s.baseSpecies === s.name) byNum[s.num] ??= id
 const codeToId = (code) => {
   if (CODE_OVERRIDES[code]) return CODE_OVERRIDES[code]
   const [num, form] = code.split('-').map(Number)
@@ -163,7 +224,9 @@ const codeToId = (code) => {
   const f = dex[base].otherFormes?.[form - 1]
   return f ? toID(f) : null
 }
-const regIndex = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts/sources/regulation/index.json'), 'utf8'))
+const regIndex = JSON.parse(
+  fs.readFileSync(path.join(ROOT, 'scripts/sources/regulation/index.json'), 'utf8'),
+)
 const regulations = []
 for (const file of regIndex) {
   const r = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts/sources/regulation', file), 'utf8'))
@@ -174,23 +237,36 @@ for (const file of regIndex) {
     else ids.push(id)
   }
   const [start, end] = r.period.split('~').map((s) => s.trim())
-  regulations.push({ id: file.replace('.json', ''), start, end, rules: r.rules, pokemon: [...new Set(ids)].sort() })
+  regulations.push({
+    id: file.replace('.json', ''),
+    start,
+    end,
+    rules: r.rules,
+    pokemon: [...new Set(ids)].sort(),
+  })
 }
 
 // ── 3. 포켓몬 ─────────────
 const inReg = new Set(regulations.flatMap((r) => r.pokemon))
 const regNums = new Set([...inReg].map((id) => dex[id].num))
-const isFormatLegal = (id) => champFormats[id] && !champFormats[id].isNonstandard && champFormats[id].tier !== 'Illegal'
+const isFormatLegal = (id) =>
+  champFormats[id] && !champFormats[id].isNonstandard && champFormats[id].tier !== 'Illegal'
 // 메가: 챔피언스에서 합법 + 원종 도감번호가 어느 레귤레이션에 있음 + 필요한 메가스톤이 도구로 존재
 const megaIds = Object.keys(dex).filter((id) => {
   const s = dex[id]
-  return /Mega/.test(s.forme || '') && isFormatLegal(id) && regNums.has(s.num) && (!s.requiredItem || isLegalItem(toID(s.requiredItem)))
+  return (
+    /Mega/.test(s.forme || '') &&
+    isFormatLegal(id) &&
+    regNums.has(s.num) &&
+    (!s.requiredItem || isLegalItem(toID(s.requiredItem)))
+  )
 })
 const STAT = { hp: 'hp', atk: 'atk', def: 'def', spa: 'spa', spd: 'spd', spe: 'spe' }
 const learnsetOf = (id) => {
   const s = dex[id]
   for (const k of [id, toID(s.changesFrom), toID(s.baseSpecies)]) {
-    if (k && learnsets[k]?.learnset) return Object.keys(learnsets[k].learnset).filter(isLegalMove).sort()
+    if (k && learnsets[k]?.learnset)
+      return Object.keys(learnsets[k].learnset).filter(isLegalMove).sort()
   }
   warn.push(`습득 기술 없음: ${id}`)
   return []
@@ -212,14 +288,44 @@ for (const id of [...inReg, ...megaIds].sort()) {
     stats: Object.fromEntries(Object.entries(s.baseStats).map(([k, v]) => [STAT[k], v])),
     abilities: [...new Set(Object.values(s.abilities).map(toID))],
     weight: s.weightkg,
-    ...(isMega ? { mega: { from: base, item: toID(s.requiredItem) } } : { learnset: learnsetOf(id) }),
+    ...(isMega
+      ? { mega: { from: base, item: toID(s.requiredItem) } }
+      : { learnset: learnsetOf(id) }),
   }
+}
+// 배틀 중에만 바뀌는 폼 (종족값이 다른 것만). 슬롯에서는 고를 수 없고 계산에만 쓴다
+//   팔라피 마이티폼: 한 번 교체해 들어오면 마이티폼 / 킬가르도 블레이드폼: 공격기를 쓸 때
+const BATTLE_FORMS = { palafin: 'palafinhero', aegislash: 'aegislashblade' }
+for (const [from, id] of Object.entries(BATTLE_FORMS)) {
+  if (!pokemon[from]) continue
+  const s = dex[id]
+  if (!s) {
+    warn.push(`배틀 폼 없음: ${id}`)
+    continue
+  }
+  pokemon[id] = {
+    id,
+    num: s.num,
+    base: from,
+    forme: s.forme,
+    types: s.types.map(toID),
+    stats: Object.fromEntries(Object.entries(s.baseStats).map(([k, v]) => [STAT[k], v])),
+    abilities: [...new Set(Object.values(s.abilities).map(toID))],
+    weight: s.weightkg,
+    battleForm: { from },
+  }
+  pokemon[from].battleForm = { to: id }
 }
 for (const id of megaIds) {
   const from = pokemon[id].mega.from
   // 원종이 레귤레이션에 직접 없을 수도 있음(예: floette → floetteeternal). 같은 도감번호 폼에 연결
-  const target = pokemon[from] ? from : Object.keys(pokemon).find((k) => pokemon[k].num === pokemon[id].num && !pokemon[k].mega)
-  if (!target) { warn.push(`메가 원종 없음: ${id}`); continue }
+  const target = pokemon[from]
+    ? from
+    : Object.keys(pokemon).find((k) => pokemon[k].num === pokemon[id].num && !pokemon[k].mega)
+  if (!target) {
+    warn.push(`메가 원종 없음: ${id}`)
+    continue
+  }
   pokemon[id].mega.from = target
   ;(pokemon[target].megas ??= []).push(id)
 }
@@ -227,18 +333,45 @@ for (const id of megaIds) {
 // ── 4. 기술 ─────────────
 // 챔피언스 PP 예외 (보통 비어 있음): scripts/sources/champions-pp.json ({ id: pp } 또는 { id: { pp, estimated: true } })
 const champPP = {}
-for (const [id, v] of Object.entries(JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts/sources/champions-pp.json'), 'utf8')))) {
+for (const [id, v] of Object.entries(
+  JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts/sources/champions-pp.json'), 'utf8')),
+)) {
   champPP[id] = typeof v === 'number' ? { pp: v, estimated: false } : v
 }
 const moveIdent = apiIdent(csv.moves)
 const moveNames = byLang(csv.move_names, 'move_id')
 // 챔피언스 PP 는 8/12/16/20 네 단계 (포인트업 없음). 희망사항·힘흡수 등 챔피언스에서 바뀐 기술은 Showdown 기본 PP 에 이미 반영돼 있다
-const championsPP = (basePP) => (basePP <= 1 ? basePP : basePP <= 5 ? 8 : basePP <= 10 ? 12 : basePP <= 15 ? 16 : 20)
+const championsPP = (basePP) =>
+  basePP <= 1 ? basePP : basePP <= 5 ? 8 : basePP <= 10 ? 12 : basePP <= 15 ? 16 : 20
 
-const WEATHER = { sunnyday: 'sun', raindance: 'rain', sandstorm: 'sand', snowscape: 'snow', hail: 'snow' }
-const TERRAIN = { electricterrain: 'electric', grassyterrain: 'grassy', mistyterrain: 'misty', psychicterrain: 'psychic' }
+const WEATHER = {
+  sunnyday: 'sun',
+  raindance: 'rain',
+  sandstorm: 'sand',
+  snowscape: 'snow',
+  hail: 'snow',
+}
+const TERRAIN = {
+  electricterrain: 'electric',
+  grassyterrain: 'grassy',
+  mistyterrain: 'misty',
+  psychicterrain: 'psychic',
+}
 const HAZARD_STACK = { spikes: 3, toxicspikes: 2 }
-const FLAGS = ['contact', 'punch', 'bite', 'slicing', 'sound', 'pulse', 'bullet', 'wind', 'powder']
+const FLAGS = [
+  'contact',
+  'punch',
+  'bite',
+  'slicing',
+  'sound',
+  'pulse',
+  'bullet',
+  'wind',
+  'powder',
+  'charge',
+  'futuremove',
+  'noparentalbond',
+]
 const VOLATILES = new Set(['flinch', 'confusion'])
 const ratio = (a) => (Array.isArray(a) ? a[0] / a[1] : undefined)
 
@@ -249,15 +382,18 @@ function moveEffects(m) {
   if (m.self?.boosts) e.push({ type: 'boost', target: 'self', stats: m.self.boosts })
   if (m.selfBoost?.boosts) e.push({ type: 'boost', target: 'self', stats: m.selfBoost.boosts })
   if (m.status) e.push({ type: 'status', target: 'target', status: m.status })
-  if (VOLATILES.has(m.volatileStatus)) e.push({ type: 'volatile', target: 'target', status: m.volatileStatus })
+  if (VOLATILES.has(m.volatileStatus))
+    e.push({ type: 'volatile', target: 'target', status: m.volatileStatus })
   for (const sec of [m.secondary, ...(m.secondaries || [])].filter(Boolean)) {
     const chance = sec.chance ?? 100
     if (sec.boosts) e.push({ type: 'boost', target: 'target', stats: sec.boosts, chance })
     if (sec.self?.boosts) e.push({ type: 'boost', target: 'self', stats: sec.self.boosts, chance })
     if (sec.status) e.push({ type: 'status', target: 'target', status: sec.status, chance })
-    if (VOLATILES.has(sec.volatileStatus)) e.push({ type: 'volatile', target: 'target', status: sec.volatileStatus, chance })
+    if (VOLATILES.has(sec.volatileStatus))
+      e.push({ type: 'volatile', target: 'target', status: sec.volatileStatus, chance })
   }
-  if (m.multihit) e.push({ type: 'multihit', min: [].concat(m.multihit)[0], max: [].concat(m.multihit).at(-1) })
+  if (m.multihit)
+    e.push({ type: 'multihit', min: [].concat(m.multihit)[0], max: [].concat(m.multihit).at(-1) })
   if (m.recoil) e.push({ type: 'recoil', ratio: ratio(m.recoil) })
   if (m.drain) e.push({ type: 'drain', ratio: ratio(m.drain) })
   if (m.heal) e.push({ type: 'heal', ratio: ratio(m.heal) })
@@ -268,7 +404,12 @@ function moveEffects(m) {
   if (m.pseudoWeather) e.push({ type: 'room', key: m.pseudoWeather })
   if (m.sideCondition) {
     const side = m.target === 'foeSide' ? 'foe' : 'self'
-    e.push({ type: 'side', side, key: m.sideCondition, ...(HAZARD_STACK[m.sideCondition] && { maxStack: HAZARD_STACK[m.sideCondition] }) })
+    e.push({
+      type: 'side',
+      side,
+      key: m.sideCondition,
+      ...(HAZARD_STACK[m.sideCondition] && { maxStack: HAZARD_STACK[m.sideCondition] }),
+    })
   }
   return e
 }
@@ -316,7 +457,11 @@ for (const id of Object.keys(baseItems).filter(isLegalItem).sort()) {
   items[id] = {
     id,
     num: it.num,
-    ...(it.megaStone && { megaStone: Object.fromEntries(Object.entries(it.megaStone).map(([a, b]) => [toID(a), toID(b)])) }),
+    ...(it.megaStone && {
+      megaStone: Object.fromEntries(
+        Object.entries(it.megaStone).map(([a, b]) => [toID(a), toID(b)]),
+      ),
+    }),
     ...(it.isBerry && { berry: true }),
     ...(it.onPlate || it.onMemory ? {} : {}),
   }
@@ -325,7 +470,8 @@ for (const id of Object.keys(baseItems).filter(isLegalItem).sort()) {
 const natureIdent = apiIdent(csv.natures)
 const natureNamesApi = byLang(csv.nature_names, 'nature_id')
 const natureOut = {}
-for (const [id, n] of Object.entries(natures)) natureOut[id] = { id, plus: n.plus || null, minus: n.minus || null }
+for (const [id, n] of Object.entries(natures))
+  natureOut[id] = { id, plus: n.plus || null, minus: n.minus || null }
 
 const typeIdent = apiIdent(csv.types)
 const typeNamesApi = byLang(csv.type_names, 'type_id')
@@ -353,7 +499,18 @@ for (const f of csv.pokemon_forms) {
   if (sp) (formsBySpecies[sp] ??= []).push(f)
 }
 const normForm = (ident) =>
-  toID(ident.replace(/-female-mega$/, '-f-mega').replace(/-male-mega$/, '-m-mega').replace(/-female$/, '-f').replace(/-breed$/, '').replace(/-plumage$/, '').replace(/-(male|shield|average|midday|disguised|full-belly|family-of-four|zero|amped|green|meadow)$/, ''))
+  toID(
+    ident
+      .replace(/-female-mega$/, '-f-mega')
+      .replace(/-male-mega$/, '-m-mega')
+      .replace(/-female$/, '-f')
+      .replace(/-breed$/, '')
+      .replace(/-plumage$/, '')
+      .replace(
+        /-(male|shield|average|midday|disguised|full-belly|family-of-four|zero|amped|green|meadow)$/,
+        '',
+      ),
+  )
 // PokeAPI에 한국어 폼 이름이 없는 것들
 const FORM_NAME_OVERRIDES = {
   taurospaldeacombat: { ko: '켄타로스 (팔데아의 모습 컴뱃종)' },
@@ -362,12 +519,27 @@ const FORM_NAME_OVERRIDES = {
   squawkabillyblue: { ko: '시비꼬 (블루 페더)' },
   squawkabillyyellow: { ko: '시비꼬 (옐로 페더)' },
   squawkabillywhite: { ko: '시비꼬 (화이트 페더)' },
+  palafinhero: { ko: '돌핀맨 (마이티폼)' },
+  // PokeAPI 에 한국어 폼 이름이 없는 히스이 폼 / 암컷 폼
+  arcaninehisui: { ko: '윈디 (히스이의 모습)' },
+  avalugghisui: { ko: '크레베이스 (히스이의 모습)' },
+  decidueyehisui: { ko: '모크나이퍼 (히스이의 모습)' },
+  goodrahisui: { ko: '미끄래곤 (히스이의 모습)' },
+  samurotthisui: { ko: '대검귀 (히스이의 모습)' },
+  typhlosionhisui: { ko: '블레이범 (히스이의 모습)' },
+  zoroarkhisui: { ko: '조로아크 (히스이의 모습)' },
+  basculegionf: { ko: '대쓰여너 (암컷의 모습)' },
 }
 const MEGA_SUFFIX = (forme) => (forme.match(/Mega-?(.*)$/)?.[1] || '').replace('-', '')
 
 const names = { ko: {}, ja: {}, en: {} }
-for (const L of Object.keys(names)) for (const k of ['pokemon', 'moves', 'abilities', 'items', 'natures', 'types']) names[L][k] = {}
-const texts = { ko: { moves: {}, abilities: {}, items: {} }, ja: { moves: {}, abilities: {}, items: {} }, en: { moves: {}, abilities: {}, items: {} } }
+for (const L of Object.keys(names))
+  for (const k of ['pokemon', 'moves', 'abilities', 'items', 'natures', 'types']) names[L][k] = {}
+const texts = {
+  ko: { moves: {}, abilities: {}, items: {} },
+  ja: { moves: {}, abilities: {}, items: {} },
+  en: { moves: {}, abilities: {}, items: {} },
+}
 
 for (const [id, p] of Object.entries(pokemon)) {
   const sp = speciesNames[speciesIdByNum[p.num]] || {}
@@ -380,9 +552,15 @@ for (const [id, p] of Object.entries(pokemon)) {
       const fn = form && formNames[form.id]?.[L]
       const full = form && formFullNames[form.id]?.[L]
       if (FORM_NAME_OVERRIDES[id]?.[L]) n = FORM_NAME_OVERRIDES[id][L]
-      else if (p.mega) n = fn || (L === 'en' ? `Mega ${sp.en} ${MEGA_SUFFIX(p.forme)}`.trim() : `${L === 'ja' ? 'メガ' : '메가'}${sp[L]}${MEGA_SUFFIX(p.forme)}`)
+      else if (p.mega)
+        n =
+          fn ||
+          (L === 'en'
+            ? `Mega ${sp.en} ${MEGA_SUFFIX(p.forme)}`.trim()
+            : `${L === 'ja' ? 'メガ' : '메가'}${sp[L]}${MEGA_SUFFIX(p.forme)}`)
       else if (L === 'en' && full) n = full
-      else if (fn && sp[L] && fn.includes(sp[L])) n = fn // "워시로토무"처럼 폼 이름에 종 이름이 이미 들어있는 경우
+      else if (fn && sp[L] && fn.includes(sp[L]))
+        n = fn // "워시로토무"처럼 폼 이름에 종 이름이 이미 들어있는 경우
       else if (fn) n = `${sp[L]} (${fn})`
       else n = `${sp[L] || dex[id].baseSpecies} (${p.forme})`
     }
@@ -390,7 +568,9 @@ for (const [id, p] of Object.entries(pokemon)) {
   }
 }
 const pick = (src, apiId, L) => (apiId && src[apiId]?.[L]) || null
-const moveById = Object.fromEntries(Object.entries(moveIdent).map(([mid, ident]) => [toID(ident), mid]))
+const moveById = Object.fromEntries(
+  Object.entries(moveIdent).map(([mid, ident]) => [toID(ident), mid]),
+)
 const moveTextApi = flavorByLang(csv.move_flavor_text, 'move_id')
 for (const id of Object.keys(moves)) {
   const aid = moveById[id]
@@ -400,21 +580,41 @@ for (const id of Object.keys(moves)) {
     if (t) texts[L].moves[id] = t
   }
 }
-const ABILITY_OVERRIDES = { auraguard: { ko: '파동의방호', ja: 'はどうのまもり' } }
+// PokeAPI 에 없는 챔피언스 신규 특성. 이름: 한국 공식 도감(pokemonkorea.co.kr) / 일본 공략 사이트(game8·GameWith·패미통 일치),
+// 설명: GameWith 포켓몬 챔피언스 도구(gamewith.ai)의 한국어·일본어 특성 설명
+const ABILITY_OVERRIDES = {
+  auraguard: { ko: '파동의방호', ja: 'はどうのまもり' },
+  firemane: { ko: '불꽃의갈기', ja: 'ほのおのたてがみ' },
+  eelevate: { ko: '천정부지', ja: 'うなぎのぼり' },
+}
+const ABILITY_TEXT_OVERRIDES = {
+  firemane: {
+    ko: '불꽃타입 기술의 위력이 1.5배가 된다.',
+    ja: 'ほのおタイプの技の威力が1.5倍になる。',
+  },
+  eelevate: {
+    ko: '땅 위에 있지 않게 되어 땅타입 기술, 압정뿌리기, 독압정, 끈적끈적네트 상태의 효과를 받지 않는다. 공격으로 상대를 쓰러뜨리면 자신의 가장 높은 능력이 1단계 올라간다.',
+    ja: '地面にいないことになり、じめんタイプの技・まきびし・どくびし・ねばねばネット状態が効かない。攻撃で相手を倒すと、自分の最も高い能力が1段階上がる。',
+  },
+}
 for (const id of Object.keys(abilities)) {
   const aid = abilityById[id]
   for (const L of Object.keys(names)) {
-    names[L].abilities[id] = ABILITY_OVERRIDES[id]?.[L] || pick(abilityNamesApi, aid, L) || baseAbilities[id]?.name || id
-    const t = pick(abilityTextApi, aid, L)
+    names[L].abilities[id] =
+      ABILITY_OVERRIDES[id]?.[L] || pick(abilityNamesApi, aid, L) || baseAbilities[id]?.name || id
+    const t = ABILITY_TEXT_OVERRIDES[id]?.[L] || pick(abilityTextApi, aid, L)
     if (t) texts[L].abilities[id] = t
   }
 }
 // PokeAPI에 한국어 이름이 없는 도구 (챔피언스 신규 메가스톤 등)
-const stoneKo = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts/sources/item-names-ko.json'), 'utf8'))
+const stoneKo = JSON.parse(
+  fs.readFileSync(path.join(ROOT, 'scripts/sources/item-names-ko.json'), 'utf8'),
+)
 for (const id of Object.keys(items)) {
   const aid = itemById[id]
   for (const L of Object.keys(names)) {
-    names[L].items[id] = pick(itemNamesApi, aid, L) || (L === 'ko' && stoneKo[id]) || itemData(id).name
+    names[L].items[id] =
+      pick(itemNamesApi, aid, L) || (L === 'ko' && stoneKo[id]) || itemData(id).name
     const t = pick(itemTextApi, aid, L)
     if (t) texts[L].items[id] = t
   }
@@ -452,7 +652,7 @@ for (const L of Object.keys(names)) {
 }
 console.log(
   `포켓몬 ${Object.keys(pokemon).length} (메가 ${megaIds.length}), 기술 ${Object.keys(moves).length}, 특성 ${Object.keys(abilities).length}, ` +
-  `도구 ${Object.keys(items).length}, 레귤레이션 ${regulations.map((r) => `${r.id}:${r.pokemon.length}`).join(' ')}`
+    `도구 ${Object.keys(items).length}, 레귤레이션 ${regulations.map((r) => `${r.id}:${r.pokemon.length}`).join(' ')}`,
 )
 
 // ── 8. 스프라이트 (선택) ─────────────
@@ -471,11 +671,23 @@ async function listCategory(cat) {
   let cont = {}
   for (;;) {
     const q = new URLSearchParams({
-      action: 'query', format: 'json', generator: 'categorymembers', gcmtitle: `Category:${cat}`,
-      gcmlimit: '500', gcmtype: 'file', prop: 'imageinfo', iiprop: 'url', ...cont,
+      action: 'query',
+      format: 'json',
+      generator: 'categorymembers',
+      gcmtitle: `Category:${cat}`,
+      gcmlimit: '500',
+      gcmtype: 'file',
+      prop: 'imageinfo',
+      iiprop: 'url',
+      ...cont,
     })
-    const j = await (await fetch(`https://archives.bulbagarden.net/w/api.php?${q}`, { headers: { 'User-Agent': UA } })).json()
-    for (const p of Object.values(j.query?.pages || {})) out[p.title.replace(/^File:/, '')] = p.imageinfo?.[0]?.url
+    const j = await (
+      await fetch(`https://archives.bulbagarden.net/w/api.php?${q}`, {
+        headers: { 'User-Agent': UA },
+      })
+    ).json()
+    for (const p of Object.values(j.query?.pages || {}))
+      out[p.title.replace(/^File:/, '')] = p.imageinfo?.[0]?.url
     if (!j.continue) break
     cont = j.continue
   }
@@ -499,13 +711,19 @@ if (WITH_SPRITES) {
   for (const p of Object.values(pokemon)) {
     let url = menu[archiveFileFor(p)]
     if (!url && p.forme && !p.mega) url = menu[`Menu Champs ${String(p.num).padStart(4, '0')}.png`] // 외형 차이 없는 폼
-    if (!url) { warn.push(`스프라이트 없음: ${p.id} (${archiveFileFor(p)})`); continue }
+    if (!url) {
+      warn.push(`스프라이트 없음: ${p.id} (${archiveFileFor(p)})`)
+      continue
+    }
     const r = await download(url, path.join(SPRITES, 'pokemon', `${p.id}.png`))
     stat[r] = (stat[r] || 0) + 1
   }
   for (const id of Object.keys(items)) {
     const url = bag[`Bag ${itemData(id).name} Champs Sprite.png`]
-    if (!url) { warn.push(`도구 스프라이트 없음: ${id} (${itemData(id).name})`); continue }
+    if (!url) {
+      warn.push(`도구 스프라이트 없음: ${id} (${itemData(id).name})`)
+      continue
+    }
     const r = await download(url, path.join(SPRITES, 'items', `${id}.png`))
     stat[r] = (stat[r] || 0) + 1
   }

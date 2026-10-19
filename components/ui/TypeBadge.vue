@@ -1,9 +1,7 @@
 <template>
-  <span
-    class="type-badge"
-    :class="{ small }"
-    :style="{ background: `var(--t-${type})` }"
-  >{{ name('types', type) }}</span>
+  <span class="type-badge" :class="{ small }" :style="{ background: `var(--t-${type})` }">{{
+    name('types', type)
+  }}</span>
 </template>
 
 <script setup lang="ts">
@@ -12,5 +10,9 @@ const { name } = useGameData()
 </script>
 
 <style scoped>
-.type-badge.small { min-width: 40px; padding: 0 6px; font-size: 10px; }
+.type-badge.small {
+  min-width: 40px;
+  padding: 0 6px;
+  font-size: 10px;
+}
 </style>

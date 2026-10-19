@@ -9,12 +9,36 @@ export const STAT_KEYS: StatKey[] = ['hp', 'atk', 'def', 'spa', 'spd', 'spe']
 export const BOOST_KEYS: BoostKey[] = ['atk', 'def', 'spa', 'spd', 'spe']
 
 export type TypeId =
-  | 'normal' | 'fire' | 'water' | 'electric' | 'grass' | 'ice' | 'fighting' | 'poison' | 'ground'
-  | 'flying' | 'psychic' | 'bug' | 'rock' | 'ghost' | 'dragon' | 'dark' | 'steel' | 'fairy'
+  | 'normal'
+  | 'fire'
+  | 'water'
+  | 'electric'
+  | 'grass'
+  | 'ice'
+  | 'fighting'
+  | 'poison'
+  | 'ground'
+  | 'flying'
+  | 'psychic'
+  | 'bug'
+  | 'rock'
+  | 'ghost'
+  | 'dragon'
+  | 'dark'
+  | 'steel'
+  | 'fairy'
 
 export type Category = 'physical' | 'special' | 'status'
 export type Status = '' | 'brn' | 'par' | 'psn' | 'tox' | 'slp' | 'frz'
-export type Weather = '' | 'sun' | 'rain' | 'sand' | 'snow' | 'harshsun' | 'heavyrain' | 'strongwinds'
+export type Weather =
+  | ''
+  | 'sun'
+  | 'rain'
+  | 'sand'
+  | 'snow'
+  | 'harshsun'
+  | 'heavyrain'
+  | 'strongwinds'
 export type Terrain = '' | 'electric' | 'grassy' | 'misty' | 'psychic'
 
 export interface Pokemon {
@@ -29,10 +53,16 @@ export interface Pokemon {
   learnset?: string[]
   megas?: string[]
   mega?: { from: string; item: string }
+  battleForm?: { from?: string; to?: string } // 배틀 중에만 바뀌는 폼 (팔라피 마이티폼, 킬가르도 블레이드폼)
 }
 
 export type MoveEffect =
-  | { type: 'boost'; target: 'self' | 'target'; stats: Partial<Record<BoostKey | 'accuracy' | 'evasion', number>>; chance?: number }
+  | {
+      type: 'boost'
+      target: 'self' | 'target'
+      stats: Partial<Record<BoostKey | 'accuracy' | 'evasion', number>>
+      chance?: number
+    }
   | { type: 'status'; target: 'self' | 'target'; status: Exclude<Status, ''>; chance?: number }
   | { type: 'volatile'; target: 'target'; status: 'flinch' | 'confusion'; chance?: number }
   | { type: 'multihit'; min: number; max: number }

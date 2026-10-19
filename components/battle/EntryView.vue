@@ -15,16 +15,14 @@
         </p>
       </div>
       <div class="head-actions">
-        <span
-          v-if="blocker"
-          class="warn-text small"
-        >{{ blocker }}</span>
+        <span v-if="blocker" class="warn-text small">{{ blocker }}</span>
         <NuxtLink
           :to="`/${mode}/battle`"
           class="btn btn-primary"
           :class="{ disabled: !!blocker }"
           @click="(e: MouseEvent) => blocker && e.preventDefault()"
-        >{{ t('entry.toBattle') }} →</NuxtLink>
+          >{{ t('entry.toBattle') }} →</NuxtLink
+        >
       </div>
     </div>
 
@@ -37,7 +35,7 @@
     </div>
 
     <div class="layout">
-      <section class="col mine-col">
+      <section class="col mine-col fit-scroll">
         <h2 class="panel-title">
           {{ t('common.mine') }}
           <span class="spacer" />
@@ -47,7 +45,8 @@
           v-for="(s, i) in mine.slots.value"
           :key="i"
           :slot="s"
-          :mega-on="mine.megaOn.value[i]"
+          v-model:mega-on="mine.megaOn.value[i]"
+          mega-toggle
           :order="entry.order(i)"
           :dim="entry.isFull.value && entry.order(i) == null"
           :spread="mode === 'double'"
@@ -67,18 +66,12 @@
           >
             {{ t('common.mine') }} → {{ t('common.opponent') }}
           </button>
-          <button
-            type="button"
-            class="tab"
-            :class="{ active: dir === 'opp' }"
-            @click="dir = 'opp'"
-          >
+          <button type="button" class="tab" :class="{ active: dir === 'opp' }" @click="dir = 'opp'">
             {{ t('common.opponent') }} → {{ t('common.mine') }}
           </button>
-          <span
-            v-if="mode === 'double'"
-            class="muted small legend"
-          >{{ t('entry.spreadLegend') }}</span>
+          <span v-if="mode === 'double'" class="muted small legend">{{
+            t('entry.spreadLegend')
+          }}</span>
         </div>
 
         <div class="matrices">
@@ -100,7 +93,11 @@
               :key="'o' + i"
               :attacker="o"
               :defenders="myAttackers.map((a) => a.r)"
-              :title="t('entry.oppToMine', { name: o ? gd.name('pokemon', o.species.id) : `${t('common.opponent')} ${i + 1}` })"
+              :title="
+                t('entry.oppToMine', {
+                  name: o ? gd.name('pokemon', o.species.id) : `${t('common.opponent')} ${i + 1}`,
+                })
+              "
               :field="fieldState"
               :crit="crit"
               :doubles="mode === 'double'"
@@ -109,15 +106,11 @@
         </div>
       </section>
 
-      <section class="col opp-col">
+      <section class="col opp-col fit-scroll">
         <h2 class="panel-title">
           {{ t('entry.opponentTitle') }}
           <span class="spacer" />
-          <button
-            type="button"
-            class="btn btn-sm btn-danger"
-            @click="opp.reset()"
-          >
+          <button type="button" class="btn btn-sm btn-danger" @click="opp.reset()">
             {{ t('common.reset') }}
           </button>
         </h2>
@@ -128,8 +121,18 @@
           v-model:mega-on="opp.megaOn.value[i]!"
           :index="i"
           :species-ids="reg.selectableSpecies.value"
-          :exclude-species="opp.slots.value.filter((_, j) => j !== i).map((s) => s.species).filter(Boolean)"
-          :exclude-items="opp.slots.value.filter((_, j) => j !== i).map((s) => s.item).filter(Boolean)"
+          :exclude-species="
+            opp.slots.value
+              .filter((_, j) => j !== i)
+              .map((s) => s.species)
+              .filter(Boolean)
+          "
+          :exclude-items="
+            opp.slots.value
+              .filter((_, j) => j !== i)
+              .map((s) => s.item)
+              .filter(Boolean)
+          "
           compact
         />
       </section>
@@ -158,10 +161,14 @@ const fieldState = computed(() => ({ ...field, doubles: props.mode === 'double' 
 
 // 선출했으면 선출한 포켓몬만, 아니면 파티 전체
 const myAttackers = computed(() => {
-  const idx = entry.picks.value.length ? entry.picks.value : mine.slots.value.map((_, i) => i).filter((i) => mine.slots.value[i]!.species)
+  const idx = entry.picks.value.length
+    ? entry.picks.value
+    : mine.slots.value.map((_, i) => i).filter((i) => mine.slots.value[i]!.species)
   return idx.map((i) => ({ i, r: calc.resolve(mine.slots.value[i], mine.megaOn.value[i]) }))
 })
-const oppResolved = computed(() => opp.slots.value.map((s, i) => calc.resolve(s, opp.megaOn.value[i])))
+const oppResolved = computed(() =>
+  opp.slots.value.map((s, i) => calc.resolve(s, opp.megaOn.value[i])),
+)
 
 const blocker = computed(() => {
   if (!mine.isComplete.value) return t('home.partyIncomplete')
@@ -172,42 +179,139 @@ const blocker = computed(() => {
 </script>
 
 <style scoped>
-.head-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.head-actions .btn { text-decoration: none; }
-.btn.disabled { opacity: 0.4; cursor: not-allowed; }
-.small { font-size: 12px; }
-.field-panel { margin-bottom: 14px; }
-.layout { display: grid; grid-template-columns: 300px minmax(0, 1fr) 460px; gap: 14px; align-items: start; }
-.col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-.panel-title { margin: 0; }
-.center-col { position: sticky; top: 76px; max-height: calc(100vh - 92px); }
-.tabs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.head-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.head-actions .btn {
+  text-decoration: none;
+}
+.btn.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.small {
+  font-size: 12px;
+}
+.field-panel {
+  margin-bottom: 14px;
+}
+.layout {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr) 460px;
+  gap: 14px;
+  align-items: start;
+}
+.col {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.panel-title {
+  margin: 0;
+}
+.center-col {
+  position: sticky;
+  top: 76px;
+  max-height: calc(100vh - 92px);
+}
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
 .tab {
   border: 1px solid var(--line);
   background: var(--panel);
   color: var(--text-2);
-  font: inherit; font-weight: 700; font-size: 13px;
+  font: inherit;
+  font-weight: 700;
+  font-size: 13px;
   padding: 7px 14px;
   border-radius: 999px;
   cursor: pointer;
 }
-.tab.active { background: var(--accent-2); border-color: var(--accent-2); color: #04131a; }
-.legend { margin-left: auto; }
-.matrices { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; padding-right: 2px; }
+.tab.active {
+  background: var(--accent-2);
+  border-color: var(--accent-2);
+  color: var(--on-accent-2);
+}
+.legend {
+  margin-left: auto;
+}
+.matrices {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
 
 @media (max-width: 1500px) {
-  .layout { grid-template-columns: 280px minmax(0, 1fr); }
-  .opp-col { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .opp-col .panel-title { grid-column: 1 / -1; }
+  .layout {
+    grid-template-columns: 280px minmax(0, 1fr);
+  }
+  .opp-col {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .opp-col .panel-title {
+    grid-column: 1 / -1;
+  }
 }
 @media (max-width: 1000px) {
-  .layout { grid-template-columns: 1fr; }
-  .center-col { position: static; max-height: none; }
-  .mine-col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .mine-col .panel-title { grid-column: 1 / -1; }
-  .opp-col { grid-template-columns: 1fr; }
+  .layout {
+    grid-template-columns: 1fr;
+  }
+  .center-col {
+    position: static;
+    max-height: none;
+  }
+  .mine-col {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .mine-col .panel-title {
+    grid-column: 1 / -1;
+  }
+  .opp-col {
+    grid-template-columns: 1fr;
+  }
 }
 @media (max-width: 600px) {
-  .mine-col { grid-template-columns: 1fr; }
+  .mine-col {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 넓은 화면: 화면 높이에 맞추고 세 열이 따로 스크롤 (assets/css/main.css "PC 한 화면 배치") */
+@media (min-width: 1400px) and (min-height: 700px) {
+  .field-panel {
+    margin-bottom: 10px;
+    padding: 8px 12px;
+  }
+  .layout {
+    flex: 1;
+    min-height: 0;
+    grid-template-columns: 300px minmax(0, 1fr) 440px;
+    align-items: stretch;
+  }
+  .col {
+    padding-right: 2px;
+  }
+  .center-col {
+    position: static;
+    max-height: none;
+    min-height: 0;
+  }
+  .opp-col {
+    display: flex;
+    grid-column: auto;
+  }
 }
 </style>

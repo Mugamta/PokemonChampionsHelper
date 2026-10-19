@@ -10,7 +10,8 @@
         target="_blank"
         rel="noopener"
         class="btn btn-primary"
-      >{{ t('contact.github') }} ↗</a>
+        >{{ t('contact.github') }} ↗</a
+      >
     </section>
   </div>
 </template>
@@ -20,7 +21,18 @@ const { t } = useI18n()
 </script>
 
 <style scoped>
-.doc { max-width: 900px; display: flex; flex-direction: column; gap: 14px; }
-p { color: var(--text-2); line-height: 1.7; margin: 0 0 14px; }
-.btn { text-decoration: none; }
+.doc {
+  max-width: 900px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+p {
+  color: var(--text-2);
+  line-height: 1.7;
+  margin: 0 0 14px;
+}
+.btn {
+  text-decoration: none;
+}
 </style>

@@ -7,7 +7,15 @@ import type { GameData, NameTable, TextTable, Pokemon, Move } from '~/utils/type
 
 type Kind = keyof NameTable
 
-const CORE_FILES = ['pokemon', 'moves', 'abilities', 'items', 'natures', 'types', 'regulations'] as const
+const CORE_FILES = [
+  'pokemon',
+  'moves',
+  'abilities',
+  'items',
+  'natures',
+  'types',
+  'regulations',
+] as const
 
 export function useGameData() {
   const data = useState<GameData | null>('gd-core', () => null)
@@ -25,7 +33,10 @@ export function useGameData() {
 
   const loadLocale = async (lang: string) => {
     if (names.value[lang]) return
-    const [n, t] = await Promise.all([fetchJson<NameTable>(`names.${lang}.json`), fetchJson<TextTable>(`texts.${lang}.json`)])
+    const [n, t] = await Promise.all([
+      fetchJson<NameTable>(`names.${lang}.json`),
+      fetchJson<TextTable>(`texts.${lang}.json`),
+    ])
     names.value = { ...names.value, [lang]: n }
     texts.value = { ...texts.value, [lang]: t }
   }
@@ -36,7 +47,9 @@ export function useGameData() {
     loading.value = true
     try {
       const parts = await Promise.all(CORE_FILES.map((f) => fetchJson(`${f}.json`)))
-      const core = Object.fromEntries(CORE_FILES.map((f, i) => [f, parts[i]])) as unknown as GameData
+      const core = Object.fromEntries(
+        CORE_FILES.map((f, i) => [f, parts[i]]),
+      ) as unknown as GameData
       await loadLocale(locale.value)
       data.value = core
     } finally {
@@ -56,24 +69,31 @@ export function useGameData() {
     return texts.value[locale.value]?.[kind]?.[id] || ''
   }
 
-  const pokemon = (id: string | null | undefined): Pokemon | null => (id ? data.value?.pokemon[id] ?? null : null)
-  const move = (id: string | null | undefined): Move | null => (id ? data.value?.moves[id] ?? null : null)
+  const pokemon = (id: string | null | undefined): Pokemon | null =>
+    id ? (data.value?.pokemon[id] ?? null) : null
+  const move = (id: string | null | undefined): Move | null =>
+    id ? (data.value?.moves[id] ?? null) : null
 
   // 메가진화의 습득 기술은 원종 것을 그대로 쓴다
   const learnset = (id: string | null | undefined): string[] => {
     const p = pokemon(id)
     if (!p) return []
-    return p.learnset ?? pokemon(p.mega?.from)?.learnset ?? []
+    return p.learnset ?? pokemon(p.mega?.from ?? p.battleForm?.from)?.learnset ?? []
   }
 
   // 지닌 도구로 메가진화하는 경우 그 메가 폼 id (없으면 null)
-  const megaFor = (id: string | null | undefined, itemId: string | null | undefined): string | null => {
+  const megaFor = (
+    id: string | null | undefined,
+    itemId: string | null | undefined,
+  ): string | null => {
     if (!id || !itemId) return null
     const stone = data.value?.items[itemId]?.megaStone
     return stone?.[id] ?? null
   }
 
-  const pokemonSprite = (id: string | null | undefined) => (id ? asset(`sprites/pokemon/${id}.png`) : '')
+  // 배틀 폼(마이티폼 등)은 스프라이트가 없어서 원래 폼 이미지를 쓴다
+  const pokemonSprite = (id: string | null | undefined) =>
+    id ? asset(`sprites/pokemon/${pokemon(id)?.battleForm?.from ?? id}.png`) : ''
   const itemSprite = (id: string | null | undefined) => (id ? asset(`sprites/items/${id}.png`) : '')
 
   // 이름 기준 정렬된 선택지 목록 (v-autocomplete 용)

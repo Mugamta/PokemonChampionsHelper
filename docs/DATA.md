@@ -26,8 +26,8 @@ op.gg 는 자동 수집을 차단(CloudFront 403)하므로 쓰지 않는다.
 
 | 파일 | 형식 |
 |---|---|
-| `pokemon.json` | `{ id: { id, num, base, forme, types, stats{hp..spe}, abilities[], weight, learnset[] \| mega{from,item}, megas[]? } }` — 메가는 learnset 없음(원종 것 사용) |
-| `moves.json` | `{ id: { id, num, type, category, power, accuracy\|null, pp, ppEstimated?, priority, target, flags[], effects[] } }` — effects 는 `utils/types.ts MoveEffect` |
+| `pokemon.json` | `{ id: { id, num, base, forme, types, stats{hp..spe}, abilities[], weight, learnset[] \| mega{from,item}, megas[]?, battleForm? } }` — 메가는 learnset 없음(원종 것 사용). 배틀 폼(`palafinhero`, `aegislashblade`)은 `battleForm{from}`, 원래 폼은 `battleForm{to}`. 레귤레이션 목록에 없어서 슬롯에서는 못 고르고 스프라이트는 원래 폼 것을 쓴다 |
+| `moves.json` | `{ id: { id, num, type, category, power, accuracy\|null, pp, ppEstimated?, priority, target, flags[], effects[] } }` — effects 는 `utils/types.ts MoveEffect`. flags 는 계산에 쓰는 것만 (접촉/펀치/소리 등 + 부자유친 제외용 charge/futuremove/noparentalbond) |
 | `items.json` | `{ id: { id, num, megaStone?{원종id: 메가id}, berry? } }` |
 | `abilities.json`, `natures.json`, `types.json` | 특성 목록 / `{ plus, minus }` / `{ types[], chart[공격][방어] }` |
 | `regulations.json` | `[{ id, start, end, rules, pokemon[id] }]` |
@@ -61,3 +61,7 @@ node scripts/verify-data.mjs --dex   # + 포켓몬별 종족값·습득 기술·
 `build-data.mjs` 의 `CODE_OVERRIDES` 에 추가 (현재 비비용/영원의 꽃 플라엣테/냐오닉스♀).
 
 **PP 예외**: 규칙과 다른 기술이 생기면 `scripts/sources/champions-pp.json` 에 `{ "id": pp }` 로 추가하고 재빌드.
+
+**이름 보강**: PokeAPI 에 없는 이름은 `build-data.mjs` 의 `FORM_NAME_OVERRIDES`(폼 이름. 예: 히스이 폼 "(히스이의 모습)")와
+`ABILITY_OVERRIDES`(특성 이름) / `ABILITY_TEXT_OVERRIDES`(특성 설명) 에 언어별로 추가.
+챔피언스 신규 특성·폼처럼 PokeAPI 에 없는 이름은 한국어 = 포켓몬코리아 공식 도감(pokemonkorea.co.kr/pokedex), 일본어 = 일본 공식 도감·공략 사이트에서 확인. 도구는 `scripts/sources/item-names-ko.json`. 재빌드는 `scripts/.cache` 가 있으면 오프라인으로 된다.

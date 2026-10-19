@@ -15,7 +15,18 @@ const { t } = useI18n()
 </script>
 
 <style scoped>
-.doc { max-width: 900px; display: flex; flex-direction: column; gap: 14px; }
-p { color: var(--text-2); line-height: 1.7; margin: 0 0 10px; }
-p:last-child { margin: 0; }
+.doc {
+  max-width: 900px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+p {
+  color: var(--text-2);
+  line-height: 1.7;
+  margin: 0 0 10px;
+}
+p:last-child {
+  margin: 0;
+}
 </style>

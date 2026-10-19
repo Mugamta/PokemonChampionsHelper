@@ -14,7 +14,8 @@
     "battle": "Battle",
     "help": "Help",
     "about": "About",
-    "contact": "Contact"
+    "contact": "Contact",
+    "stats": "Stats"
   },
   "regulation": {
     "label": "Regulation",
@@ -48,7 +49,8 @@
     "spOver": "Stat Points are limited to {per} per stat and {max} in total",
     "bulk": "Bulk",
     "physBulk": "Phys. bulk",
-    "specBulk": "Spec. bulk"
+    "specBulk": "Spec. bulk",
+    "spLeft": "{n} left"
   },
   "category": {
     "physical": "Physical",
@@ -83,7 +85,8 @@
     "octolock": "Octolock",
     "jawlock": "Jaw Lock",
     "ingrain": "Ingrain",
-    "partiallytrapped": "Bind / Wrap"
+    "partiallytrapped": "Bind / Wrap",
+    "charge": "Charge"
   },
   "weather": {
     "label": "Weather",
@@ -171,7 +174,9 @@
     "helpDesc": "Learn how calculations work and how to use each screen.",
     "start": "Start",
     "partyIncomplete": "Complete your 6-Pokémon party first",
-    "regulationNow": "Current regulation"
+    "regulationNow": "Current regulation",
+    "perfTitle": "Pokémon Stats Table",
+    "perfDesc": "Search and compare bulk, the best attack of each type, and speed tiers for every Pokémon in the regulation."
   },
   "party": {
     "title": "Party Builder",
@@ -183,7 +188,22 @@
     "previewConditions": "Power index conditions",
     "hpHint": "HP number",
     "megaHint": "Hold the Mega Stone to calculate in Mega form",
-    "notInRegulation": "Not allowed in the current regulation"
+    "notInRegulation": "Not allowed in the current regulation",
+    "formOnAttack": "when attacking",
+    "formNote": {
+      "palafinhero": "Palafin almost always fights in Hero Form after switching once, so stats and tables use Hero Form. The battle screen switches automatically.",
+      "aegislashblade": "Stats are shown in Shield Forme; attack damage is calculated in Blade Forme."
+    },
+    "previewStatus": "Status",
+    "typeChanged": "{ability}: {from} → {to} type",
+    "consistency": {
+      "lead": "Every Pokémon takes ",
+      "group": "{n}×+ from {types}",
+      "sep": ", ",
+      "tail": " attacks.",
+      "basis": " (based on {n})",
+      "none": "No attacking type hits every Pokémon for 1× or more."
+    }
   },
   "entry": {
     "titleSingle": "Singles Team Preview",
@@ -212,14 +232,6 @@
     "fairyLock": "Fairy Lock (no switching, {n} turns)",
     "speed": "Speed comparison",
     "speedMine": "My {name}",
-    "speedOpp": "Opp. {label}",
-    "speedNeutral": "neutral",
-    "speedSemi": "max SP",
-    "speedMax": "max SP+",
-    "speedSemiScarf": "max SP Scarf",
-    "speedMaxScarf": "max SP+ Scarf",
-    "speedExcluded": "contradicts observation",
-    "speedInferred": "Opponent's Speed (before boosts) {kind} {value}",
     "min": "at least",
     "max": "at most",
     "expected": "Expected damage",
@@ -263,11 +275,6 @@
     "observeOrder": "Turn order",
     "iMovedFirst": "I moved first",
     "oppMovedFirst": "Opponent moved first",
-    "bulkEstimate": "Opponent bulk from damage dealt",
-    "bulkEstimateHint": "Enter 'Damage dealt (%)' in My action",
-    "noScenarioMatch": "No matching scenario (crit or other effects)",
-    "estimateOne": "Likely {label}",
-    "estimateRange": "Between {weak} (max roll) and {strong} (min roll)",
     "hitItemUsed": "Opponent's on-hit item activated",
     "hitItemSkip": "Item effects were involved this turn, so bulk is not estimated",
     "hitItemOptions": {
@@ -319,13 +326,60 @@
     "spreadNote": "0.75× spread applied",
     "focus": "Analysis target",
     "focusHint": "Analysis below uses the selected Pokémon on each side",
-    "atkScenario": {
-      "neutral": "Neutral",
-      "ev32": "A/C32",
-      "ev32Nature": "A/C32+",
-      "itemBoost": "A/C32+ with 1.2× item"
+    "resetConfirm": "Reset the current battle?",
+    "form": {
+      "palafinhero": "Hero Form",
+      "aegislashblade": "Blade Forme"
     },
-    "resetConfirm": "Reset the current battle?"
+    "formHint": {
+      "palafinhero": "Becomes Hero Form after switching out once (applied automatically)",
+      "aegislashblade": "Blade Forme after an attacking move, Shield Forme after King's Shield or switching out (applied automatically). Attacks are always calculated in Blade Forme"
+    },
+    "itemGone": "lost",
+    "itemGoneHint": "Click to mark the item as used/lost (Focus Sash, berries, Knock Off...). Resist berries and Air Balloon are handled automatically when damage is entered",
+    "itemRestore": "Click to restore the item",
+    "allyDamageMine": "Damage to ally {name} (HP)",
+    "allyDamageOpp": "Damage to opposing ally {name} (%)",
+    "errAlly": "Ally damage is out of range (yours: 0 to max HP, opponent: 0-100%)",
+    "transform": "Transform",
+    "transformHint": "Transform into the opposing Pokémon across (Imposter does this on entry). Copies species, types, ability, moves, stats (not HP) and stat stages; keeps its own item and HP — the target's Choice item boost is not copied",
+    "transformedFrom": "{name} transformed",
+    "speedPending": "Previewing this turn's observation (not applied)",
+    "band": {
+      "neutral": "Neutral",
+      "plus": "+Spe nature",
+      "neutralScarf": "Neutral+Scarf",
+      "plusScarf": "+Spe+Scarf",
+      "copy": "Transformed",
+      "copyScarf": "Transformed+Scarf"
+    },
+    "bandExcluded": "ruled out",
+    "speedHint": "Mark who moved first in the action panel and apply the turn — ranges that don't fit are removed. Ignored when the moves' priorities differ.",
+    "speedHintNarrowed": "Narrowed by observed move order (S = remaining stat points). Speed-lowering natures are not covered.",
+    "verdict": {
+      "none": "Fits no case — maybe a −Spe nature, another item or ability",
+      "scarf": "Choice Scarf confirmed",
+      "noScarf": "No Choice Scarf",
+      "plus": "+Spe nature confirmed",
+      "neutral": "Neutral Speed nature confirmed"
+    },
+    "critHint": "Check if this hit was a critical hit (used for the opponent estimate)",
+    "est": {
+      "title": "Opponent estimate",
+      "reset": "Reset estimate",
+      "transformed": "Transformed — its stats are copied, so nothing to estimate.",
+      "bulk": "Bulk (damage dealt)",
+      "attack": "Attack (damage taken)",
+      "obs": "{n} obs.",
+      "infeasible": "No spread fits the inputs — check item, ability, critical hit and damage",
+      "physIndex": "Phys. bulk",
+      "specIndex": "Spec. bulk",
+      "effective": "with item",
+      "noItem": "No damage item",
+      "itemFixed": "Using the entered item",
+      "scarfRuledOut": "A damage-boosting item is confirmed → no Choice Scarf",
+      "note": "Narrows each time a turn is applied. Allows ±1 pt on damage dealt and ±1 HP on damage taken; multi-hit, fixed-damage moves and turns with a hit-triggered item are skipped. Uses the entered ability."
+    }
   },
   "help": {
     "title": "Help",
@@ -342,7 +396,9 @@
     "data2": "Images: Pokémon Champions in-game sprites (Bulbagarden Archives)",
     "limitsTitle": "Known limitations",
     "limits1": "Some special ability or item effects may not be reflected in calculations.",
-    "limits2": "Moves marked * next to PP use an estimated Champions PP value."
+    "limits2": "Moves marked * next to PP use an estimated Champions PP value.",
+    "flow4": "In battle, enter who moved first and the damage dealt and taken; the opponent's speed (Scarf / nature) and bulk and attack spreads narrow down every turn.",
+    "flow5": "The Stats Table lets you search and compare bulk, the best attack of each type, and speed tiers (with Scarf, Tailwind, Sticky Web and abilities) for every allowed Pokémon."
   },
   "about": {
     "title": "About",
@@ -357,5 +413,104 @@
   "footer": {
     "rights": "© 2026 Pokémon Champions Helper · Unofficial fan tool",
     "trademark": "Pokémon and Pokémon character names are trademarks of Nintendo."
+  },
+  "theme": {
+    "label": "Theme",
+    "light": "Day (light)",
+    "dark": "Night (dark)",
+    "system": "Follow system setting"
+  },
+  "typeTip": {
+    "defense": "When hit (defense)",
+    "attack": "When attacking",
+    "combinedHint": "Hover the + between the types for the combined matchup",
+    "weak4": "Weak ×4",
+    "weak2": "Weak ×2",
+    "resist2": "Resists ×½",
+    "resist4": "Resists ×¼",
+    "immune": "Immune",
+    "super": "Super effective ×2",
+    "notVery": "Not very effective ×½",
+    "noEffect": "No effect"
+  },
+  "perf": {
+    "title": "Pokémon Stats Table",
+    "sub": "{n} Pokémon allowed in {reg} (Mega Evolutions included) · Level 50",
+    "search": "Search by Pokémon name",
+    "tab": {
+      "bulk": "Bulk",
+      "power": "Attack",
+      "speed": "Speed"
+    },
+    "new": "New",
+    "count": "{n} rows",
+    "empty": "No Pokémon match",
+    "col": {
+      "mon": "Pokémon",
+      "type": "Type",
+      "move": "Move"
+    },
+    "allTypes": "All types",
+    "allCats": "Physical + Special",
+    "alt": "Alt",
+    "usesDef": "uses Def",
+    "hits": "{n} hits",
+    "crit": "always crits",
+    "cfg": {
+      "s0": "S0",
+      "s32": "S32",
+      "s32plus": "S32+nature"
+    },
+    "pen": {
+      "recoil": "Recoil",
+      "selfDrop": "Stat drop",
+      "recharge": "Must recharge",
+      "charge": "Charge turn",
+      "lock": "Locked in",
+      "selfKo": "User faints",
+      "selfDamage": "HP cost",
+      "condition": "Conditional",
+      "accuracy": "Acc {n}",
+      "randomHits": "Random hits"
+    },
+    "power": {
+      "note": "Attack index = power × Atk (SpA) stat × STAB × ability (no item, Mega Evolutions hold their Mega Stone, no weather or terrain). Shows the strongest move of each type; if it has a drawback (recoil, stat drop, accuracy below 100, …) the best drawback-free move that never misses is shown below it. Abilities are chosen to maximise the index and shown only when they matter (Skill Link = always 5 hits). Multi-hit moves with a random hit count show the expected value by hit-count probability (top) and min–max (bottom), assuming the move hits: 2–5 hits are 35/35/15/15%, Population Bomb and Triple Axel check accuracy again from the second hit. Body Press uses Defense, and moves that use the target's stats (Foul Play) or whose power depends on the target (weight, HP, …) are excluded."
+    },
+    "bulk": {
+      "plus": "Nature boost (+10% Def and SpD)",
+      "hp": "HP (H32)",
+      "def": "Def (B32)",
+      "spd": "SpD (D32)",
+      "phys": "Phys. bulk H×B",
+      "spec": "Spec. bulk H×D",
+      "note": "Stats with 32 SP in HP, Def and SpD, and bulk indices (HP × Def, HP × SpD). No ability or item modifiers. The nature toggle applies +10% to both Def and SpD (in practice only one of them)."
+    },
+    "speed": {
+      "cfgLabel": "Investment",
+      "fieldLabel": "Field",
+      "fieldNone": "None",
+      "ability": "Include ability boosts",
+      "onlyMatch": "Only rows with searched Pokémon",
+      "legend": "+ after the base stat = S32 with a boosting nature, no mark = S32 neutral, S0 = no investment. Multiplier = Choice Scarf × ability × Tailwind (×2) × Sticky Web (−1 stage). Abilities assume their condition is met (weather/terrain, Unburden after the item is used, Quick Feet with a status, Speed Boost after one turn). Mega Evolutions hold their Mega Stone, so no Scarf.",
+      "base": "Base",
+      "mult": "Mult.",
+      "speed": "Speed",
+      "cfg": {
+        "s0": "S0",
+        "s32": "S32",
+        "s32plus": "S32+nature",
+        "scarf": "Scarf S32",
+        "scarfPlus": "Scarf S32+nature"
+      }
+    },
+    "reliable": "Sort by drawback-free move",
+    "reliableHint": "If the strongest move has a drawback, sort by the alternative instead. Types with no drawback-free move go last.",
+    "hitsRange": "{min}–{max} hits",
+    "hitsExp": "avg {n} hits",
+    "hitPct": "{n}: {p}%",
+    "rangeHint": "For multi-hit moves with a random hit count: top = expected value by hit-count probability, bottom = min–max",
+    "loadedDice": "Holding Loaded Dice",
+    "unreleased": "(not in game yet)",
+    "loadedDiceHint": "Calculated as if holding Loaded Dice: 2–5 hit moves hit 4 or 5 times (50% each), Population Bomb 4–10 times, Triple Axel all 3 hits. Not applied to Mega Evolutions (they hold a Mega Stone). Acrobatics loses its no-item doubling."
   }
 }

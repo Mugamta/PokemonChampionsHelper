@@ -38,6 +38,20 @@ export default defineNuxtConfig({
               success: '#3ddc97',
             },
           },
+          // 낮 테마 (plugins/theme.client.ts 에서 전환)
+          championsLight: {
+            dark: false,
+            colors: {
+              background: '#f5f7fc',
+              surface: '#ffffff',
+              'surface-variant': '#eef1f8',
+              primary: '#ffcb05',
+              secondary: '#1aa3d4',
+              error: '#db2f4d',
+              warning: '#c27700',
+              success: '#11995f',
+            },
+          },
         },
       },
     },
@@ -60,5 +74,19 @@ export default defineNuxtConfig({
 
   nitro: {
     preset: 'github_pages',
+  },
+
+  // 재설계 전 URL(북마크) → 새 URL. 정적 배포라서 서버 리다이렉트 대신 라우터 리다이렉트로 처리
+  hooks: {
+    'pages:extend'(pages) {
+      const legacy: Record<string, string> = {
+        '/partySelect': '/party',
+        '/entrySelect': '/single',
+        '/singleEntrySelect': '/single',
+        '/singleBattle': '/single/battle',
+        '/doubleEntrySelect': '/double',
+      }
+      for (const [path, redirect] of Object.entries(legacy)) pages.push({ path, redirect })
+    },
   },
 })

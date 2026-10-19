@@ -40,7 +40,10 @@ export function useTeam(side: Side) {
       [slots, megaOn],
       () => {
         try {
-          localStorage.setItem(STORAGE_KEY[side], JSON.stringify({ slots: slots.value, megaOn: megaOn.value }))
+          localStorage.setItem(
+            STORAGE_KEY[side],
+            JSON.stringify({ slots: slots.value, megaOn: megaOn.value }),
+          )
         } catch {
           // 저장 실패(용량 초과/차단)는 무시
         }
@@ -63,7 +66,10 @@ export function useTeam(side: Side) {
 
 // 예전 한글 이름 저장분 → 새 형식. 내 파티가 비어 있을 때만 1회 실행.
 // await 이후에는 composable 을 호출할 수 없으므로 setup 에서 만든 gd / team 을 넘겨받는다.
-export async function migrateLegacyTeam(gd: ReturnType<typeof useGameData>, team: ReturnType<typeof useTeam>) {
+export async function migrateLegacyTeam(
+  gd: ReturnType<typeof useGameData>,
+  team: ReturnType<typeof useTeam>,
+) {
   if (!import.meta.client) return
   const legacy = readStorage(LEGACY_KEY)
   if (!legacy?.selectedPokemon) return
@@ -79,21 +85,28 @@ export async function migrateLegacyTeam(gd: ReturnType<typeof useGameData>, team
     return m
   }
   const rev = {
-    pokemon: reverse(Object.fromEntries(Object.entries(ko.pokemon).filter(([id]) => !gd.data.value!.pokemon[id]?.forme))),
+    pokemon: reverse(
+      Object.fromEntries(
+        Object.entries(ko.pokemon).filter(([id]) => !gd.data.value!.pokemon[id]?.forme),
+      ),
+    ),
     abilities: reverse(ko.abilities),
     items: reverse(ko.items),
     moves: reverse(ko.moves),
     natures: reverse(ko.natures),
   }
-  const find = (kind: keyof typeof rev, name?: string) => (name ? rev[kind][name.replace(/\s/g, '')] || '' : '')
+  const find = (kind: keyof typeof rev, name?: string) =>
+    name ? rev[kind][name.replace(/\s/g, '')] || '' : ''
   const LEGACY_STAT = { hp: 'H', atk: 'A', def: 'B', spa: 'C', spd: 'D', spe: 'S' } as const
 
   slots.value = Array.from({ length: 6 }, (_, i) => {
     const s = emptySlot()
     s.species = find('pokemon', legacy.selectedPokemon[i])
     if (!s.species) return s
-    s.ability = find('abilities', legacy.selectedAbility?.[i]) || gd.pokemon(s.species)?.abilities[0] || ''
-    s.nature = find('natures', String(legacy.selectedNature?.[i] || '').replace(/\(.*\)/, '')) || 'serious'
+    s.ability =
+      find('abilities', legacy.selectedAbility?.[i]) || gd.pokemon(s.species)?.abilities[0] || ''
+    s.nature =
+      find('natures', String(legacy.selectedNature?.[i] || '').replace(/\(.*\)/, '')) || 'serious'
     s.item = find('items', legacy.selectedTool?.[i])
     const moves = (legacy.selectedMoves?.[i] || []).map((m: string) => find('moves', m))
     s.moves = [moves[0] || '', moves[1] || '', moves[2] || '', moves[3] || '']

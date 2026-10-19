@@ -11,7 +11,9 @@
           class="chip"
           :class="{ active: weather === w }"
           @click="weather = weather === w ? '' : w"
-        >{{ t('weather.' + w) }}</button>
+        >
+          {{ t('weather.' + w) }}
+        </button>
       </div>
     </div>
     <div class="grp">
@@ -24,14 +26,13 @@
           class="chip"
           :class="{ active: terrain === tr }"
           @click="terrain = terrain === tr ? '' : tr"
-        >{{ t('terrain.' + tr) }}</button>
+        >
+          {{ t('terrain.' + tr) }}
+        </button>
       </div>
     </div>
     <label class="crit">
-      <input
-        v-model="crit"
-        type="checkbox"
-      >
+      <input v-model="crit" type="checkbox" />
       <span>{{ t('common.crit') }}</span>
     </label>
   </div>
@@ -49,10 +50,21 @@ const TERRAINS: Terrain[] = ['electric', 'grassy', 'misty', 'psychic']
 </script>
 
 <style scoped>
-.field-bar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 18px; }
-.grp { display: flex; flex-direction: column; gap: 5px; }
+.field-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 18px;
+}
+.grp {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
 .crit {
-  display: inline-flex; align-items: center; gap: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 5px 12px;
   border-radius: 999px;
   border: 1px solid var(--line-strong);
@@ -61,5 +73,7 @@ const TERRAINS: Terrain[] = ['electric', 'grassy', 'misty', 'psychic']
   cursor: pointer;
   margin-left: auto;
 }
-.crit input { accent-color: var(--bad); }
+.crit input {
+  accent-color: var(--bad);
+}
 </style>

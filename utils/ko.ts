@@ -1,20 +1,32 @@
 // utils/ko.ts — 확정/난수 N타, 연속기 KO 시점, 상태이상 잔여 데미지
 
+import type { Combatant } from './damage'
+
 export interface KoInfo {
   hits: number
   guaranteed: boolean
   percent: number // KO 확률 (%)
 }
 
+// 기합의띠 / 옹골참(틀깨기면 무시): HP 가 가득 찬 상태에서는 한 번에 쓰러지지 않고 1 남는다
+export const holdsOnAtFull = (attacker: Combatant, defender: Combatant) =>
+  (defender.hp ?? defender.stats.hp) >= defender.stats.hp &&
+  (defender.item === 'focussash' ||
+    (defender.ability === 'sturdy' && attacker.ability !== 'moldbreaker'))
+
 // 16개 난수의 N회 합 분포를 컨볼루션해서 처음으로 KO 확률 > 0 이 되는 N 을 찾는다
-export function koChance(rolls: number[], hp: number, maxHits = 4): KoInfo | null {
+// holdOn: 첫 타는 최대 hp−1 (기합의띠/옹골참)
+export function koChance(rolls: number[], hp: number, maxHits = 4, holdOn = false): KoInfo | null {
   if (!hp || hp <= 0 || !rolls.length || rolls[rolls.length - 1]! <= 0) return null
   const n = rolls.length
   let dist = new Map<number, number>([[0, 1]])
   for (let hit = 1; hit <= maxHits; hit++) {
     const next = new Map<number, number>()
     for (const [sum, cnt] of dist) {
-      for (const r of rolls) next.set(sum + r, (next.get(sum + r) || 0) + cnt)
+      for (const roll of rolls) {
+        const r = holdOn && hit === 1 ? Math.min(roll, hp - 1) : roll
+        next.set(sum + r, (next.get(sum + r) || 0) + cnt)
+      }
     }
     dist = next
     const total = n ** hit
@@ -39,7 +51,11 @@ export function koHitIndex(damages: number[], hp: number): number | null {
 // 접촉 반격(까칠한피부/철가시 1/8, 울퉁불퉁멧 1/6)을 받으며 연속기를 진행할 때 누가 먼저 쓰러지는지
 export type TrajectoryOutcome = { outcome: 'defender' | 'attacker' | 'survives'; atHit: number }
 export function simulateMultiHit(
-  perHit: number[], defHp: number, atkHp: number, atkMaxHp: number, punishFraction: number,
+  perHit: number[],
+  defHp: number,
+  atkHp: number,
+  atkMaxHp: number,
+  punishFraction: number,
 ): TrajectoryOutcome {
   let def = defHp
   let atk = atkHp
@@ -54,7 +70,11 @@ export function simulateMultiHit(
   return { outcome: 'survives', atHit: perHit.length }
 }
 
-export const CONTACT_PUNISH: Record<string, number> = { roughskin: 1 / 8, ironbarbs: 1 / 8, rockyhelmet: 1 / 6 }
+export const CONTACT_PUNISH: Record<string, number> = {
+  roughskin: 1 / 8,
+  ironbarbs: 1 / 8,
+  rockyhelmet: 1 / 6,
+}
 
 // 턴 종료 시 상태이상 데미지 (독 1/8, 화상 1/16(내열 1/32), 맹독 n/16). 매직가드/포이즌힐은 0
 export function statusDamage(maxHp: number, status: string, ability = '', toxicTurn = 1): number {
@@ -68,7 +88,12 @@ export function statusDamage(maxHp: number, status: string, ability = '', toxicT
 
 // HP 실능치 배수 조정 판정 (기존 partySelect checkHpCondition 규칙 그대로, 위에서부터 우선)
 //   재생력 3n → 포이즌힐 8n+1 → 먹다남은음식/검은진흙 16n → 대타출동 16n+1 → 씨뿌리기 8n-1 → 기본 16n-1
-export function hpRemainderHint(hp: number, ability: string, item: string, moves: string[]): { label: string; ok: boolean } | null {
+export function hpRemainderHint(
+  hp: number,
+  ability: string,
+  item: string,
+  moves: string[],
+): { label: string; ok: boolean } | null {
   if (!hp) return null
   if (ability === 'regenerator') return { label: '3n', ok: hp % 3 === 0 }
   if (ability === 'poisonheal') return { label: '8n+1', ok: hp % 8 === 1 }

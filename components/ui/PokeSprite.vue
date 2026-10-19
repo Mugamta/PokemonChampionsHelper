@@ -11,43 +11,26 @@
       :alt="name('pokemon', id)"
       loading="lazy"
       @error="failed = true"
-    >
-    <svg
-      v-else
-      viewBox="0 0 24 24"
-      class="ball"
-      aria-hidden="true"
-    >
-      <circle
-        cx="12"
-        cy="12"
-        r="10"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.6"
-      />
-      <path
-        d="M2 12h7m6 0h7"
-        stroke="currentColor"
-        stroke-width="1.6"
-      />
-      <circle
-        cx="12"
-        cy="12"
-        r="3"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.6"
-      />
+    />
+    <svg v-else viewBox="0 0 24 24" class="ball" aria-hidden="true">
+      <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.6" />
+      <path d="M2 12h7m6 0h7" stroke="currentColor" stroke-width="1.6" />
+      <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.6" />
     </svg>
   </div>
 </template>
 
 <script setup lang="ts">
-const props = withDefaults(defineProps<{ id?: string | null; size?: number; fainted?: boolean }>(), { id: null, size: 64, fainted: false })
+const props = withDefaults(
+  defineProps<{ id?: string | null; size?: number; fainted?: boolean }>(),
+  { id: null, size: 64, fainted: false },
+)
 const { pokemonSprite, name } = useGameData()
 const failed = ref(false)
-watch(() => props.id, () => (failed.value = false))
+watch(
+  () => props.id,
+  () => (failed.value = false),
+)
 </script>
 
 <style scoped>
@@ -65,7 +48,16 @@ watch(() => props.id, () => (failed.value = false))
   image-rendering: auto;
   filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.45));
 }
-.poke-sprite.empty { background: rgba(255, 255, 255, 0.03); border: 1px dashed var(--line-strong); }
-.poke-sprite .ball { width: 46%; height: 46%; color: var(--text-3); }
-.poke-sprite.fainted img { filter: grayscale(1) brightness(0.55); }
+.poke-sprite.empty {
+  background: var(--faint);
+  border: 1px dashed var(--line-strong);
+}
+.poke-sprite .ball {
+  width: 46%;
+  height: 46%;
+  color: var(--text-3);
+}
+.poke-sprite.fainted img {
+  filter: grayscale(1) brightness(0.55);
+}
 </style>

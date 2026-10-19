@@ -9,10 +9,7 @@
         {{ t('help.flowTitle') }}
       </h2>
       <ol class="steps">
-        <li
-          v-for="(k, i) in ['flow1', 'flow2', 'flow3']"
-          :key="k"
-        >
+        <li v-for="(k, i) in ['flow1', 'flow2', 'flow3', 'flow4', 'flow5']" :key="k">
           <span class="step-no num">{{ i + 1 }}</span>
           <span>{{ t('help.' + k) }}</span>
         </li>
@@ -57,15 +54,40 @@ const { t } = useI18n()
 </script>
 
 <style scoped>
-.doc { max-width: 900px; display: flex; flex-direction: column; gap: 14px; }
-ul { margin: 0; padding-left: 20px; color: var(--text-2); line-height: 1.7; }
-.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; color: var(--text-2); line-height: 1.6; }
-.steps li { display: flex; gap: 12px; align-items: flex-start; }
+.doc {
+  max-width: 900px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+ul {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--text-2);
+  line-height: 1.7;
+}
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  color: var(--text-2);
+  line-height: 1.6;
+}
+.steps li {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
 .step-no {
   flex-shrink: 0;
-  width: 28px; height: 28px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
-  display: grid; place-items: center;
+  display: grid;
+  place-items: center;
   background: var(--accent);
   color: var(--accent-ink);
   font-weight: 800;

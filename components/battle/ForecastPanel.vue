@@ -4,39 +4,21 @@
     v-if="an.forecast.value.length || an.scenarioFlows.value.length"
     class="panel panel-pad fc"
   >
-    <div
-      v-if="an.forecast.value.length"
-      class="block"
-    >
+    <div v-if="an.forecast.value.length" class="block">
       <h4 class="fc-title">
         {{ t('battle.forecastTitle') }}
       </h4>
-      <p
-        v-for="(l, i) in an.forecast.value"
-        :key="i"
-        class="fc-line"
-      >
+      <p v-for="(l, i) in an.forecast.value" :key="i" class="fc-line">
         {{ line(l) }}
       </p>
     </div>
-    <div
-      v-if="an.scenarioFlows.value.length"
-      class="block ref"
-    >
+    <div v-if="an.scenarioFlows.value.length" class="block ref">
       <h4 class="fc-title">
         {{ t('battle.scenarioTitle') }}
       </h4>
-      <div
-        v-for="f in an.scenarioFlows.value"
-        :key="f.title"
-        class="flow"
-      >
+      <div v-for="f in an.scenarioFlows.value" :key="f.title" class="flow">
         <span class="flow-title">{{ t(f.title) }}</span>
-        <p
-          v-for="(l, i) in f.lines"
-          :key="i"
-          class="fc-line"
-        >
+        <p v-for="(l, i) in f.lines" :key="i" class="fc-line">
           {{ line(l) }}
         </p>
       </div>
@@ -53,10 +35,32 @@ const line = useLine()
 </script>
 
 <style scoped>
-.fc { display: flex; flex-direction: column; gap: 12px; }
-.fc-title { margin: 0 0 6px; font-size: 13px; color: var(--accent); }
-.ref .fc-title { color: var(--accent-2); }
-.fc-line { margin: 0 0 3px; font-size: 13px; line-height: 1.5; color: var(--text-2); }
-.flow { padding: 6px 0; border-top: 1px dashed var(--line); }
-.flow-title { font-size: 12px; font-weight: 800; color: var(--text); }
+.fc {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.fc-title {
+  margin: 0 0 6px;
+  font-size: 13px;
+  color: var(--text);
+}
+.ref .fc-title {
+  color: var(--text-2);
+}
+.fc-line {
+  margin: 0 0 3px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+.flow {
+  padding: 6px 0;
+  border-top: 1px dashed var(--line);
+}
+.flow-title {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text);
+}
 </style>

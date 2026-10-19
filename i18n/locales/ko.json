@@ -14,7 +14,8 @@
     "battle": "배틀",
     "help": "도움말",
     "about": "소개",
-    "contact": "문의"
+    "contact": "문의",
+    "stats": "성능표"
   },
   "regulation": {
     "label": "레귤레이션",
@@ -48,7 +49,8 @@
     "spOver": "능력 포인트는 스탯당 최대 {per}, 합계 최대 {max}입니다",
     "bulk": "내구",
     "physBulk": "물리내구",
-    "specBulk": "특수내구"
+    "specBulk": "특수내구",
+    "spLeft": "{n} 남음"
   },
   "category": {
     "physical": "물리",
@@ -83,7 +85,8 @@
     "octolock": "문어굳히기",
     "jawlock": "물고버티기",
     "ingrain": "뿌리박기",
-    "partiallytrapped": "조이기류"
+    "partiallytrapped": "조이기류",
+    "charge": "충전"
   },
   "weather": {
     "label": "날씨",
@@ -171,7 +174,9 @@
     "helpDesc": "계산 방식과 각 화면 사용법을 확인합니다.",
     "start": "시작하기",
     "partyIncomplete": "먼저 파티 6마리를 완성하세요",
-    "regulationNow": "현재 레귤레이션"
+    "regulationNow": "현재 레귤레이션",
+    "perfTitle": "포켓몬 성능표",
+    "perfDesc": "출전 가능한 모든 포켓몬의 내구 · 타입별 결정력 · 스피드 순위를 검색해서 비교합니다."
   },
   "party": {
     "title": "파티 관리",
@@ -183,7 +188,22 @@
     "previewConditions": "결정력 미리보기 조건",
     "hpHint": "HP 배수",
     "megaHint": "메가스톤을 지니면 메가진화 상태로 계산할 수 있습니다",
-    "notInRegulation": "현재 레귤레이션에서 사용할 수 없습니다"
+    "notInRegulation": "현재 레귤레이션에서 사용할 수 없습니다",
+    "formOnAttack": "공격 시",
+    "formNote": {
+      "palafinhero": "실전에서는 한 번 교체한 뒤 마이티폼으로 싸우므로 표와 실능치는 마이티폼 기준입니다. 배틀 화면에서는 교체 여부에 따라 자동 전환됩니다.",
+      "aegislashblade": "실능치는 실드폼, 공격 데미지는 블레이드폼 기준으로 계산합니다."
+    },
+    "previewStatus": "상태이상",
+    "typeChanged": "{ability}: {from} → {to} 타입",
+    "consistency": {
+      "lead": "모든 포켓몬이 ",
+      "group": "{types} 타입 공격에 {n}배 이상",
+      "sep": ", ",
+      "tail": "의 피해를 입습니다.",
+      "basis": " ({n}마리 기준)",
+      "none": "모든 포켓몬에게 1배 이상 들어가는 공격 타입은 없습니다."
+    }
   },
   "entry": {
     "titleSingle": "싱글 선출",
@@ -212,14 +232,6 @@
     "fairyLock": "페어리록 (교체 불가 {n}턴)",
     "speed": "스피드 비교",
     "speedMine": "내 {name}",
-    "speedOpp": "상대 {label}",
-    "speedNeutral": "무보정",
-    "speedSemi": "준속",
-    "speedMax": "최속",
-    "speedSemiScarf": "준속 스카프",
-    "speedMaxScarf": "최속 스카프",
-    "speedExcluded": "관찰 결과와 모순",
-    "speedInferred": "상대 스피드(랭크 제외) {kind} {value}",
     "min": "최소",
     "max": "최대",
     "expected": "예상 데미지",
@@ -263,11 +275,6 @@
     "observeOrder": "선후공",
     "iMovedFirst": "내가 먼저",
     "oppMovedFirst": "상대가 먼저",
-    "bulkEstimate": "입힌 데미지로 상대 내구 추정",
-    "bulkEstimateHint": "내 행동의 '입힌 데미지(%)'를 입력하면 표시됩니다",
-    "noScenarioMatch": "일치하는 시나리오 없음 (급소 또는 다른 조건)",
-    "estimateOne": "{label}로 추정",
-    "estimateRange": "{weak} 최대 난수 ~ {strong} 최저 난수 사이로 추정",
     "hitItemUsed": "상대가 피격 시 발동하는 도구를 사용함",
     "hitItemSkip": "이번 턴은 도구 효과가 섞여 있어 내구 추정을 생략합니다",
     "hitItemOptions": {
@@ -319,13 +326,60 @@
     "spreadNote": "광역 0.75배 적용",
     "focus": "분석 대상",
     "focusHint": "아래 분석은 선택한 내 포켓몬과 상대 포켓몬 기준입니다",
-    "atkScenario": {
-      "neutral": "무보정",
-      "ev32": "A/C32",
-      "ev32Nature": "A/C32 보정",
-      "itemBoost": "A/C32 보정 + 도구(1.2배)"
+    "resetConfirm": "진행 중인 배틀을 초기화할까요?",
+    "form": {
+      "palafinhero": "마이티폼",
+      "aegislashblade": "블레이드폼"
     },
-    "resetConfirm": "진행 중인 배틀을 초기화할까요?"
+    "formHint": {
+      "palafinhero": "한 번 교체해서 물러나면 마이티폼이 됩니다 (자동 반영)",
+      "aegislashblade": "공격기를 쓰면 블레이드폼, 킹실드를 쓰거나 물러나면 실드폼 (자동 반영). 공격 계산은 항상 블레이드폼"
+    },
+    "itemGone": "없음",
+    "itemGoneHint": "눌러서 도구 소모/분실 처리 (기합의띠·열매·탁쳐서떨구기 등). 반감열매·풍선은 데미지를 입력하면 자동 반영",
+    "itemRestore": "눌러서 도구를 다시 지닌 상태로",
+    "allyDamageMine": "아군 {name}이(가) 받은 데미지 (실수치)",
+    "allyDamageOpp": "상대 아군 {name}이(가) 받은 데미지 (%)",
+    "errAlly": "아군 피해 값이 범위를 벗어났습니다 (내 쪽: 0~최대 HP, 상대: 0~100%)",
+    "transform": "변신",
+    "transformHint": "맞은편 상대로 변신 (괴짜는 등장 시 자동). 종·타입·특성·기술·실능치(HP 제외)·랭크를 복사하고 도구·HP 는 그대로 — 상대의 구애 도구 효과는 복사되지 않음",
+    "transformedFrom": "{name} 변신",
+    "speedPending": "이번 턴 관찰 미리보기 (적용 전)",
+    "band": {
+      "neutral": "무보정",
+      "plus": "성격 보정",
+      "neutralScarf": "무보정+스카프",
+      "plusScarf": "보정+스카프",
+      "copy": "변신(복사)",
+      "copyScarf": "변신+스카프"
+    },
+    "bandExcluded": "제외",
+    "speedHint": "행동 패널에서 선후공(내가 먼저 / 상대가 먼저)을 표시하고 턴을 적용하면 맞지 않는 구간이 지워집니다. 우선도가 다른 기술끼리는 반영하지 않습니다.",
+    "speedHintNarrowed": "선후공 관찰로 좁힌 범위입니다 (S = 남은 능력 포인트). 스피드 하락 성격은 다루지 않습니다.",
+    "verdict": {
+      "none": "모든 경우와 맞지 않음 — 스피드 하락 성격·다른 도구·특성일 수 있음",
+      "scarf": "스카프 확정",
+      "noScarf": "스카프 아님",
+      "plus": "스피드 보정 성격 확정",
+      "neutral": "스피드 무보정 확정"
+    },
+    "critHint": "이 데미지가 급소였으면 체크 (상대 능력 추정에 반영)",
+    "est": {
+      "title": "상대 능력 추정",
+      "reset": "추정 초기화",
+      "transformed": "변신 중이라 실능치가 복사한 값입니다 — 추정하지 않습니다.",
+      "bulk": "내구 (준 데미지)",
+      "attack": "공격 (받은 데미지)",
+      "obs": "관측 {n}회",
+      "infeasible": "입력과 맞는 배분이 없습니다 — 도구·특성·급소·데미지 입력을 확인하세요",
+      "physIndex": "물리 내구",
+      "specIndex": "특수 내구",
+      "effective": "도구 포함",
+      "noItem": "데미지 도구 없음",
+      "itemFixed": "입력한 도구로 계산",
+      "scarfRuledOut": "데미지를 올리는 도구가 확정 → 스카프 아님",
+      "note": "턴을 적용할 때마다 쌓여서 좁혀집니다. 준 데미지는 ±1%p, 받은 데미지는 ±1 HP 허용, 연속기·고정 데미지 기술·피격 도구 발동 턴은 제외. 상대 특성은 입력값 기준."
+    }
   },
   "help": {
     "title": "도움말",
@@ -342,7 +396,9 @@
     "data2": "이미지: 포켓몬 챔피언스 인게임 스프라이트 (Bulbagarden Archives)",
     "limitsTitle": "알려진 한계",
     "limits1": "일부 특성·도구의 특수한 효과는 계산에 반영되지 않을 수 있습니다.",
-    "limits2": "PP 옆에 * 표시가 있는 기술은 챔피언스 PP를 확인하지 못한 추정값입니다."
+    "limits2": "PP 옆에 * 표시가 있는 기술은 챔피언스 PP를 확인하지 못한 추정값입니다.",
+    "flow4": "배틀 화면에서 누가 먼저 움직였는지와 주고받은 데미지를 입력하면, 상대의 스피드(스카프·성격 보정 여부)와 내구·공격 배분 범위를 턴마다 좁혀 갑니다.",
+    "flow5": "포켓몬 성능표에서 출전 가능한 모든 포켓몬의 내구, 타입별 결정력, 스피드 순위(스카프·순풍·끈적끈적네트·특성 포함)를 검색해 비교할 수 있습니다."
   },
   "about": {
     "title": "소개",
@@ -357,5 +413,104 @@
   "footer": {
     "rights": "© 2026 Pokémon Champions Helper · 비공식 팬 도구",
     "trademark": "Pokémon 및 포켓몬 캐릭터 이름은 Nintendo의 상표입니다."
+  },
+  "theme": {
+    "label": "화면 테마",
+    "light": "낮 (밝은 화면)",
+    "dark": "밤 (어두운 화면)",
+    "system": "시스템 설정에 따름"
+  },
+  "typeTip": {
+    "defense": "받을 때 (방어 상성)",
+    "attack": "공격할 때",
+    "combinedHint": "두 타입 사이 + 에 올리면 합친 상성",
+    "weak4": "약점 ×4",
+    "weak2": "약점 ×2",
+    "resist2": "반감 ×½",
+    "resist4": "반감 ×¼",
+    "immune": "무효",
+    "super": "효과 굉장 ×2",
+    "notVery": "효과 별로 ×½",
+    "noEffect": "효과 없음"
+  },
+  "perf": {
+    "title": "포켓몬 성능표",
+    "sub": "{reg} 출전 가능 포켓몬 {n}종 (메가진화 포함) · 레벨 50 기준",
+    "search": "포켓몬 이름으로 검색",
+    "tab": {
+      "bulk": "내구",
+      "power": "결정력",
+      "speed": "스피드"
+    },
+    "new": "신규",
+    "count": "{n}줄",
+    "empty": "조건에 맞는 포켓몬이 없습니다",
+    "col": {
+      "mon": "포켓몬",
+      "type": "타입",
+      "move": "기술"
+    },
+    "allTypes": "모든 타입",
+    "allCats": "물리 + 특수",
+    "alt": "차선",
+    "usesDef": "방어로 계산",
+    "hits": "{n}회",
+    "crit": "반드시 급소",
+    "cfg": {
+      "s0": "S0",
+      "s32": "S32",
+      "s32plus": "S32+성격"
+    },
+    "pen": {
+      "recoil": "반동",
+      "selfDrop": "능력 하락",
+      "recharge": "다음 턴 행동 불가",
+      "charge": "모으기",
+      "lock": "기술 고정",
+      "selfKo": "사용 후 기절",
+      "selfDamage": "HP 소모",
+      "condition": "조건부",
+      "accuracy": "명중 {n}",
+      "randomHits": "타수 랜덤"
+    },
+    "power": {
+      "note": "결정력 = 위력 × 공격(특공) 실능치 × 자속 × 특성 보정 (도구 없음, 메가진화는 메가스톤, 날씨·필드 없음). 타입별로 결정력이 가장 높은 기술을 보여 주고, 그 기술에 반동·능력 하락·명중 100 미만 같은 페널티가 있으면 페널티 없고 반드시 맞는 차선 기술을 아랫줄에 함께 보여 줍니다. 특성은 결정력이 가장 높아지는 것으로 계산하고 영향을 준 경우에만 표시합니다(스킬링크는 5회 고정). 타수가 랜덤인 연속기는 기술이 맞았다는 전제로 타수 확률에 따른 기댓값(위)과 최소~최대(아래)를 표시합니다: 2~5회는 2·3회 35%, 4·5회 15%, 찍찍베기·트리플악셀은 두 번째 타부터 매번 명중 판정. 바디프레스는 방어로 계산하며, 속임수처럼 상대 능력치를 쓰는 기술과 위력이 상대에 따라 정해지는 기술(무게·HP 비례 등)은 뺐습니다."
+    },
+    "bulk": {
+      "plus": "성격 보정 (방어·특방 각각 +10%)",
+      "hp": "HP (H32)",
+      "def": "방어 (B32)",
+      "spd": "특방 (D32)",
+      "phys": "물리내구 H×B",
+      "spec": "특수내구 H×D",
+      "note": "HP·방어·특방에 능력 포인트를 32씩 준 실능치와 내구 지수(HP × 방어, HP × 특방). 특성·도구 보정은 넣지 않았습니다. 성격 보정을 켜면 방어와 특방 각각에 +10%를 적용합니다 (실제로는 둘 중 하나만)."
+    },
+    "speed": {
+      "cfgLabel": "투자",
+      "fieldLabel": "필드",
+      "fieldNone": "없음",
+      "ability": "특성 보정 포함",
+      "onlyMatch": "검색한 포켓몬이 있는 줄만",
+      "legend": "종족값 옆 + = S32+성격 보정, 표시 없음 = S32 무보정, S0 = 무투자 무보정. 배율 = 구애스카프 × 특성 × 순풍(2배) × 끈적끈적네트(-1랭크). 특성은 조건을 만족했다고 보고 계산합니다 (날씨·필드, 곡예는 도구 소모 후, 속보는 상태이상, 가속은 1턴 뒤). 메가진화는 메가스톤을 지니므로 스카프 없음.",
+      "base": "종족값",
+      "mult": "배율",
+      "speed": "실수치",
+      "cfg": {
+        "s0": "S0",
+        "s32": "S32",
+        "s32plus": "S32+성격",
+        "scarf": "스카프 S32",
+        "scarfPlus": "스카프 S32+성격"
+      }
+    },
+    "reliable": "페널티 없는 기술 기준 정렬",
+    "reliableHint": "가장 센 기술에 페널티가 있으면 차선 기술의 결정력으로 정렬합니다. 페널티 없는 기술이 없는 타입은 맨 뒤로 갑니다.",
+    "hitsRange": "{min}~{max}회",
+    "hitsExp": "기댓값 {n}회",
+    "hitPct": "{n}회 {p}%",
+    "rangeHint": "타수가 랜덤인 연속기는 위 = 타수 확률에 따른 기댓값, 아래 = 최소~최대",
+    "loadedDice": "속임수주사위 지님",
+    "unreleased": "(미출시)",
+    "loadedDiceHint": "속임수주사위를 지녔을 때로 계산: 2~5회 기술은 4·5회 50%씩, 찍찍베기는 4~10회, 트리플악셀은 3회 모두 맞음. 메가진화는 메가스톤을 지니므로 해당 없음. 도구를 지녀서 애크러뱃 2배도 없음."
   }
 }

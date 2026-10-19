@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { applyBoost, calcStat, effectiveSpeed, isSpValid } from '../utils/stats'
-import { hpRemainderHint, koChance, koHitIndex, simulateMultiHit, statusDamage } from '../utils/ko'
+import {
+  holdsOnAtFull,
+  hpRemainderHint,
+  koChance,
+  koHitIndex,
+  simulateMultiHit,
+  statusDamage,
+} from '../utils/ko'
+import type { Combatant } from '../utils/damage'
 
 const adamant = { id: 'adamant', plus: 'atk', minus: 'spa' } as const
 
@@ -38,11 +46,29 @@ describe('KO 계산', () => {
     expect(c.percent).toBeCloseTo(50)
     expect(koChance(rolls, 150)).toEqual({ hits: 2, guaranteed: true, percent: 100 })
   })
+  it('기합의띠/옹골참: 만피에서 1타 KO 불가 → 2타', () => {
+    expect(koChance(rolls, 85, 4, true)).toEqual({ hits: 2, guaranteed: true, percent: 100 })
+    const mon = (extra: Partial<Combatant>): Combatant => ({
+      species: {} as Combatant['species'],
+      stats: { hp: 100, atk: 1, def: 1, spa: 1, spd: 1, spe: 1 },
+      ability: '',
+      item: '',
+      ...extra,
+    })
+    expect(holdsOnAtFull(mon({}), mon({ item: 'focussash' }))).toBe(true)
+    expect(holdsOnAtFull(mon({}), mon({ item: 'focussash', hp: 99 }))).toBe(false)
+    expect(holdsOnAtFull(mon({}), mon({ ability: 'sturdy' }))).toBe(true)
+    expect(holdsOnAtFull(mon({ ability: 'moldbreaker' }), mon({ ability: 'sturdy' }))).toBe(false)
+    expect(holdsOnAtFull(mon({ ability: 'moldbreaker' }), mon({ item: 'focussash' }))).toBe(true)
+  })
   it('연속기 KO 시점과 접촉 반격', () => {
     expect(koHitIndex([30, 30, 30, 30], 100)).toBe(4)
     expect(koHitIndex([30, 30], 100)).toBeNull()
     // 공격 측 HP 20, 최대 80, 울퉁불퉁멧(1/6 → 13) → 2타째에 공격 측이 먼저 쓰러짐
-    expect(simulateMultiHit([10, 10, 10], 100, 20, 80, 1 / 6)).toEqual({ outcome: 'attacker', atHit: 2 })
+    expect(simulateMultiHit([10, 10, 10], 100, 20, 80, 1 / 6)).toEqual({
+      outcome: 'attacker',
+      atHit: 2,
+    })
   })
   it('상태이상 잔여 데미지', () => {
     expect(statusDamage(160, 'psn')).toBe(20)

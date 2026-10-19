@@ -10,7 +10,8 @@ export function useEntry(mode: BattleMode) {
 
   const toggle = (i: number) => {
     const at = picks.value.indexOf(i)
-    if (at !== -1) picks.value.splice(at, 1) // 해제하면 뒤 순서가 당겨짐
+    if (at !== -1)
+      picks.value.splice(at, 1) // 해제하면 뒤 순서가 당겨짐
     else if (picks.value.length < max) picks.value.push(i)
   }
   const order = (i: number) => {

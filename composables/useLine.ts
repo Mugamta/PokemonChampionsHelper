@@ -12,5 +12,8 @@ export function useLine() {
     return name !== undefined ? t(key!, { name }) : t(key!)
   }
   return (line: Line) =>
-    t(line.key, Object.fromEntries(Object.entries(line.params || {}).map(([k, v]) => [k, param(v)])))
+    t(
+      line.key,
+      Object.fromEntries(Object.entries(line.params || {}).map(([k, v]) => [k, param(v)])),
+    )
 }

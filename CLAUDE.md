@@ -15,7 +15,7 @@
 
 - Nuxt 4 + Vue 3 + Vuetify 4 + @nuxtjs/i18n, **`ssr: false` (SPA)**, TypeScript(새 코드)
 - `srcDir` = 레포 루트 (`app/` 폴더를 만들지 말 것). `~/` = 루트.
-- `npm run dev` (localhost:3000) / `npm test` (vitest, 데미지 계산을 @smogon/calc 와 대조) / `npm run build:data`
+- `npm run dev` (localhost:3000) / `npm test` (vitest, 데미지 계산을 @smogon/calc 와 대조 + 배틀 상태 머신) / `npm run lint` / `npm run format` (Prettier) / `npm run build:data`
 - 배포: `main` push → GitHub Actions(`npm install` → `npm test` → `nuxt build --preset github_pages`, base `/PokemonChampionsHelper/`)
 - Windows Git Bash 에서 base URL 로 빌드할 때는 `MSYS_NO_PATHCONV=1` 필수 (안 하면 경로가 변환돼 모든 HTML 이 "Redirecting..." 이 됨)
 
@@ -30,5 +30,7 @@
 6. **composable 자동 import 함정**: 같은 모듈에서 `import type { X }` 만 하면 그 모듈의 함수 자동 import 가 빠질 수 있다.
    타입을 import 하는 파일에서는 함수도 명시적으로 import (`import { useEntry, type BattleMode } from '~/composables/useEntry'`).
 7. 메가진화: 슬롯의 `species` 는 항상 원종 id. 메가 폼은 `useGameData().megaFor(species, item)` (도구가 메가스톤일 때)로 결정.
-8. 코드 스타일: Prettier (2칸, 세미콜론 없음, 작은따옴표, printWidth 100), 한국어 주석, `// ── 섹션 ─────` 구분선.
+8. 코드 스타일: Prettier (2칸, 세미콜론 없음, 작은따옴표, printWidth 100) — 커밋 전 `npm run format`, `npm run lint` 경고 0 유지.
+   `public/`, `scripts/sources/`, `*.md` 는 Prettier 대상 아님. 한국어 주석, `// ── 섹션 ─────` 구분선.
+   색은 `assets/css/main.css` 의 토큰으로 (낮/밤 테마가 있음, docs/ARCHITECTURE.md "스타일").
 9. 커밋은 사용자가 요청할 때만. 메시지는 한국어. `main` push = 배포이므로 push 도 요청 시에만.
