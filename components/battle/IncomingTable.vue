@@ -40,6 +40,9 @@
                 v-model="oppSlot.moves[k - 1]"
                 :learnset="gd.learnset(oppSlot.species)"
                 :exclude="oppSlot.moves.filter((_, j) => j !== k - 1)"
+                :ability="attacker?.ability"
+                :species="attacker?.species"
+                :field="b.fieldFor('mine')"
               />
             </td>
             <td v-for="c in cols" :key="c.key">
@@ -71,6 +74,10 @@ const crit = ref(false)
 const s = computed(() => props.b.state.value!)
 
 const oi = computed(() => props.an.activeIdx('opp'))
+// 기술 타입 표시용: 공격할 때의 폼·특성 (스킨류·오라휠·킬가르도 블레이드폼 등)
+const attacker = computed(() =>
+  oi.value == null ? null : (props.b.combatantOf('opp', oi.value, undefined, true) ?? null),
+)
 const oppSlot = computed(() => (oi.value == null ? null : oppTeam.slots.value[oi.value]))
 
 // 내 로스터 전체 + 필드의 내 포켓몬이 아직 메가진화 전이면 메가 상태 열 추가

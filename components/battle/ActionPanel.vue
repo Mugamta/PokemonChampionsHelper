@@ -37,6 +37,15 @@
             >
               {{ t('battle.switch') }}
             </button>
+            <button
+              type="button"
+              class="chip"
+              :class="{ active: a.kind === 'cant' }"
+              :title="t('battle.cantHint')"
+              @click="a.kind = 'cant'"
+            >
+              {{ t('battle.cant') }}
+            </button>
           </div>
 
           <template v-if="a.kind === 'switch'">
@@ -53,6 +62,23 @@
                 {{ gd.name('pokemon', b.resolveAt(side, i)?.species.id) }}
               </option>
             </select>
+          </template>
+
+          <!-- 행동 불가 (잠듦·얼음 등). 깨어나서 기술을 썼으면 "기술 사용"으로 → 상태이상이 풀림 -->
+          <template v-else-if="a.kind === 'cant'">
+            <div class="chip-row">
+              <button
+                v-for="r in CANT_REASONS"
+                :key="r"
+                type="button"
+                class="chip"
+                :class="{ active: a.cantReason === r }"
+                @click="a.cantReason = r"
+              >
+                {{ t('battle.cantReason.' + r) }}
+              </button>
+            </div>
+            <p class="muted small cant-hint">{{ t('battle.cantHint') }}</p>
           </template>
 
           <template v-else>
@@ -87,23 +113,71 @@
             </label>
             <div class="amount">
               <span class="section-label amount-head"
-                >{{ t(side === 'mine' ? 'battle.dealtPct' : 'battle.takenDmg') }}
-                <!-- 급소였으면 체크 (상대 추정에 반영) -->
+                >{{
+                  spreadOther(side, slot) != null
+                    ? t(side === 'mine' ? 'battle.dealtPctTo' : 'battle.takenDmgTo', {
+                        name: targetName(side, a.target),
+                      })
+                    : t(side === 'mine' ? 'battle.dealtPct' : 'battle.takenDmg')
+                }}
+                <!-- 급소였으면 체크 (상대 추정에 반영) / 빗나감·실패 -->
                 <label class="crit" :title="t('battle.critHint')">
                   <input v-model="a.crit" type="checkbox" />
                   {{ t('common.crit') }}
                 </label>
+                <label class="crit" :title="t('battle.missedHint')">
+                  <input v-model="a.missed" type="checkbox" />
+                  {{ t('battle.missed') }}
+                </label>
+                <!-- 데미지 / 체력 전후 입력 방식 (전체 공통) -->
+                <button
+                  type="button"
+                  class="chip mode-chip"
+                  :class="{ active: dmgMode === 'hp' }"
+                  :title="t('battle.hpModeHint')"
+                  @click="dmgMode = dmgMode === 'hp' ? 'damage' : 'hp'"
+                >
+                  {{ t('battle.hpMode') }}
+                </button>
               </span>
-              <input
-                v-model.number="a.amount"
-                type="number"
-                min="0"
-                :max="side === 'mine' ? 100 : undefined"
-                step="0.1"
-                class="field-input num"
-                :placeholder="side === 'mine' ? '0~100' : '0'"
+              <BattleDamageInput
+                v-model="a.amount"
+                v-bind="hpOf(side, a.target)"
+                :disabled="a.missed"
               />
             </div>
+            <!-- 더블 광역기: 다른 상대 칸이 받은 피해 -->
+            <div v-if="spreadOther(side, slot) != null" class="amount">
+              <span class="section-label">{{
+                t(side === 'mine' ? 'battle.dealtPctTo' : 'battle.takenDmgTo', {
+                  name: targetName(side, 1 - a.target),
+                })
+              }}</span>
+              <BattleDamageInput
+                v-model="a.amount2"
+                v-bind="hpOf(side, 1 - a.target)"
+                :disabled="a.missed"
+              />
+            </div>
+            <!-- 공격 후 교체: 상대 (드래곤테일·울부짖기 / 탈출버튼·위기회피), 자기 (유턴 등 / 상대 레드카드) -->
+            <label v-if="b.canForceSwitch(side, slot)" class="after-switch">
+              <span class="section-label">{{ t('battle.foeSwitch') }}</span>
+              <select v-model="a.foeSwitch" class="field-input">
+                <option :value="null">{{ t('battle.noSwitch') }}</option>
+                <option v-for="i in b.benchOf(foeOf(side))" :key="i" :value="i">
+                  {{ gd.name('pokemon', b.resolveAt(foeOf(side), i)?.species.id) }}
+                </option>
+              </select>
+            </label>
+            <label v-if="b.canSelfSwitch(side, slot)" class="after-switch">
+              <span class="section-label">{{ t('battle.selfSwitch') }}</span>
+              <select v-model="a.selfSwitch" class="field-input">
+                <option :value="null">{{ t('battle.noSwitch') }}</option>
+                <option v-for="i in b.benchOf(side)" :key="i" :value="i">
+                  {{ gd.name('pokemon', b.resolveAt(side, i)?.species.id) }}
+                </option>
+              </select>
+            </label>
             <div
               v-if="b.N > 1 && b.allyOf(side, slot) != null && b.hitsAlly(a.move)"
               class="amount ally"
@@ -175,23 +249,22 @@
           {{ t('battle.oppMovedFirst') }}
         </button>
       </div>
-      <label class="hit-item">
-        <input v-model="s.hitItemUsed" type="checkbox" />
-        <span>{{ t('battle.hitItemUsed') }}</span>
-        <select v-if="s.hitItemUsed" v-model="s.hitItemNote" class="field-input">
-          <option value="" />
-          <option
-            v-for="o in ['berry', 'rockyhelmet', 'weaknesspolicy', 'other']"
-            :key="o"
-            :value="o"
-          >
-            {{ t('battle.hitItemOptions.' + o) }}
-          </option>
-        </select>
-      </label>
-      <p v-if="s.hitItemUsed" class="muted small">
-        {{ t('battle.hitItemSkip') }}
-      </p>
+      <!-- 상대 도구 확정: 이번 턴에 드러난 도구 (먹다남은음식 회복·하양허브·반감열매·그라운드코트 등) -->
+      <div class="item-confirm">
+        <span class="section-label" :title="t('battle.itemConfirmHint')">{{
+          t('battle.itemConfirm')
+        }}</span>
+        <div v-for="oi in oppActive" :key="oi" class="ic-row">
+          <span v-if="oppActive.length > 1" class="ic-name">{{
+            gd.name('pokemon', b.resolveAt('opp', oi)?.species.id)
+          }}</span>
+          <TeamItemPicker
+            :model-value="confirmedItem(oi)"
+            :species="b.oppSlots.value[oi]?.species"
+            @update:model-value="(v: string) => b.confirmItem('opp', oi, v)"
+          />
+        </div>
+      </div>
     </div>
 
     <div v-if="an.statusForecast.value.length" class="status-fc">
@@ -221,8 +294,15 @@
 </template>
 
 <script setup lang="ts">
-import { STATUSES, VOLATILE_GROUPS, type BattleSide, type useBattle } from '~/composables/useBattle'
+import {
+  CANT_REASONS,
+  STATUSES,
+  VOLATILE_GROUPS,
+  type BattleSide,
+  type useBattle,
+} from '~/composables/useBattle'
 import type { useBattleAnalysis } from '~/composables/useBattleAnalysis'
+import { isSpreadMove } from '~/utils/damage'
 
 const props = defineProps<{
   b: ReturnType<typeof useBattle>
@@ -244,6 +324,16 @@ const benchOf = (side: BattleSide) =>
         !s.value.sides[side].active.includes(i) &&
         (side === 'mine' || props.b.oppSlots.value[i]?.species),
     )
+const foeOf = (side: BattleSide): BattleSide => (side === 'mine' ? 'opp' : 'mine')
+// 더블: 광역기가 맞히는 다른 상대 칸 (없으면 null)
+const spreadOther = (side: BattleSide, slot: number) => {
+  if (props.b.N < 2) return null
+  const a = s.value.actions[side][slot]
+  if (!a || a.kind !== 'move' || !a.move || !isSpreadMove(gd.move(a.move))) return null
+  const foe = foeOf(side)
+  const i = s.value.sides[foe].active[1 - a.target]
+  return i != null && !props.b.isFainted(foe, i) ? i : null
+}
 const allyName = (side: BattleSide, slot: number) =>
   gd.name('pokemon', props.b.resolveAt(side, props.b.allyOf(side, slot))?.species.id)
 const targetName = (side: BattleSide, k: number) => {
@@ -283,6 +373,49 @@ const onMove = (side: BattleSide, slot: number, moveId: string) => {
   team.moves[empty === -1 ? 3 : empty] = moveId
 }
 
+// 상대 도구 확정 대상: 필드에 있는 상대 + 이번 턴 교체로 들어오는 상대 (교체 / 유턴·바톤터치 등 / 내가 강제 교체)
+const oppActive = computed(() => {
+  const ids: (number | null)[] = [...s.value.sides.opp.active]
+  for (const a of s.value.actions.opp) {
+    if (a.kind === 'switch') ids.push(a.switchTo)
+    else ids.push(a.selfSwitch)
+  }
+  for (const a of s.value.actions.mine) ids.push(a.foeSwitch)
+  return [...new Set(ids)].filter(
+    (i): i is number =>
+      i != null && !!props.b.oppSlots.value[i]?.species && !props.b.isFainted('opp', i),
+  )
+})
+const confirmedItem = (oi: number) =>
+  s.value.sides.opp.mons[oi]?.itemKnown ? (props.b.oppSlots.value[oi]?.item ?? '') : ''
+
+// 데미지 입력 방식 (DamageInput 과 공유)
+const dmgMode = useState<'damage' | 'hp'>('battle-dmg-mode', () => 'damage')
+// 고른 방식은 브라우저에 기억 (새로고침해도 유지)
+onMounted(() => {
+  try {
+    if (localStorage.getItem('pch_dmg_mode') === 'hp') dmgMode.value = 'hp'
+  } catch {
+    // 저장소 차단은 무시
+  }
+})
+watch(dmgMode, (v) => {
+  try {
+    localStorage.setItem('pch_dmg_mode', v)
+  } catch {
+    // 무시
+  }
+})
+// 맞는 쪽(상대 필드 k칸)의 지금 HP: 내 기술 → 상대 %(0~100), 상대 기술 → 내 실수치
+const hpOf = (side: BattleSide, k: number) => {
+  const foe = foeOf(side)
+  const i = s.value.sides[foe].active[k] ?? null
+  const hp = i == null ? 0 : s.value.sides[foe].mons[i]!.hp
+  return side === 'mine'
+    ? { unit: 'pct' as const, current: hp, max: 100 }
+    : { unit: 'hp' as const, current: hp, max: i == null ? 0 : props.b.maxHp('mine', i) }
+}
+
 const errMax = computed(() => {
   const a = s.value.actions.opp.find((x) => x.kind === 'move' && x.amount != null)
   const target = a ? s.value.sides.mine.active[a.target] : null
@@ -291,6 +424,19 @@ const errMax = computed(() => {
 </script>
 
 <style scoped>
+.mode-chip {
+  min-height: 20px;
+  padding: 0 7px;
+  font-size: 11px;
+}
+.cant-hint {
+  margin: 4px 0 0;
+}
+.after-switch {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
 .actions {
   display: flex;
   flex-direction: column;
@@ -415,15 +561,24 @@ const errMax = computed(() => {
   flex-direction: column;
   gap: 6px;
 }
-.hit-item {
+.item-confirm {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
+  flex-direction: column;
+  gap: 4px;
 }
-.hit-item select {
-  width: auto;
+.ic-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ic-row > :last-child {
+  flex: 1;
+  min-width: 0;
+}
+.ic-name {
+  font-size: 12px;
+  color: var(--text-2);
+  white-space: nowrap;
 }
 .status-fc {
   font-size: 12px;

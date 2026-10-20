@@ -86,8 +86,10 @@ export function statusDamage(maxHp: number, status: string, ability = '', toxicT
   return 0
 }
 
-// HP 실능치 배수 조정 판정 (기존 partySelect checkHpCondition 규칙 그대로, 위에서부터 우선)
-//   재생력 3n → 포이즌힐 8n+1 → 먹다남은음식/검은진흙 16n → 대타출동 16n+1 → 씨뿌리기 8n-1 → 기본 16n-1
+// HP 실능치 배수 조정 판정 (위에서부터 우선). 소수점 아래는 버림이라 n 배수에서 효율이 바뀐다
+//   재생력 3n (1/3 회복) → 포이즌힐 8n (1/8 회복) → 대타출동 + 먹다남은음식/검은진흙 16n+1 (대타 4번 + 회복 최대)
+//   → 먹다남은음식/검은진흙 16n (1/16 회복) → 자뭉열매 4n (1/4 회복) → 대타출동 4n+1 (1/4 씩 4번 쓰고 1 남김)
+//   → 생명의구슬 10n-1 (반동 1/10 최소) → 기본 16n-1 (모래바람·화상 등 1/16 데미지 최소)
 export function hpRemainderHint(
   hp: number,
   ability: string,
@@ -95,10 +97,42 @@ export function hpRemainderHint(
   moves: string[],
 ): { label: string; ok: boolean } | null {
   if (!hp) return null
+  const sub = moves.includes('substitute')
+  const lefties = item === 'leftovers' || item === 'blacksludge'
   if (ability === 'regenerator') return { label: '3n', ok: hp % 3 === 0 }
-  if (ability === 'poisonheal') return { label: '8n+1', ok: hp % 8 === 1 }
-  if (item === 'leftovers' || item === 'blacksludge') return { label: '16n', ok: hp % 16 === 0 }
-  if (moves.includes('substitute')) return { label: '16n+1', ok: hp % 16 === 1 }
-  if (moves.includes('leechseed')) return { label: '8n-1', ok: (hp + 1) % 8 === 0 }
+  if (ability === 'poisonheal') return { label: '8n', ok: hp % 8 === 0 }
+  if (sub && lefties) return { label: '16n+1', ok: hp % 16 === 1 }
+  if (lefties) return { label: '16n', ok: hp % 16 === 0 }
+  if (item === 'sitrusberry') return { label: '4n', ok: hp % 4 === 0 }
+  if (sub) return { label: '4n+1', ok: hp % 4 === 1 }
+  if (item === 'lifeorb') return { label: '10n-1', ok: (hp + 1) % 10 === 0 }
   return { label: '16n-1', ok: (hp + 1) % 16 === 0 }
+}
+
+// ── 실전 KO 확률 (명중·급소·무작위 위력 포함) ─────────────
+// outcomes: 한 번 공격의 데미지와 확률 (빗나감 = 0, 급소 난수, 보통 난수 …, 합 1). hits 번 안에 쓰러질 확률(%)
+// holdOn: 만피에서 첫 타는 1 남김 (기합의띠·옹골참)
+export function koProbWithin(
+  outcomes: { dmg: number; p: number }[],
+  hp: number,
+  hits: number,
+  holdOn = false,
+): number {
+  if (!hp || hp <= 0) return 100
+  let dist = new Map<number, number>([[0, 1]])
+  let ko = 0
+  for (let h = 0; h < hits; h++) {
+    const next = new Map<number, number>()
+    for (const [sum, p] of dist) {
+      for (const o of outcomes) {
+        let v = sum + o.dmg
+        if (holdOn && h === 0 && v >= hp) v = hp - 1
+        const q = p * o.p
+        if (v >= hp) ko += q
+        else next.set(v, (next.get(v) || 0) + q)
+      }
+    }
+    dist = next
+  }
+  return Math.min(100, ko * 100)
 }

@@ -293,9 +293,14 @@ for (const id of [...inReg, ...megaIds].sort()) {
       : { learnset: learnsetOf(id) }),
   }
 }
-// 배틀 중에만 바뀌는 폼 (종족값이 다른 것만). 슬롯에서는 고를 수 없고 계산에만 쓴다
-//   팔라피 마이티폼: 한 번 교체해 들어오면 마이티폼 / 킬가르도 블레이드폼: 공격기를 쓸 때
-const BATTLE_FORMS = { palafin: 'palafinhero', aegislash: 'aegislashblade' }
+// 배틀 중에만 바뀌는 폼. 슬롯에서는 고를 수 없고 계산과 폼 토글에만 쓴다 (캐스퐁은 날씨로 타입만 바뀌어서 계산에서 처리)
+//   팔라피 마이티폼: 한 번 교체해 들어오면 마이티폼 / 킬가르도 블레이드폼: 공격기를 쓸 때 / 모르페코 배고픈모양
+const BATTLE_FORMS = {
+  palafin: 'palafinhero',
+  aegislash: 'aegislashblade',
+  morpeko: 'morpekohangry', // 배고픈모양: 매 턴 끝에 바뀜, 오라휠 타입만 다름 (종족값 같음)
+  mimikyu: 'mimikyubusted', // 둔갑이 풀린 모습: 첫 공격을 막은 뒤 (종족값 같음)
+}
 for (const [from, id] of Object.entries(BATTLE_FORMS)) {
   if (!pokemon[from]) continue
   const s = dex[id]
@@ -529,6 +534,29 @@ const FORM_NAME_OVERRIDES = {
   typhlosionhisui: { ko: '블레이범 (히스이의 모습)' },
   zoroarkhisui: { ko: '조로아크 (히스이의 모습)' },
   basculegionf: { ko: '대쓰여너 (암컷의 모습)' },
+  // 성별로 폼이 나뉘는 포켓몬: 수컷도 "(수컷의 모습)" (게임 표기). PokeAPI 는 암컷만 폼 이름이 있음
+  indeedee: { ko: '에써르 (수컷의 모습)', ja: 'イエッサン (オスのすがた)', en: 'Male Indeedee' },
+  meowstic: {
+    ko: '냐오닉스 (수컷의 모습)',
+    ja: 'ニャオニクス (オスのすがた)',
+    en: 'Male Meowstic',
+  },
+  basculegion: {
+    ko: '대쓰여너 (수컷의 모습)',
+    ja: 'イダイトウ (オスのすがた)',
+    en: 'Male Basculegion',
+  },
+  // 메가냐오닉스: 수컷·암컷 메가가 따로 있는데 PokeAPI 이름이 같음
+  meowsticmmega: {
+    ko: '메가냐오닉스 (수컷의 모습)',
+    ja: 'メガニャオニクス (オスのすがた)',
+    en: 'Mega Meowstic (Male)',
+  },
+  meowsticfmega: {
+    ko: '메가냐오닉스 (암컷의 모습)',
+    ja: 'メガニャオニクス (メスのすがた)',
+    en: 'Mega Meowstic (Female)',
+  },
 }
 const MEGA_SUFFIX = (forme) => (forme.match(/Mega-?(.*)$/)?.[1] || '').replace('-', '')
 
@@ -564,7 +592,8 @@ for (const [id, p] of Object.entries(pokemon)) {
       else if (fn) n = `${sp[L]} (${fn})`
       else n = `${sp[L] || dex[id].baseSpecies} (${p.forme})`
     }
-    names[L].pokemon[id] = n
+    // 폼 이름 지정은 기본 폼(성별 수컷 등)에도 적용
+    names[L].pokemon[id] = FORM_NAME_OVERRIDES[id]?.[L] || n
   }
 }
 const pick = (src, apiId, L) => (apiId && src[apiId]?.[L]) || null
@@ -636,6 +665,74 @@ for (const L of Object.keys(names)) {
   }
 }
 
+// ── 6.5 사용률 (Smogon 월별 통계) ─────────────
+// 레귤레이션마다 싱글 포맷(gen9championsbssreg<id>) 통계 중 가장 최근 달의 chaos JSON (레이팅 가중 1500).
+// 포켓몬(폼)별 사용 수 + 가장 많이 쓴 기술 4개·배분(성격+능력 포인트)·특성·도구 → 선출 화면 상대 자동 배치에 사용.
+// 받기 실패(오프라인 등)면 기존 usage.json 을 유지한다. 새 달 반영은 --refresh.
+const STATS = 'https://www.smogon.com/stats'
+const USAGE_CUTOFF = 1500
+const USAGE_MIN = 200 // 사용 수가 이보다 적으면 통계를 쓰지 않음 (표본 부족)
+const top = (obj, ok) =>
+  Object.entries(obj || {})
+    .filter(([k]) => k && k !== 'nothing' && ok(k))
+    .sort((a, b) => b[1] - a[1])
+    .map(([k]) => k)
+function summarizeUsage(json, month, format) {
+  const out = {}
+  for (const [name, d] of Object.entries(json.data)) {
+    const id = toID(name)
+    const p = pokemon[id]
+    const count = d['Raw count']
+    if (!p || count < USAGE_MIN) continue
+    const learn = new Set(p.learnset ?? pokemon[p.mega?.from]?.learnset ?? [])
+    const spread = top(d.Spreads, (k) => {
+      const sp = k.split(':')[1]?.split('/').map(Number) ?? []
+      return (
+        sp.length === 6 && sp.every((v) => v >= 0 && v <= 32) && sp.reduce((a, b) => a + b) <= 66
+      )
+    })[0]
+    const [nature, sp] = spread ? spread.split(':') : []
+    out[id] = {
+      count,
+      moves: top(d.Moves, (m) => !!moves[m] && learn.has(m)).slice(0, 4),
+      ...(nature &&
+        natureOut[toID(nature)] && { nature: toID(nature), sp: sp.split('/').map(Number) }),
+      ability: top(d.Abilities, (a) => !!abilities[a])[0] ?? '',
+      items: top(d.Items, (i) => !!items[i]).slice(0, 3),
+    }
+  }
+  return { format, month, battles: json.info['number of battles'], pokemon: out }
+}
+async function buildUsage() {
+  const index = await cached(`${STATS}/`, 'smogon/index.html')
+  const months = [...index.matchAll(/href="(\d{4}-\d{2})\/"/g)]
+    .map((m) => m[1])
+    .sort()
+    .reverse()
+  const out = {}
+  for (const r of regulations) {
+    const format = `gen9championsbssreg${toID(r.id)}`
+    const file = `${format}-${USAGE_CUTOFF}.json`
+    for (const month of months.slice(0, 6)) {
+      const list = await cached(`${STATS}/${month}/chaos/`, `smogon/${month}/chaos.html`)
+      if (!list.includes(`"${file}"`)) continue
+      const json = JSON.parse(
+        await cached(`${STATS}/${month}/chaos/${file}`, `smogon/${month}/${file}`),
+      )
+      out[r.id] = summarizeUsage(json, month, format)
+      break
+    }
+    if (!out[r.id]) warn.push(`사용률 통계 없음: ${format}`)
+  }
+  return out
+}
+let usage = null
+try {
+  usage = await buildUsage()
+} catch (e) {
+  warn.push(`사용률 통계 받기 실패 (기존 usage.json 유지): ${e.message}`)
+}
+
 // ── 7. 출력 ─────────────
 fs.mkdirSync(OUT, { recursive: true })
 const write = (name, data) => fs.writeFileSync(path.join(OUT, name), JSON.stringify(data))
@@ -646,6 +743,7 @@ write('items.json', items)
 write('natures.json', natureOut)
 write('types.json', { types: TYPES, chart: typeChart })
 write('regulations.json', regulations)
+if (usage) write('usage.json', usage)
 for (const L of Object.keys(names)) {
   write(`names.${L}.json`, names[L])
   write(`texts.${L}.json`, texts[L])

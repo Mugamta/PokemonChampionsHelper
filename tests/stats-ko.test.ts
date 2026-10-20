@@ -77,9 +77,18 @@ describe('KO 계산', () => {
     expect(statusDamage(160, 'tox', '', 3)).toBe(30)
     expect(statusDamage(160, 'psn', 'magicguard')).toBe(0)
   })
-  it('HP 배수 판정은 기존 규칙 유지', () => {
+  it('HP 배수 판정', () => {
     expect(hpRemainderHint(201, 'regenerator', '', [])).toEqual({ label: '3n', ok: true })
+    expect(hpRemainderHint(176, 'poisonheal', '', [])).toEqual({ label: '8n', ok: true })
     expect(hpRemainderHint(176, '', 'leftovers', [])).toEqual({ label: '16n', ok: true })
-    expect(hpRemainderHint(175, '', '', [])).toEqual({ label: '16n-1', ok: true })
+    expect(hpRemainderHint(177, '', 'leftovers', ['substitute'])).toEqual({
+      label: '16n+1',
+      ok: true,
+    })
+    expect(hpRemainderHint(177, '', '', ['substitute'])).toEqual({ label: '4n+1', ok: true })
+    expect(hpRemainderHint(176, '', '', ['substitute'])).toEqual({ label: '4n+1', ok: false })
+    expect(hpRemainderHint(176, '', 'sitrusberry', [])).toEqual({ label: '4n', ok: true })
+    expect(hpRemainderHint(179, '', 'lifeorb', [])).toEqual({ label: '10n-1', ok: true })
+    expect(hpRemainderHint(175, '', '', ['leechseed'])).toEqual({ label: '16n-1', ok: true })
   })
 })

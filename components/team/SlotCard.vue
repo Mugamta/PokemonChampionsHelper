@@ -1,6 +1,7 @@
 <!--
   읽기 전용 포켓몬 카드 (선출 화면의 내 파티, 배틀 화면의 대기 포켓몬)
   megaToggle: 메가진화 전/후 토글 (선출 화면 — 메가진화 전 모습으로 싸우는 경우도 표에서 보기 위해).
+  formToggle: 배틀 폼 토글 (킬가르도·돌핀맨·모르페코, 캐스퐁은 날씨 버튼 → update:weather).
   토글(체크박스)을 안에 넣어야 해서 눌리는 카드도 <button> 대신 role="button" div 로 만든다.
 -->
 <template>
@@ -20,7 +21,7 @@
       <div class="ident">
         <span class="name">{{ gd.name('pokemon', r.species.id) }}</span>
         <span class="types">
-          <UiTypeGroup :types="r.species.types" small />
+          <UiTypeGroup :types="typesInWeather(r.species, r.ability, field?.weather ?? '')" small />
           <label v-if="megaToggle && r.megaId" class="mega-switch" @click.stop @keydown.stop>
             <input
               type="checkbox"
@@ -29,6 +30,14 @@
             />
             <span>{{ t('common.mega') }}</span>
           </label>
+          <TeamFormToggle
+            v-if="formToggle"
+            :r="r"
+            :alt-on="altOn ?? null"
+            :weather="field?.weather ?? ''"
+            @update:alt-on="emit('update:altOn', $event)"
+            @update:weather="emit('update:weather', $event)"
+          />
         </span>
         <span class="sub">
           <UiItemIcon v-if="r.slot.item" :id="r.slot.item" :size="18" />
@@ -74,8 +83,8 @@
 </template>
 
 <script setup lang="ts">
-import { STAT_KEYS, type TeamSlot } from '~/utils/types'
-import { effectiveMoveType, type FieldState } from '~/utils/damage'
+import { STAT_KEYS, type TeamSlot, type Weather } from '~/utils/types'
+import { effectiveMoveType, typesInWeather, type FieldState } from '~/utils/damage'
 
 const props = defineProps<{
   slot: TeamSlot
@@ -88,13 +97,20 @@ const props = defineProps<{
   spread?: boolean // 더블: 광역기 표시
   field?: FieldState
   megaToggle?: boolean
+  altOn?: boolean | null // 배틀 폼 (null = 기본값)
+  formToggle?: boolean
 }>()
-const emit = defineEmits<{ select: []; 'update:megaOn': [on: boolean] }>()
+const emit = defineEmits<{
+  select: []
+  'update:megaOn': [on: boolean]
+  'update:altOn': [on: boolean | null]
+  'update:weather': [w: Weather]
+}>()
 const { t } = useI18n()
 const gd = useGameData()
 const calc = useTeamCalc()
 
-const r = computed(() => calc.resolve(props.slot, props.megaOn ?? true))
+const r = computed(() => calc.resolve(props.slot, props.megaOn ?? true, props.altOn ?? undefined))
 // 스킨류 특성(메가 포함)으로 바뀐 기술 타입
 const moveType = (id: string) => {
   const m = gd.move(id)

@@ -19,7 +19,7 @@
     >
       <!-- 결정력은 입력칸 안 오른쪽에 (아래 정보 줄이 한 줄에 들어가도록) -->
       <template v-if="showInfo && move && power != null" #append-inner>
-        <span class="decisive"
+        <span class="decisive" :title="hitsTitle"
           >{{ t('common.decisive') }} <b class="num">{{ power.toLocaleString() }}</b></span
         >
       </template>
@@ -56,6 +56,9 @@
         <span v-if="move.power"
           >{{ t('common.power') }} <b class="num">{{ move.power }}</b></span
         >
+        <span v-if="hitsLabel" :title="hitsTitle"
+          ><b class="num">{{ hitsLabel }}</b></span
+        >
         <span
           >{{ t('common.accuracy') }} <b class="num">{{ move.accuracy ?? '—' }}</b></span
         >
@@ -74,6 +77,8 @@
 
 <script setup lang="ts">
 import { effectiveMoveType, type FieldState } from '~/utils/damage'
+import type { Pokemon } from '~/utils/types'
+import type { HitsUsed } from '~/utils/perfTable'
 
 const model = defineModel<string>({ default: '' })
 // 빈 값은 '' 로 저장하지만 Vuetify 에는 null 로 넘긴다 ('' 를 선택된 값으로 봐서 안내 문구가 안 보임)
@@ -86,8 +91,10 @@ const props = defineProps<{
   exclude?: string[]
   disabled?: boolean
   power?: number | null
+  hits?: HitsUsed | null // 연속기 타수 (결정력은 전체 타수 합, 무작위면 기댓값)
   showInfo?: boolean
   ability?: string // 기술을 쓰는 포켓몬의 특성 (메가 적용 후). 스킨류면 노말 기술 타입이 바뀜
+  species?: Pokemon | null // 기술을 쓰는 폼 (오라휠·레이징불처럼 폼에 따라 타입이 바뀌는 기술)
   field?: FieldState
 }>()
 const { t } = useI18n()
@@ -97,7 +104,7 @@ const move = computed(() => gd.move(model.value))
 // 특성/날씨/필드로 바뀐 타입
 const typeOf = (id: string) => {
   const m = gd.move(id)
-  return m ? effectiveMoveType(m, props.ability || '', props.field) : null
+  return m ? effectiveMoveType(m, props.ability || '', props.field, props.species) : null
 }
 const shownType = computed(() => (move.value ? typeOf(move.value.id) : null))
 // 특성으로 타입이 바뀐 경우 설명 (예: 페어리스킨: 노말 → 페어리 타입)
@@ -110,6 +117,28 @@ const changedNote = computed(() =>
       })
     : undefined,
 )
+// 연속기 타수: 고정이면 "n회", 무작위면 "최소~최대회" (부자유친은 특성으로 보이므로 생략)
+const hitsLabel = computed(() => {
+  const h = props.hits
+  if (!h || h.parentalBond) return ''
+  return h.min === h.max
+    ? t('perf.hits', { n: h.max })
+    : t('perf.hitsRange', { min: h.min, max: h.max })
+})
+// 타수가 무작위면 결정력이 기댓값 기준임을 알림
+const hitsTitle = computed(() => {
+  const h = props.hits
+  if (!h || h.outcomes.length < 2) return undefined
+  const pct = (p: number) => Number((p * 100).toFixed(1))
+  const exp = t('perf.hitsExp', { n: Number(h.expHits.toFixed(2)) })
+  const dist =
+    h.outcomes.length > 4
+      ? exp
+      : h.outcomes.map((o) => t('perf.hitPct', { n: o.hits, p: pct(o.p) })).join(' · ') +
+        ' → ' +
+        exp
+  return t('party.hitsPowerHint', { dist })
+})
 const items = computed(() => {
   const ex = new Set((props.exclude || []).filter(Boolean))
   const ids = props.learnset.filter((m) => !ex.has(m) || m === model.value)

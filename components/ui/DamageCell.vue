@@ -1,4 +1,5 @@
-<!-- 데미지 표 한 칸: 데미지 범위 + % + 확정/난수 N타 (또는 연속기 KO 타수) -->
+<!-- 데미지 표 한 칸: 데미지 범위 + % + 확정/난수 N타 (또는 연속기 KO 타수)
+     + 실전 KO 확률(명중·급소·변덕레이저 포함, 마우스를 올리면 명중률·급소율) -->
 <template>
   <div v-if="cell" class="dcell" :class="{ compact }">
     <template v-if="cell.immune">
@@ -13,7 +14,15 @@
         :class="{ sure: cell.ko?.guaranteed && cell.ko.hits === 1 }"
         >{{ koText }}</span
       >
+      <span v-if="realText" class="real" :title="realHint">{{ realText }}</span>
+      <span v-else-if="cell.hitChance < 1" class="muted hits">{{
+        t('battle.acc', { p: pctInt(cell.hitChance) })
+      }}</span>
+      <span v-if="cell.fickle" class="muted hits">{{ t('battle.fickle') }}</span>
       <span v-if="cell.hits" class="muted hits">{{ hitsText }}</span>
+      <span v-if="cell.disguise" class="muted hits" :title="t('battle.disguiseHint')">{{
+        t('battle.disguise')
+      }}</span>
       <span
         v-if="showEff && cell.effectiveness !== 1"
         class="eff"
@@ -49,6 +58,27 @@ const koText = computed(() => {
         p: c.ko.percent < 0.1 ? '<0.1' : c.ko.percent.toFixed(1),
       })
 })
+// 실전 KO: 명중이나 급소·무작위 위력 때문에 확률이 달라질 때만
+const pctInt = (v: number) => Number((v * 100).toFixed(v < 0.1 ? 1 : 0))
+const realText = computed(() => {
+  const c = props.cell
+  if (!c || c.koReal == null || !c.ko) return ''
+  if (Math.abs(c.koReal - c.ko.percent) < 0.05) return ''
+  return t('battle.ko.real', {
+    p: c.koReal >= 99.95 ? '100' : c.koReal < 0.1 ? '<0.1' : c.koReal.toFixed(1),
+  })
+})
+const realHint = computed(() => {
+  const c = props.cell
+  if (!c) return ''
+  return (
+    t('battle.ko.realHint', {
+      n: c.ko?.hits ?? 1,
+      acc: pctInt(c.hitChance),
+      crit: pctInt(c.critChance),
+    }) + (c.fickle ? ` · ${t('battle.fickle')}` : '')
+  )
+})
 const hitsText = computed(() => {
   const h = props.cell?.hits
   if (!h) return ''
@@ -59,6 +89,12 @@ const hitsText = computed(() => {
 </script>
 
 <style scoped>
+.real {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--warn);
+  cursor: help;
+}
 .dcell {
   display: flex;
   flex-direction: column;

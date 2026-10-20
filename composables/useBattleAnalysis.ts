@@ -212,7 +212,7 @@ export function useBattleAnalysis(b: Battle) {
     const ma = action('mine')
     const oa = action('opp')
     if (mi == null || oi == null || !ma || !oa) return []
-    if (ma.kind !== 'move' || oa.kind !== 'move') return [{ key: 'battle.flow.switchTurn' }]
+    if (ma.kind === 'switch' || oa.kind === 'switch') return [{ key: 'battle.flow.switchTurn' }]
     const mineLabel = { key: 'battle.flow.mineLabel', name: nameOf('mine', mi) }
     const oppLabel = { key: 'battle.flow.oppLabel', name: nameOf('opp', oi) }
     const mineCell = ma.move ? mineVsActual(mi, ma.move, oi, ma.useMega) : null
@@ -228,8 +228,6 @@ export function useBattleAnalysis(b: Battle) {
             speedOf('mine', mi, megaThisTurn('mine', mi)),
           )
     const L = (l: { key: string; name: string }) => `@${l.key}|${l.name}`
-    if (first === null)
-      return [{ key: 'battle.flow.speedTie', params: { a: L(mineLabel), b: L(oppLabel) } }]
     const attackLine = (label: typeof mineLabel, move: string, c: Cell | null): Line =>
       c
         ? {
@@ -247,6 +245,24 @@ export function useBattleAnalysis(b: Battle) {
             key: 'battle.flow.attackNoDmg',
             params: { name: L(label), move: move ? gd.name('moves', move) : '—' },
           }
+    // 행동 불가가 있는 턴: 행동하지 못하는 쪽은 이유만, 나머지는 공격 줄
+    if (ma.kind === 'cant' || oa.kind === 'cant') {
+      const lines: Line[] = []
+      for (const [a, label, cell] of [
+        [ma, mineLabel, mineCell],
+        [oa, oppLabel, oppCell],
+      ] as const) {
+        if (a.kind === 'cant')
+          lines.push({
+            key: 'battle.flow.cant',
+            params: { name: L(label), reason: `@battle.cantReason.${a.cantReason}` },
+          })
+        else if (a.move) lines.push(attackLine(label, a.move, cell))
+      }
+      return lines
+    }
+    if (first === null)
+      return [{ key: 'battle.flow.speedTie', params: { a: L(mineLabel), b: L(oppLabel) } }]
     const [fL, sL] = first ? [mineLabel, oppLabel] : [oppLabel, mineLabel]
     const [fMove, sMove] = first ? [ma.move, oa.move] : [oa.move, ma.move]
     const [fCell, sCell] = first ? [mineCell, oppCell] : [oppCell, mineCell]
@@ -471,6 +487,149 @@ export function useBattleAnalysis(b: Battle) {
   }
 
   // ── 턴 종료 상태이상 데미지 예고 ─────────────
+  // ── 이번 턴 확률 효과 (무작위) ─────────────
+  // 입력한 기술의 부가효과 확률: 하늘의은총 2배(최대 100), 우격다짐은 없음, 맞는 쪽 인분이면 막음,
+  // 이미 상태이상이거나 타입상 걸리지 않으면 생략. 변덕레이저 30% 위력 2배. 변덕쟁이는 턴 끝 무작위 랭크 변화
+  const STATUS_IMMUNE: Record<string, string[]> = {
+    brn: ['fire'],
+    par: ['electric'],
+    psn: ['poison', 'steel'],
+    tox: ['poison', 'steel'],
+    frz: ['ice'],
+  }
+  // 턴 끝 회복·데미지의 원인 이름 (도구·특성은 이름, 필드·특수 상태는 문구 키)
+  const residualSource = (key: string) =>
+    key === 'grassy'
+      ? '@terrain.grassy'
+      : key === 'sand'
+        ? '@weather.sand'
+        : ['leechseed', 'aquaring', 'ingrain'].includes(key)
+          ? `@volatile.${key}`
+          : key === 'leftovers' || key === 'blacksludge'
+            ? gd.name('items', key)
+            : gd.name('abilities', key)
+
+  // 턴 끝 예정: 하품 (졸음이면 이번 턴 끝에 잠듦, 이번 턴에 하품을 쓰면 다음 턴 끝에 잠듦 — 교체하면 풀림)
+  //   / 턴 끝 회복·데미지 / 확인 전 상대 도구
+  const pendingLines = computed<Line[]>(() => {
+    const out: Line[] = []
+    const label = (side: 'mine' | 'opp', i: number) =>
+      `@battle.flow.${side === 'mine' ? 'mineLabel' : 'oppLabel'}|${nameOf(side, i)}`
+    for (const side of ['mine', 'opp'] as const) {
+      const foe = side === 'mine' ? 'opp' : 'mine'
+      for (const idx of S().sides[side].active) {
+        if (idx == null) continue
+        const m = S().sides[side].mons[idx]!
+        if (m.volatiles.yawn && !m.status && m.hp > 0)
+          out.push({ key: 'battle.pending.yawn', params: { name: label(side, idx) } })
+        // 턴 끝 회복·데미지 (먹다남은음식·그래스필드·씨뿌리기 등)
+        for (const x of b.residualPlan(side, idx))
+          out.push({
+            key: 'battle.pending.residual',
+            params: {
+              name: label(side, idx),
+              src: residualSource(x.key),
+              delta: `${x.frac > 0 ? '+' : '−'}${(Math.abs(x.frac) * 100).toFixed(1)}%`,
+            },
+          })
+        // 상대 도구가 확인 전이면 가능성만
+        const r = b.resolveAt(side, idx)
+        const item = r?.slot.item ?? ''
+        if (
+          side === 'opp' &&
+          m.hp > 0 &&
+          !m.itemKnown &&
+          !m.itemGone &&
+          (item === 'leftovers' || item === 'blacksludge')
+        )
+          out.push({
+            key: 'battle.pending.itemUnknown',
+            params: { name: label(side, idx), item: gd.name('items', item) },
+          })
+      }
+      S().actions[side].forEach((a, slot) => {
+        const ui = S().sides[side].active[slot]
+        const ti = S().sides[foe].active[a.target] ?? null
+        if (a.kind !== 'move' || a.move !== 'yawn' || ui == null || ti == null) return
+        const tm = S().sides[foe].mons[ti]!
+        if (tm.status || tm.volatiles.yawn) return
+        out.push({
+          key: 'battle.pending.yawnUsed',
+          params: { name: label(side, ui), target: label(foe, ti) },
+        })
+      })
+    }
+    return out
+  })
+
+  const chanceLines = computed<Line[]>(() => {
+    const out: Line[] = []
+    for (const side of ['mine', 'opp'] as const) {
+      const foe = side === 'mine' ? 'opp' : 'mine'
+      S().actions[side].forEach((a, slot) => {
+        const ui = S().sides[side].active[slot]
+        if (a.kind !== 'move' || !a.move || ui == null) return
+        const mv = gd.move(a.move)
+        if (!mv || mv.category === 'status') return
+        const user = b.resolveAt(side, ui)
+        const ti = S().sides[foe].active[a.target] ?? null
+        const target = b.resolveAt(foe, ti)
+        const who = `@battle.flow.${side === 'mine' ? 'mineLabel' : 'oppLabel'}|${nameOf(side, ui)}`
+        if (a.move === 'ficklebeam')
+          out.push({
+            key: 'battle.chance.fickle',
+            params: { name: who, move: gd.name('moves', a.move) },
+          })
+        if (!user || user.ability === 'sheerforce') return
+        const mult = user.ability === 'serenegrace' ? 2 : 1
+        for (const e of mv.effects) {
+          if (!('chance' in e) || !e.chance) continue
+          const p = Math.min(100, e.chance * mult)
+          const onTarget = e.target === 'target'
+          if (onTarget && (!target || target.ability === 'shielddust')) continue
+          const base = {
+            name: who,
+            move: gd.name('moves', a.move),
+            target: onTarget ? nameOf(foe, ti) : nameOf(side, ui),
+            p,
+          }
+          if (e.type === 'status') {
+            const tm = ti == null ? null : S().sides[foe].mons[ti]
+            const immune = STATUS_IMMUNE[e.status]?.some((ty) =>
+              target?.species.types.includes(ty as never),
+            )
+            if (!tm?.status && !immune)
+              out.push({
+                key: 'battle.chance.effect',
+                params: { ...base, effect: `@status.${e.status}` },
+              })
+          } else if (e.type === 'volatile') {
+            const key = e.status === 'flinch' ? '@battle.chance.flinch' : `@volatile.${e.status}`
+            out.push({ key: 'battle.chance.effect', params: { ...base, effect: key } })
+          } else if (e.type === 'boost') {
+            for (const [k, v] of Object.entries(e.stats)) {
+              if (!v) continue
+              out.push({
+                key: 'battle.chance.boost',
+                params: { ...base, stat: `@stat.${k}`, delta: v > 0 ? `+${v}` : String(v) },
+              })
+            }
+          }
+        }
+      })
+      for (const idx of S().sides[side].active) {
+        if (idx != null && b.resolveAt(side, idx)?.ability === 'moody')
+          out.push({
+            key: 'battle.chance.moody',
+            params: {
+              name: `@battle.flow.${side === 'mine' ? 'mineLabel' : 'oppLabel'}|${nameOf(side, idx)}`,
+            },
+          })
+      }
+    }
+    return out
+  })
+
   const statusForecast = computed<Line[]>(() => {
     const out: Line[] = []
     for (const side of ['mine', 'opp'] as const) {
@@ -524,6 +683,8 @@ export function useBattleAnalysis(b: Battle) {
     allyCell,
     riskLines,
     statusForecast,
+    chanceLines,
+    pendingLines,
     statKeyOf,
   }
 }

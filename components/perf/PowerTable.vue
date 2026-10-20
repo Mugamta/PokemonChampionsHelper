@@ -1,6 +1,7 @@
 <!--
   성능표 · 결정력: 포켓몬 × 기술 타입마다 결정력이 가장 높은 기술. 페널티가 있으면 페널티 없는 차선 기술을 아랫줄에.
-  공격(특공) SP 0 / 32 / 32+성격. 타수가 랜덤인 연속기는 기댓값(위)과 최소~최대(아래).
+  페널티 체크를 끄면 그 페널티가 있는 기술은 고르지 않음. 공격·특공 랭크 선택.
+  공격(특공) 능력 포인트 0 / 32 / 32+성격 (물리 = A, 특수 = C). 타수가 랜덤인 연속기는 기댓값(위)과 최소~최대(아래).
   속임수주사위: 지녔을 때로 다시 계산 (메가진화는 메가스톤이라 해당 없음). 계산: utils/perfTable.ts powerRows
 -->
 <template>
@@ -33,10 +34,7 @@
         >
           {{ c === 'all' ? t('perf.allCats') : t('category.' + c) }}
         </button>
-        <label class="check" :title="t('perf.reliableHint')">
-          <input v-model="reliable" type="checkbox" />
-          {{ t('perf.reliable') }}
-        </label>
+        <PerfRankStep v-model="rank" :label="t('perf.power.rank')" />
         <label class="check" :title="t('perf.loadedDiceHint')">
           <input v-model="dice" type="checkbox" />
           {{ t('perf.loadedDice') }}
@@ -44,6 +42,20 @@
         </label>
         <span class="spacer" />
         <span class="muted small">{{ t('perf.count', { n: rows.length }) }}</span>
+      </div>
+      <!-- 페널티별로 포함 여부: 끄면 그 페널티가 있는 기술은 최고 기술로 고르지 않음 -->
+      <div class="chip-row">
+        <span class="section-label">{{ t('perf.penaltyLabel') }}</span>
+        <label v-for="pen in PENALTIES" :key="pen" class="check pen-check">
+          <input
+            type="checkbox"
+            :checked="allowed.has(pen)"
+            @change="togglePen(pen, ($event.target as HTMLInputElement).checked)"
+          />
+          {{ pen === 'accuracy' ? t('perf.pen.accuracyAny') : t('perf.pen.' + pen) }}
+        </label>
+        <button type="button" class="chip" @click="setAll(true)">{{ t('perf.penAll') }}</button>
+        <button type="button" class="chip" @click="setAll(false)">{{ t('perf.penNone') }}</button>
       </div>
     </div>
 
@@ -135,6 +147,7 @@ import { useIncremental } from '~/composables/useIncremental'
 import {
   powerCandidates,
   powerRows,
+  PENALTIES,
   SP_CFGS,
   type Penalty,
   type PowerEntry,
@@ -150,23 +163,32 @@ const CATS = ['all', 'physical', 'special'] as const
 const type = ref<TypeId | ''>('')
 const cat = ref<(typeof CATS)[number]>('all')
 const sortCfg = ref(2)
-const reliable = ref(false) // 페널티 없는 기술(차선) 기준으로 정렬
+const rank = ref(0) // 공격·특공 랭크 (바디프레스는 방어)
+// 고를 수 있는 기술의 페널티 (체크 = 그 페널티가 있어도 고름)
+const allowed = ref(new Set<Penalty>(PENALTIES))
+const togglePen = (p: Penalty, on: boolean) => {
+  const next = new Set(allowed.value)
+  if (on) next.add(p)
+  else next.delete(p)
+  allowed.value = next
+}
+const setAll = (on: boolean) => (allowed.value = new Set(on ? PENALTIES : []))
 const dice = ref(false) // 속임수주사위를 지녔을 때 (아직 챔피언스 도구 목록에 없으면 "미출시")
 const diceReleased = computed(() => !!gd.data.value?.items.loadeddice)
 
 const rowsOf = (m: PerfMon, c: (typeof CATS)[number]) => {
   const item = dice.value ? 'loadeddice' : ''
-  const key = `${m.id}|${c}|${item}`
+  const key = `${m.id}|${c}|${item}|${rank.value}|${[...allowed.value].sort().join()}`
   let rows = rowCache.get(key)
   if (!rows) {
-    const ckey = `${m.id}|${item}`
+    const ckey = `${m.id}|${item}|${rank.value}`
     let cands = candCache.get(ckey)
     if (!cands) {
       const moves = m.learnset.map((id) => toRaw(gd.move(id))).filter((mv): mv is Move => !!mv)
-      cands = powerCandidates(m.atkForm, moves, item)
+      cands = powerCandidates(m.atkForm, moves, item, rank.value)
       candCache.set(ckey, cands)
     }
-    rows = powerRows(m.atkForm, cands, c === 'all' ? undefined : c)
+    rows = powerRows(m.atkForm, cands, c === 'all' ? undefined : c, allowed.value)
     rowCache.set(key, rows)
   }
   return rows
@@ -187,12 +209,7 @@ const rows = computed(() => {
     }
   }
   const k = sortCfg.value
-  // 차선 기준: 페널티 없는 기술의 값 (그런 기술이 없으면 맨 뒤)
-  const key = (r: (typeof out)[number]) => {
-    const e = reliable.value && r.lines[0]!.penalties.length ? r.lines[1] : r.lines[0]
-    return e ? e.values[k]! : -1
-  }
-  return out.sort((a, b) => key(b) - key(a))
+  return out.sort((a, b) => b.lines[0]!.values[k]! - a.lines[0]!.values[k]!)
 })
 const { visible, sentinel } = useIncremental(rows)
 
@@ -281,6 +298,9 @@ td.num .line {
 }
 .tag.ab {
   color: var(--accent-2);
+}
+.pen-check {
+  font-size: 11px;
 }
 .tag.pen {
   color: var(--warn);

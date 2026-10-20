@@ -7,10 +7,10 @@ import {
   hitsUsed,
   moveEntries,
   movePenalties,
+  PENALTIES,
   powerCandidates,
   powerRows,
-  speedEntries,
-  speedGroups,
+  speedRows,
 } from '../utils/perfTable'
 import type { Move, Pokemon } from '../utils/types'
 
@@ -28,12 +28,16 @@ const learn = (id: string) => {
 }
 
 describe('내구', () => {
-  it('H32 / B32 / D32 실능치와 내구 지수', () => {
+  it('무투자 / H32 / H32+B(D)32 / + 성격, 지수 = H × B ÷ 0.411 (파티 화면과 같은 식)', () => {
+    // 한카리아스: HP 183 / 215, 방어 115 / 147 / 161, 특방 105 / 137 / 150
+    const idx = (h: number, d: number) => Math.floor((h * d) / 0.411)
     const r = bulkRow(mon('garchomp'))
-    expect(r).toEqual({ hp: 215, def: 147, spd: 137, phys: 215 * 147, spec: 215 * 137 })
-    const plus = bulkRow(mon('garchomp'), true)
-    expect(plus.def).toBe(161) // floor(147 × 1.1)
-    expect(plus.spd).toBe(150)
+    expect(r.phys).toEqual([idx(183, 115), idx(215, 115), idx(215, 147), idx(215, 161)])
+    expect(r.spec).toEqual([idx(183, 105), idx(215, 105), idx(215, 137), idx(215, 150)])
+  })
+  it('방어·특방 랭크', () => {
+    const r = bulkRow(mon('garchomp'), 1)
+    expect(r.phys[2]).toBe(Math.floor((215 * Math.floor(147 * 1.5)) / 0.411))
   })
 })
 
@@ -49,6 +53,8 @@ describe('기술 페널티', () => {
     expect(movePenalties(mv('stoneedge'))).toEqual(['accuracy'])
     expect(movePenalties(mv('fakeout'))).toEqual(['condition'])
     expect(movePenalties(mv('bulletseed'))).toEqual(['randomHits'])
+    expect(movePenalties(mv('highjumpkick'))).toEqual(['crash', 'accuracy'])
+    expect(movePenalties(mv('steelbeam'))).toEqual(['selfDamage', 'accuracy'])
   })
   it('특성으로 달라짐: 돌머리(반동 없음) / 스킬링크 / 의욕(물리 명중 0.8) / 복안', () => {
     expect(movePenalties(mv('headsmash'), 'rockhead')).toEqual(['accuracy'])
@@ -159,6 +165,23 @@ describe('결정력', () => {
     const pin = moveEntries(mon('heracrossmega'), [mv('pinmissile')], 'loadeddice')[0]!
     expect(pin.hits?.outcomes).toEqual([{ hits: 5, factor: 5, p: 1 }]) // 스킬링크
   })
+  it('페널티를 빼면 그 페널티가 있는 기술은 고르지 않음 (다음 턴 행동 불가 빼기)', () => {
+    const p = mon('altariamega')
+    const cands = powerCandidates(p, learn('altariamega'))
+    const all = new Set(PENALTIES)
+    all.delete('recharge')
+    const fairy = powerRows(p, cands, undefined, all).find((r) => r.type === 'fairy')!
+    expect(fairy.best.move).not.toBe('gigaimpact')
+    expect(fairy.best.penalties).not.toContain('recharge')
+    // 전부 빼면 페널티 없는 기술만
+    const none = powerRows(p, cands, undefined, new Set())
+    expect(none.every((r) => r.best.penalties.length === 0 && r.alt == null)).toBe(true)
+  })
+  it('공격 랭크 +2 = 결정력 2배', () => {
+    const e0 = moveEntries(mon('garchomp'), [mv('earthquake')])[0]!
+    const e2 = moveEntries(mon('garchomp'), [mv('earthquake')], undefined, 2)[0]!
+    expect(e2.values).toEqual(e0.values.map((v) => v * 2))
+  })
   it('바디프레스는 방어에 SP·성격을 준다', () => {
     const e = moveEntries(mon('corviknight'), [mv('bodypress')])[0]!
     expect(e.stat).toBe('def')
@@ -168,40 +191,20 @@ describe('결정력', () => {
 })
 
 describe('스피드', () => {
-  it('5가지 투자 × 필드 3가지', () => {
-    const es = speedEntries(mon('garchomp')).filter((e) => !e.ability)
-    const at = (sp: string, scarf: boolean, field: string) =>
-      es.find((e) => e.sp === sp && e.scarf === scarf && e.field === field)!.speed
-    expect(at('s0', false, 'none')).toBe(122)
-    expect(at('s32', false, 'none')).toBe(154)
-    expect(at('s32plus', false, 'none')).toBe(169)
-    expect(at('s32', true, 'none')).toBe(231)
-    expect(at('s32plus', true, 'none')).toBe(253)
-    expect(at('s32plus', false, 'tailwind')).toBe(338)
-    expect(at('s32plus', false, 'web')).toBe(112) // -1 랭크
-    expect(es).toHaveLength(15)
+  it('S0 / S32 / S32+ / 스카프 S32 / 스카프 S32+', () => {
+    const [plain] = speedRows(mon('garchomp'))
+    expect(plain).toEqual({ ability: '', values: [122, 154, 169, 231, 253] })
   })
-  it('메가진화는 스카프 없음, 곡예는 스카프와 같이 안 씀, 특성 배율', () => {
-    expect(speedEntries(mon('garchompmega')).some((e) => e.scarf)).toBe(false)
-    const sce = speedEntries(mon('sceptile'))
-    expect(sce.some((e) => e.ability === 'unburden' && e.scarf)).toBe(false)
-    const ex = speedEntries(mon('excadrill')).find(
-      (e) => e.ability === 'sandrush' && e.sp === 's32' && !e.scarf && e.field === 'none',
-    )!
-    expect(ex.mult).toBe(2)
-    expect(ex.speed).toBe((88 + 52) * 2)
+  it('스피드 랭크', () => {
+    expect(speedRows(mon('garchomp'), true, 1)[0]!.values[2]).toBe(Math.floor(169 * 1.5))
+    expect(speedRows(mon('garchomp'), true, -1)[0]!.values[2]).toBe(Math.floor((169 * 2) / 3))
   })
-  it('배율이 같으면 같은 줄 (스카프 / 속보)', () => {
-    const groups = speedGroups([
-      ...speedEntries(mon('jolteon')),
-      ...speedEntries(mon('aerodactyl')), // 둘 다 130
-    ])
-    const g = groups.find(
-      (x) => x.base === 130 && x.sp === 's32' && x.mult === 1.5 && x.field === 'none',
-    )!
-    expect(g.entries.some((e) => e.scarf && e.id === 'aerodactyl')).toBe(true)
-    expect(g.entries.some((e) => e.ability === 'quickfeet' && !e.scarf)).toBe(true)
-    // 빠른 순
-    expect(groups[0]!.speed).toBeGreaterThanOrEqual(groups[1]!.speed)
+  it('메가진화는 스카프 칸 없음, 특성 줄은 따로 (곡예는 스카프와 같이 안 씀)', () => {
+    expect(speedRows(mon('garchompmega'))[0]!.values.slice(3)).toEqual([null, null])
+    const ex = speedRows(mon('excadrill'))
+    expect(ex.map((r) => r.ability)).toEqual(['', 'sandrush'])
+    expect(ex[1]!.values[1]).toBe((88 + 52) * 2)
+    const sce = speedRows(mon('sceptile')).find((r) => r.ability === 'unburden')!
+    expect(sce.values.slice(3)).toEqual([null, null])
   })
 })

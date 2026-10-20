@@ -1,0 +1,73 @@
+// composables/useAutoSet.ts
+// 상대 포켓몬 자동 배치 (선출 화면). 현재 레귤레이션의 사용률 통계(usage.json)가 있으면 그것을 우선,
+// 없으면 utils/autoSet.ts 의 규칙. 여기서는 게임 데이터로 입력을 만들고 슬롯에 넣는다.
+
+import { autoSet, exclusiveMoves, usageSet } from '~/utils/autoSet'
+import { emptySlot, type Move, type TeamSlot } from '~/utils/types'
+
+export function useAutoSet() {
+  const gd = useGameData()
+  const calc = useTeamCalc()
+  const reg = useRegulation()
+  // 전용기 (종 → 그 종만 배우는 기술). 데이터가 바뀔 때만 다시 계산
+  const exclusive = computed(() =>
+    gd.data.value ? exclusiveMoves(gd.data.value.pokemon) : new Map<string, Set<string>>(),
+  )
+
+  // 현재 레귤레이션의 사용률 통계 표
+  const table = computed(() =>
+    reg.active.value ? gd.data.value?.usage?.[reg.active.value.id] : undefined,
+  )
+  // 통계 정보 (원종·메가 폼 중 많이 쓴 쪽). 통계가 없으면 null
+  const usageInfo = (speciesId: string) => {
+    const base = gd.pokemon(speciesId)
+    const t = table.value
+    if (!base || !t) return null
+    const counts = [base.id, ...(base.megas ?? [])].map((id) => t.pokemon[id]?.count ?? 0)
+    const count = Math.max(...counts)
+    return count ? { count, month: t.month } : null
+  }
+
+  // 포켓몬 하나의 자동 배치 결과 (데이터가 없으면 null). taken: 같은 파티의 다른 포켓몬 도구
+  // usageOnly: 통계가 없으면 null (규칙 배치를 쓰지 않음)
+  const build = (speciesId: string, taken: readonly string[] = [], usageOnly = false) => {
+    const base = gd.pokemon(speciesId)
+    const data = gd.data.value
+    if (!base || !data) return null
+    // 규칙 배치: 메가진화가 있으면 메가스톤 (여러 개면 첫 번째)
+    const megaId = base.megas?.find((id) => gd.pokemon(id)?.mega?.item)
+    const item = (megaId && gd.pokemon(megaId)?.mega?.item) || ''
+    const r = calc.resolve({ ...emptySlot(), species: speciesId, item }, true)
+    if (!r) return null
+    const moves = gd
+      .learnset(speciesId)
+      .map((id) => gd.move(id))
+      .filter((m): m is Move => !!m)
+    const rules = autoSet({
+      base,
+      form: r.species,
+      atkForm: calc.attackForm(r).species,
+      item,
+      moves,
+      natures: data.natures,
+      exclusive: exclusive.value.get(base.base || base.id),
+    })
+    // 사용률 통계가 있으면 우선
+    const fromUsage = usageSet(base, table.value, data.pokemon, rules, taken)
+    if (usageOnly) return fromUsage
+    return fromUsage ?? { ...rules, source: 'rules' }
+  }
+
+  // 슬롯에 적용 (포켓몬은 그대로, 특성·도구·성격·능력 포인트·기술을 덮어씀)
+  const apply = (slot: TeamSlot, taken: readonly string[] = [], usageOnly = false) => {
+    const s = slot.species ? build(slot.species, taken, usageOnly) : null
+    if (!s) return
+    slot.ability = s.ability
+    slot.item = s.item
+    slot.nature = s.nature
+    slot.sp = { ...s.sp }
+    slot.moves = [...s.moves]
+  }
+
+  return { build, apply, usageInfo }
+}

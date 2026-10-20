@@ -1,13 +1,14 @@
 // utils/perfTable.ts
 // 포켓몬 성능표 (pages/stats.vue) 계산. 레벨 50, 도구 없음(스피드의 구애스카프 제외), 날씨·필드 없음 기준.
-//   - 내구: H32 실능치, H32·B32 / H32·D32 (내구 지수 = HP × 방어, HP × 특방). 성격 보정은 선택
+//   - 내구: 물리/특수 내구 지수(H × B(D) / 0.411, 파티 화면과 같은 식)를 H0 / H32 / H32+B(D)32 / 같은 투자 + 성격 보정으로
 //   - 결정력: 타입별로 결정력이 가장 높은 기술. 그 기술에 페널티(반동·능력 하락·명중 100 미만 등)가 있으면
 //     페널티 없고 명중 100 인 차선 기술도 함께. 공격(특공) SP 0 / 32 / 32+성격.
 //     타수가 랜덤인 연속기는 타수 확률에 따른 기댓값 + [최소, 최대]
-//   - 스피드: S0 / S32 / S32+성격 / 스카프 S32 / 스카프 S32+성격 × 특성 보정 유무 × 없음 / 순풍 / 끈적끈적네트
+//   - 스피드: S0 / S32 / S32+성격 / 스카프 S32 / 스카프 S32+성격. 스피드 특성이 있으면 특성 보정 줄을 따로
+//   - 랭크: 내구는 방어·특방, 결정력은 공격·특공(바디프레스는 방어), 스피드는 스피드 랭크
 
 import { effectiveMoveType, hitInfo, powerIndex, type Combatant } from './damage'
-import { calcStat, effectiveSpeed, type SpeedContext } from './stats'
+import { applyBoost, calcStat, effectiveSpeed, type SpeedContext } from './stats'
 import type { BoostKey, Move, Nature, Pokemon, StatTable, TypeId } from './types'
 
 // 한 능력치만 올리는 성격 (실능치 계산용)
@@ -18,18 +19,30 @@ const plusNature = (stat: BoostKey): Nature => ({
 })
 
 // ── 내구 ─────────────
+// 투자 단계: 무투자 / H32 / H32+B(D)32 / H32+B(D)32 성격 보정
+export const BULK_CFGS = ['h0', 'h32', 'hb32', 'hb32plus'] as const
+export type BulkCfg = (typeof BULK_CFGS)[number]
 export interface BulkRow {
-  hp: number // H32
-  def: number // B32
-  spd: number // D32
-  phys: number // HP × 방어
-  spec: number // HP × 특방
+  phys: [number, number, number, number] // BULK_CFGS 순서
+  spec: [number, number, number, number]
 }
-export function bulkRow(p: Pokemon, plus = false): BulkRow {
-  const hp = calcStat('hp', p.stats.hp, 32)
-  const def = calcStat('def', p.stats.def, 32, plus ? plusNature('def') : null)
-  const spd = calcStat('spd', p.stats.spd, 32, plus ? plusNature('spd') : null)
-  return { hp, def, spd, phys: hp * def, spec: hp * spd }
+// 내구 지수 = HP × 방어(특방) / 0.411 (파티 화면과 같은 식)
+export const bulkIndex = (hp: number, d: number) => Math.floor((hp * d) / 0.411)
+// rank: 방어·특방 랭크
+export function bulkRow(p: Pokemon, rank = 0): BulkRow {
+  const h0 = calcStat('hp', p.stats.hp, 0)
+  const h32 = calcStat('hp', p.stats.hp, 32)
+  const side = (k: 'def' | 'spd') => {
+    const d = (sp: number, plus: boolean) =>
+      applyBoost(calcStat(k, p.stats[k], sp, plus ? plusNature(k) : null), rank)
+    return [
+      bulkIndex(h0, d(0, false)),
+      bulkIndex(h32, d(0, false)),
+      bulkIndex(h32, d(32, false)),
+      bulkIndex(h32, d(32, true)),
+    ] as BulkRow['phys']
+  }
+  return { phys: side('def'), spec: side('spd') }
 }
 
 // ── 투자 ─────────────
@@ -43,14 +56,30 @@ export type Penalty =
   | 'charge' // 모으기 (한 턴 뒤 공격)
   | 'lock' // 몇 턴 고정
   | 'selfKo' // 사용하면 기절
-  | 'selfDamage' // HP 소모 (빗나가면 반동 포함)
+  | 'selfDamage' // 맞혀도 HP 소모 (철제광선)
+  | 'crash' // 빗나가면 HP 소모 (무릎차기류)
   | 'condition' // 조건이 맞아야 제대로 씀 (첫 턴, 상대가 공격할 때, 도구 없을 때 등)
   | 'accuracy' // 명중 100 미만
   | 'randomHits' // 연속기 횟수가 랜덤
 
 const LOCK = new Set(['outrage', 'petaldance', 'thrash', 'ragingfury', 'uproar'])
 const SELF_KO = new Set(['explosion', 'selfdestruct', 'mistyexplosion'])
-const SELF_DAMAGE = new Set(['steelbeam', 'highjumpkick', 'axekick', 'supercellslam'])
+const SELF_DAMAGE = new Set(['steelbeam'])
+const CRASH = new Set(['highjumpkick', 'axekick', 'supercellslam'])
+// 표시·필터 순서
+export const PENALTIES: readonly Penalty[] = [
+  'accuracy',
+  'randomHits',
+  'recharge',
+  'recoil',
+  'crash',
+  'selfDamage',
+  'selfDrop',
+  'charge',
+  'lock',
+  'selfKo',
+  'condition',
+]
 const CONDITIONAL = new Set([
   'fakeout',
   'firstimpression',
@@ -181,6 +210,7 @@ export function movePenalties(move: Move, ability = '', item = ''): Penalty[] {
   if (LOCK.has(move.id)) out.push('lock')
   if (SELF_KO.has(move.id)) out.push('selfKo')
   if (SELF_DAMAGE.has(move.id) && ability !== 'magicguard') out.push('selfDamage')
+  if (CRASH.has(move.id) && ability !== 'magicguard') out.push('crash')
   if (CONDITIONAL.has(move.id)) out.push('condition')
   const acc = effectiveAccuracy(move, ability)
   if (acc != null && acc < 100) out.push('accuracy')
@@ -207,6 +237,7 @@ export type PowerCandidate = Omit<PowerEntry, 'values' | 'ranges'> & {
   top: number
   mv: Move
   item: string
+  rank: number // 공격·특공(바디프레스는 방어) 랭크
 }
 
 const statForMove = (move: Move): PowerEntry['stat'] =>
@@ -214,6 +245,7 @@ const statForMove = (move: Move): PowerEntry['stat'] =>
 
 // 1타 결정력 (급소 확정 1.5 포함). 타수 배율은 부르는 쪽에서
 function perHit(p: Pokemon, c: Omit<PowerCandidate, 'top'>, cfg: SpCfg): number | null {
+  const boosts = c.rank ? { [c.stat]: c.rank } : undefined
   const stats: StatTable = {
     hp: calcStat('hp', p.stats.hp, 0),
     atk: calcStat('atk', p.stats.atk, 0),
@@ -228,16 +260,23 @@ function perHit(p: Pokemon, c: Omit<PowerCandidate, 'top'>, cfg: SpCfg): number 
       cfg === 's32plus' ? plusNature(c.stat) : null,
     ),
   }
-  const v = powerIndex(c.mv, { species: p, stats, ability: c.ability, item: c.item })
+  const v = powerIndex(c.mv, { species: p, stats, ability: c.ability, item: c.item, boosts })
   return v == null ? null : v * (c.alwaysCrit ? 1.5 : 1)
 }
 const scaled = (v: number, f: number) => Math.floor(v * f)
 
-function candidate(p: Pokemon, move: Move, ability: string, item: string): PowerCandidate | null {
+function candidate(
+  p: Pokemon,
+  move: Move,
+  ability: string,
+  item: string,
+  rank: number,
+): PowerCandidate | null {
   if (move.category === 'status' || !move.power || EXCLUDED.has(move.id)) return null
   const base = {
     mv: move,
     item,
+    rank,
     move: move.id,
     ability,
     type: effectiveMoveType(move, ability, {}, p),
@@ -261,17 +300,23 @@ const sameEffect = (a: PowerCandidate, b: PowerCandidate) =>
 
 // item: 지닌 도구 (기본 = 도구 없음, 메가진화는 메가스톤).
 // 결정력에는 속임수주사위(타수)와 애크러뱃(도구가 없을 때만 2배)에만 영향
-export function powerCandidates(p: Pokemon, moves: Move[], item?: string): PowerCandidate[] {
+// rank: 공격·특공 랭크 (바디프레스는 방어 랭크)
+export function powerCandidates(
+  p: Pokemon,
+  moves: Move[],
+  item?: string,
+  rank = 0,
+): PowerCandidate[] {
   const held = p.mega ? p.mega.item : (item ?? '')
   const out: PowerCandidate[] = []
   const abilities = [...new Set(p.abilities)]
   for (const move of moves) {
-    const neutral = candidate(p, move, '', held)
+    const neutral = candidate(p, move, '', held, rank)
     if (!neutral) continue
     const variants: PowerCandidate[] = []
     let unchanged = abilities.length === 0
     for (const ab of abilities) {
-      const c = candidate(p, move, ab, held)
+      const c = candidate(p, move, ab, held, rank)
       if (!c || sameEffect(c, neutral)) unchanged = true
       else if (!variants.some((v) => sameEffect(v, c))) variants.push(c)
     }
@@ -283,7 +328,7 @@ export function powerCandidates(p: Pokemon, moves: Move[], item?: string): Power
 }
 
 const toEntry = (p: Pokemon, c: PowerCandidate): PowerEntry => {
-  const { mv: _mv, top: _top, item: _item, ...rest } = c
+  const { mv: _mv, top: _top, item: _item, rank: _rank, ...rest } = c
   const h = c.hits
   const per = SP_CFGS.map((cfg) => perHit(p, c, cfg) ?? 0)
   const minF = h ? Math.min(...h.outcomes.map((o) => o.factor)) : 1
@@ -297,8 +342,8 @@ const toEntry = (p: Pokemon, c: PowerCandidate): PowerEntry => {
         : null,
   }
 }
-export const moveEntries = (p: Pokemon, moves: Move[], item?: string) =>
-  powerCandidates(p, moves, item).map((c) => toEntry(p, c))
+export const moveEntries = (p: Pokemon, moves: Move[], item?: string, rank = 0) =>
+  powerCandidates(p, moves, item, rank).map((c) => toEntry(p, c))
 
 export interface PowerRow {
   type: TypeId
@@ -315,14 +360,17 @@ const better = (a: PowerCandidate, b: PowerCandidate) =>
       : !a.ability && !!b.ability
 
 // category: 물리 / 특수만 볼 때 (그 분류 안에서 다시 고름)
+// allowed: 이 페널티가 있는 기술만 고를 수 있음 (생략 = 전부 허용). 빠진 페널티가 있는 기술은 고르지 않는다
 export function powerRows(
   p: Pokemon,
   cands: PowerCandidate[],
   category?: PowerEntry['category'],
+  allowed?: ReadonlySet<Penalty>,
 ): PowerRow[] {
   const byType = new Map<TypeId, PowerCandidate[]>()
   for (const c of cands) {
     if (category && c.category !== category) continue
+    if (allowed && !c.penalties.every((x) => allowed.has(x))) continue
     const list = byType.get(c.type) ?? []
     list.push(c)
     byType.set(c.type, list)
@@ -342,8 +390,6 @@ export function powerRows(
 // ── 스피드 ─────────────
 export type SpeedCfg = 's0' | 's32' | 's32plus' | 'scarf' | 'scarfPlus'
 export const SPEED_CFGS: readonly SpeedCfg[] = ['s0', 's32', 's32plus', 'scarf', 'scarfPlus']
-export type SpeedField = 'none' | 'tailwind' | 'web'
-export const SPEED_FIELDS: readonly SpeedField[] = ['none', 'tailwind', 'web']
 
 // 스피드를 바꾸는 특성 → 조건을 만족한 상태 (날씨·필드, 도구 소모, 상태이상, 1턴 뒤 가속)
 export const SPEED_ABILITIES: Record<string, SpeedContext> = {
@@ -356,83 +402,34 @@ export const SPEED_ABILITIES: Record<string, SpeedContext> = {
   quickfeet: { status: 'brn' },
   speedboost: { boost: 1 },
 }
-const ABILITY_MULT: Record<string, number> = { quickfeet: 1.5, speedboost: 1.5 }
 
-export interface SpeedEntry {
-  id: string // 표에 올린 포켓몬
-  base: number // 스피드 종족값
-  sp: SpCfg // S0 / S32 / S32+성격
-  scarf: boolean
-  ability: string // 보정을 준 특성 ('' = 없음)
-  field: SpeedField
-  mult: number // 표시용 배율 (스카프 × 특성 × 순풍 × 네트)
-  speed: number
+export interface SpeedRow {
+  ability: string // 보정을 준 특성 ('' = 특성 보정 없음)
+  values: (number | null)[] // SPEED_CFGS 순서. 스카프를 못 쓰면(메가진화 / 곡예) null
 }
-
+// 포켓몬 하나의 스피드 줄들: 특성 보정 없음 + 스피드 특성마다 한 줄. rank: 스피드 랭크
 // canScarf: 메가진화는 메가스톤을 지니므로 스카프 불가
-export function speedEntries(p: Pokemon, id = p.id, canScarf = !p.mega): SpeedEntry[] {
-  const out: SpeedEntry[] = []
+export function speedRows(p: Pokemon, canScarf = !p.mega, rank = 0): SpeedRow[] {
   const abilities = ['', ...new Set(p.abilities.filter((a) => SPEED_ABILITIES[a]))]
-  for (const cfg of SPEED_CFGS) {
-    const scarf = cfg === 'scarf' || cfg === 'scarfPlus'
-    if (scarf && !canScarf) continue
-    const sp: SpCfg =
-      cfg === 's0' ? 's0' : cfg === 's32plus' || cfg === 'scarfPlus' ? 's32plus' : 's32'
-    const stat = calcStat(
-      'spe',
-      p.stats.spe,
-      sp === 's0' ? 0 : 32,
-      sp === 's32plus' ? plusNature('spe') : null,
-    )
-    for (const field of SPEED_FIELDS) {
-      for (const ability of abilities) {
-        if (ability === 'unburden' && scarf) continue // 스카프는 소모되지 않음
-        const ctx = ability ? SPEED_ABILITIES[ability]! : {}
-        const speed = effectiveSpeed(stat, {
-          ...ctx,
-          ability,
-          item: scarf ? 'choicescarf' : '',
-          tailwind: field === 'tailwind',
-          boost: (ctx.boost ?? 0) + (field === 'web' ? -1 : 0),
-        })
-        const mult =
-          (scarf ? 1.5 : 1) *
-          (ability ? (ABILITY_MULT[ability] ?? 2) : 1) *
-          (field === 'tailwind' ? 2 : field === 'web' ? 2 / 3 : 1)
-        out.push({ id, base: p.stats.spe, sp, scarf, ability, field, mult, speed })
-      }
-    }
-  }
-  return out
-}
-
-// 같은 종족값·투자·배율·필드끼리 한 줄로 (스카프와 속보처럼 배율이 같으면 같은 줄, 포켓몬마다 태그로 구분)
-export interface SpeedGroup {
-  key: string
-  speed: number
-  base: number
-  sp: SpCfg
-  mult: number
-  field: SpeedField
-  entries: SpeedEntry[]
-}
-export function speedGroups(entries: SpeedEntry[]): SpeedGroup[] {
-  const map = new Map<string, SpeedGroup>()
-  for (const e of entries) {
-    const key = `${e.speed}|${e.base}|${e.sp}|${e.mult.toFixed(3)}|${e.field}`
-    let g = map.get(key)
-    if (!g) {
-      g = { key, speed: e.speed, base: e.base, sp: e.sp, mult: e.mult, field: e.field, entries: [] }
-      map.set(key, g)
-    }
-    g.entries.push(e)
-  }
-  const FIELD_ORDER: Record<SpeedField, number> = { none: 0, tailwind: 1, web: 2 }
-  return [...map.values()].sort(
-    (a, b) =>
-      b.speed - a.speed ||
-      b.base - a.base ||
-      a.mult - b.mult ||
-      FIELD_ORDER[a.field] - FIELD_ORDER[b.field],
-  )
+  return abilities.map((ability) => {
+    const ctx = ability ? SPEED_ABILITIES[ability]! : {}
+    const values = SPEED_CFGS.map((cfg) => {
+      const scarf = cfg === 'scarf' || cfg === 'scarfPlus'
+      if (scarf && (!canScarf || ability === 'unburden')) return null // 스카프는 소모되지 않음
+      const plus = cfg === 's32plus' || cfg === 'scarfPlus'
+      const stat = calcStat(
+        'spe',
+        p.stats.spe,
+        cfg === 's0' ? 0 : 32,
+        plus ? plusNature('spe') : null,
+      )
+      return effectiveSpeed(stat, {
+        ...ctx,
+        ability,
+        item: scarf ? 'choicescarf' : '',
+        boost: Math.max(-6, Math.min(6, (ctx.boost ?? 0) + rank)),
+      })
+    })
+    return { ability, values }
+  })
 }

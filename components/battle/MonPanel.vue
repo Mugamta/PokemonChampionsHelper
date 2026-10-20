@@ -17,7 +17,14 @@
             <span v-if="statusText" class="status-pill" :class="m.status">{{ statusText }}</span>
           </div>
           <div class="types">
-            <UiTypeGroup :types="r.species.types" small />
+            <UiTypeGroup
+              :types="typesInWeather(r.species, r.ability, b.fieldFor(side).weather ?? '')"
+              small
+            />
+            <!-- 캐스퐁: 날씨로 정해진 모습 -->
+            <span v-if="r.ability === 'forecast'" class="cast-form">{{
+              t('form.castform.' + castform)
+            }}</span>
           </div>
           <div class="sub">
             <button
@@ -31,6 +38,9 @@
               <UiItemIcon :id="r.slot.item" :size="18" />
               <span>{{ gd.name('items', r.slot.item) }}</span>
               <span v-if="m.itemGone" class="gone-tag">{{ t('battle.itemGone') }}</span>
+              <span v-else-if="side === 'opp' && m.itemKnown" class="known-tag">{{
+                t('battle.itemKnown')
+              }}</span>
             </button>
             <template v-else>
               <UiItemIcon v-if="r.slot.item" :id="r.slot.item" :size="18" />
@@ -188,6 +198,7 @@ import {
 import type { useBattleAnalysis } from '~/composables/useBattleAnalysis'
 import { applyBoost } from '~/utils/stats'
 import { STAT_KEYS, type BoostKey } from '~/utils/types'
+import { forecastForm, typesInWeather } from '~/utils/damage'
 
 const props = defineProps<{
   b: ReturnType<typeof useBattle>
@@ -206,6 +217,10 @@ const m = computed(() =>
   idx.value == null ? null : props.b.state.value!.sides[props.side].mons[idx.value]!,
 )
 const r = computed(() => props.b.resolveAt(props.side, idx.value))
+const castform = computed(() => {
+  const id = forecastForm(r.value?.ability ?? '', props.b.fieldFor(props.side).weather ?? '')
+  return id ? id.replace('castform', '') : 'normal'
+})
 const max = computed(() => r.value?.stats.hp || 0)
 const hpPercent = computed(() =>
   !m.value ? 0 : props.side === 'opp' ? m.value.hp : max.value ? (m.value.hp / max.value) * 100 : 0,
@@ -216,12 +231,18 @@ const volList = computed(() => Object.keys(m.value?.volatiles || {}))
 const volLabel = (v: string) => {
   const turn = m.value?.volatiles[v]
   if (!turn) return t('volatile.' + v)
+  if (v === 'stockpile') return `${t('volatile.' + v)} ×${turn}` // 비축은 횟수
+  if (v === 'yawn') return t(turn >= 2 ? 'volatile.yawnSoon' : 'volatile.yawn') // 졸음
   const total = VOLATILE_DURATION[v]
   return `${t('volatile.' + v)} ${total == null ? '∞' : `${turn}/${total}`}`
 }
 </script>
 
 <style scoped>
+.known-tag {
+  font-size: 10px;
+  color: var(--accent);
+}
 .mon {
   padding: 12px;
   display: flex;
@@ -294,6 +315,11 @@ const volLabel = (v: string) => {
 }
 .status-pill.frz {
   background: #6cd3f5;
+}
+.cast-form {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent-2);
 }
 .types {
   display: flex;

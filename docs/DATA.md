@@ -31,6 +31,7 @@ op.gg 는 자동 수집을 차단(CloudFront 403)하므로 쓰지 않는다.
 | `items.json` | `{ id: { id, num, megaStone?{원종id: 메가id}, berry? } }` |
 | `abilities.json`, `natures.json`, `types.json` | 특성 목록 / `{ plus, minus }` / `{ types[], chart[공격][방어] }` |
 | `regulations.json` | `[{ id, start, end, rules, pokemon[id] }]` |
+| `usage.json` | `{ [레귤레이션 id]: { format, month, battles, pokemon: { [폼 id]: { count, moves[4], nature, sp[H,A,B,C,D,S], ability, items[3] } } } }` — Smogon 월별 사용률 통계(싱글 `gen9championsbssreg<id>`, 레이팅 가중 1500, 가장 최근 달). 사용 수 200 미만 제외. 선출 화면 상대 자동 배치에 사용. 받기 실패하면 기존 파일 유지, 새 달 반영은 `--refresh` |
 | `names.{ko,en,ja}.json` | `{ pokemon, moves, abilities, items, natures, types }` 각각 `{ id: 이름 }` |
 | `texts.{ko,en,ja}.json` | `{ moves, abilities, items }` 설명문 |
 
@@ -62,6 +63,6 @@ node scripts/verify-data.mjs --dex   # + 포켓몬별 종족값·습득 기술·
 
 **PP 예외**: 규칙과 다른 기술이 생기면 `scripts/sources/champions-pp.json` 에 `{ "id": pp }` 로 추가하고 재빌드.
 
-**이름 보강**: PokeAPI 에 없는 이름은 `build-data.mjs` 의 `FORM_NAME_OVERRIDES`(폼 이름. 예: 히스이 폼 "(히스이의 모습)")와
+**이름 보강**: PokeAPI 에 없는 이름은 `build-data.mjs` 의 `FORM_NAME_OVERRIDES`(폼 이름. 예: 히스이 폼 "(히스이의 모습)", 성별 폼 수컷 "(수컷의 모습)" — 기본 폼에도 적용됨)와
 `ABILITY_OVERRIDES`(특성 이름) / `ABILITY_TEXT_OVERRIDES`(특성 설명) 에 언어별로 추가.
 챔피언스 신규 특성·폼처럼 PokeAPI 에 없는 이름은 한국어 = 포켓몬코리아 공식 도감(pokemonkorea.co.kr/pokedex), 일본어 = 일본 공식 도감·공략 사이트에서 확인. 도구는 `scripts/sources/item-names-ko.json`. 재빌드는 `scripts/.cache` 가 있으면 오프라인으로 된다.

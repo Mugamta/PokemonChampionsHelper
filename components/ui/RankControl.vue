@@ -1,7 +1,7 @@
-<!-- 랭크 표시 + 조절 (▲▲▼ 화살표 6칸) -->
+<!-- 랭크 표시 + 조절 (▲▲▼ 화살표 6칸). 공격·방어·특공·특방·스피드 + 명중·회피 -->
 <template>
   <div class="rank-grid">
-    <div v-for="k in BOOST_KEYS" :key="k" class="rank-row">
+    <div v-for="k in RANK_KEYS" :key="k" class="rank-row">
       <span class="rank-name">{{ t('stat.' + k) }}</span>
       <span class="arrows" :class="{ neg: (boosts[k] || 0) < 0 }">
         <span
@@ -38,10 +38,10 @@
 </template>
 
 <script setup lang="ts">
-import { BOOST_KEYS, type BoostKey, type BoostTable } from '~/utils/types'
+import { RANK_KEYS, type BoostTable, type RankKey } from '~/utils/types'
 
 defineProps<{ boosts: Partial<BoostTable> }>()
-const emit = defineEmits<{ change: [key: BoostKey, delta: number] }>()
+const emit = defineEmits<{ change: [key: RankKey, delta: number] }>()
 const { t } = useI18n()
 </script>
 

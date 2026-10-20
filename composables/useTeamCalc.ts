@@ -5,7 +5,9 @@
 import type { Combatant, DamageOptions, FieldState } from '~/utils/damage'
 import { calcDamage, hitInfo, perHitDamage, powerIndex, withoutItems } from '~/utils/damage'
 import { calcStats } from '~/utils/stats'
-import { holdsOnAtFull, koChance, koHitIndex, type KoInfo } from '~/utils/ko'
+import { holdsOnAtFull, koChance, koHitIndex, koProbWithin, type KoInfo } from '~/utils/ko'
+import { critChance, hitChance } from '~/utils/accuracy'
+import { hitsUsed } from '~/utils/perfTable'
 import type { Nature, Pokemon, StatTable, Status, TeamSlot, TypeId } from '~/utils/types'
 
 export interface ResolvedSlot {
@@ -35,6 +37,12 @@ export interface Cell {
   type: TypeId
   immune: boolean
   holdOn: boolean // 기합의띠/옹골참으로 한 번에는 쓰러지지 않음 (KO 판정에 반영)
+  disguise: boolean // 둔갑(따라큐): 첫 공격은 막고 최대 HP 1/8 만 (KO 판정에 반영)
+  hitChance: number // 명중 확률 (0~1, 특성·도구·날씨·중력 반영)
+  critChance: number // 급소 확률 (0~1)
+  // 실전 KO 확률(%): ko.hits 번 안에 쓰러뜨릴 확률 — 명중·급소·변덕레이저(30% 위력 2배) 포함. 단타 기술만 (아니면 null)
+  koReal: number | null
+  fickle: boolean // 변덕레이저: max 는 위력 2배일 때
 }
 
 // 배틀 밖(파티/선출 표)에서 쓰는 배틀 폼 기본값. 팔라피는 실전에서 거의 항상 마이티폼으로 싸운다.
@@ -138,22 +146,78 @@ export function useTeamCalc() {
     const maxHp = def.stats.hp
     const spread = !!opts.spread || spreadMult < 1
     const one = calcDamage(move, atk, def, chart, field, { ...opts, spread })
-    const info = hitInfo(move, atk, spread)
+    const info = hitInfo(move, atk, spread, opts)
     const multi = info.max > 1
     const holdOn = holdsOnAtFull(atk, def)
-    const capFirst = (d: number[]) => (holdOn ? [Math.min(d[0]!, defHp - 1), ...d.slice(1)] : d)
+    // 둔갑(따라큐, 둔갑이 풀리기 전): 첫 공격은 막고 최대 HP 1/8 데미지. 틀깨기면 무시
+    const disguise =
+      def.ability === 'disguise' &&
+      def.species.id === 'mimikyu' &&
+      atk.ability !== 'moldbreaker' &&
+      one.effectiveness > 0
+    const chip = Math.floor(maxHp / 8)
+    const capFirst = (d: number[]) =>
+      disguise ? [chip, ...d.slice(1)] : holdOn ? [Math.min(d[0]!, defHp - 1), ...d.slice(1)] : d
     let min = one.min
     let max = one.max
     let koHit: Cell['koHit'] = null
     let ko: KoInfo | null = null
     if (multi) {
       const per = perHitDamage(move, atk, def, chart, field, { ...opts, spread }, info)
+      if (disguise) per.min[0] = per.max[0] = chip
       min = per.min.slice(0, info.min).reduce((s, v) => s + v, 0)
       max = per.max.reduce((s, v) => s + v, 0)
       const best = koHitIndex(capFirst(per.max), defHp)
       koHit = best ? { best, worst: koHitIndex(capFirst(per.min), defHp) } : null
+    } else if (disguise) {
+      // 첫 타는 1/8 고정, 그 뒤로 보통 데미지 → N타 = 1 + 남은 HP 를 깎는 타수
+      min = max = chip
+      const rest = koChance(one.rolls, defHp - chip, 3)
+      ko =
+        defHp - chip <= 0
+          ? { hits: 1, guaranteed: true, percent: 100 }
+          : rest && { ...rest, hits: rest.hits + 1 }
     } else {
       ko = koChance(one.rolls, defHp, 4, holdOn)
+    }
+    // 명중·급소·무작위 위력 (변덕레이저)
+    const acc = hitChance(move, atk, def, field, opts)
+    const pc = one.power === 0 && !one.rolls.some(Boolean) ? 0 : critChance(move, atk, def, opts)
+    const fickle = move.id === 'ficklebeam' && !opts.fickleDouble
+    const dbl = fickle
+      ? calcDamage(move, atk, def, chart, field, { ...opts, spread, fickleDouble: true })
+      : null
+    if (dbl && !multi && !disguise) max = dbl.max
+    let koReal: number | null = null
+    if (!multi && !disguise && one.effectiveness > 0) {
+      const fixed = one.rolls.every((v) => v === one.rolls[0])
+      const critRolls =
+        fixed || pc === 0 || opts.crit
+          ? one.rolls
+          : calcDamage(move, atk, def, chart, field, { ...opts, spread, crit: true }).rolls
+      const branches: { rolls: number[]; p: number }[] = []
+      const add = (rolls: number[], p: number) => p > 0 && branches.push({ rolls, p })
+      const nonCrit = opts.crit ? 0 : 1 - pc
+      const critP = opts.crit ? 1 : pc
+      if (dbl) {
+        const dblCrit = calcDamage(move, atk, def, chart, field, {
+          ...opts,
+          spread,
+          fickleDouble: true,
+          crit: true,
+        }).rolls
+        add(one.rolls, 0.7 * nonCrit)
+        add(critRolls, 0.7 * critP)
+        add(dbl.rolls, 0.3 * nonCrit)
+        add(dblCrit, 0.3 * critP)
+      } else {
+        add(one.rolls, nonCrit)
+        add(critRolls, critP)
+      }
+      const outcomes = [{ dmg: 0, p: 1 - acc }]
+      for (const b of branches)
+        for (const d of b.rolls) outcomes.push({ dmg: d, p: (acc * b.p) / b.rolls.length })
+      koReal = koProbWithin(outcomes, defHp, ko?.hits ?? 1, holdOn)
     }
     return {
       min,
@@ -168,21 +232,37 @@ export function useTeamCalc() {
       type: one.type,
       immune: one.effectiveness === 0,
       holdOn,
+      disguise,
+      hitChance: acc,
+      critChance: pc,
+      koReal,
+      fickle,
     }
   }
 
+  // 연속기 타수 (특성·도구 반영: 스킬링크·속임수주사위·부자유친). 연속기가 아니면 null
+  const hits = (r: ResolvedSlot | null, moveId: string) => {
+    const move = gd.move(moveId)
+    if (!r || !move || move.category === 'status') return null
+    return hitsUsed(move, attackForm(r).ability, r.slot.item)
+  }
+
+  // boosts: 공격·특공 랭크 (파티 화면 결정력 미리보기 조건)
+  // 연속기는 전체 타수 합 (타수가 무작위면 기댓값, 성능표와 같은 기준)
   const power = (
     r: ResolvedSlot | null,
     moveId: string,
     field: FieldState = {},
     status?: Status,
+    boosts?: Combatant['boosts'],
   ) => {
     const move = gd.move(moveId)
     if (!r || !move) return null
-    return powerIndex(move, combatant(attackForm(r), { status }), field)
+    const v = powerIndex(move, combatant(attackForm(r), { status, boosts }), field)
+    return v == null ? null : Math.floor(v * (hits(r, moveId)?.expFactor ?? 1))
   }
 
-  return { resolve, attackForm, transformed, statsWith, combatant, cell, power }
+  return { resolve, attackForm, transformed, statsWith, combatant, cell, power, hits }
 }
 
 // 표시용 포맷

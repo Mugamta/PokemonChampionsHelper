@@ -1,7 +1,12 @@
 <!-- ① 입력값 기준 흐름 / ② 실전 배분 시나리오 흐름 -->
 <template>
   <section
-    v-if="an.forecast.value.length || an.scenarioFlows.value.length"
+    v-if="
+      an.forecast.value.length ||
+      an.scenarioFlows.value.length ||
+      an.chanceLines.value.length ||
+      an.pendingLines.value.length
+    "
     class="panel panel-pad fc"
   >
     <div v-if="an.forecast.value.length" class="block">
@@ -9,6 +14,24 @@
         {{ t('battle.forecastTitle') }}
       </h4>
       <p v-for="(l, i) in an.forecast.value" :key="i" class="fc-line">
+        {{ line(l) }}
+      </p>
+    </div>
+    <!-- 턴 끝 예정 (하품 등) -->
+    <div v-if="an.pendingLines.value.length" class="block">
+      <h4 class="fc-title">
+        {{ t('battle.pending.title') }}
+      </h4>
+      <p v-for="(l, i) in an.pendingLines.value" :key="i" class="fc-line">
+        {{ line(l) }}
+      </p>
+    </div>
+    <!-- 이번 턴 확률 효과 (부가효과·변덕레이저·변덕쟁이) -->
+    <div v-if="an.chanceLines.value.length" class="block">
+      <h4 class="fc-title">
+        {{ t('battle.chance.title') }}
+      </h4>
+      <p v-for="(l, i) in an.chanceLines.value" :key="i" class="fc-line">
         {{ line(l) }}
       </p>
     </div>

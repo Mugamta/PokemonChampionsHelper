@@ -10,6 +10,8 @@ import {
   effectiveMoveType,
   hitInfo,
   perHitDamage,
+  powerIndex,
+  typesInWeather,
   type Combatant,
   type FieldState,
 } from '../utils/damage'
@@ -71,7 +73,7 @@ const mkOurs = (s: Side): Combatant => {
   return {
     species,
     stats,
-    ability: s.ability || species.abilities[0],
+    ability: s.ability || species.abilities[0] || '',
     item: s.item || '',
     status: s.status || '',
     boosts: s.boosts,
@@ -105,7 +107,7 @@ function smogonResult(c: Case, power: number) {
       nature: (s.nature || 'serious').replace(/^./, (x) => x.toUpperCase()),
       evs: toEvs(s.sp),
       // @smogon/calc 은 id 가 아니라 표시 이름("Huge Power", "Life Orb")을 받는다
-      ability: gen.abilities.get((s.ability || species.abilities[0]) as never)?.name as never,
+      ability: gen.abilities.get((s.ability || species?.abilities[0]) as never)?.name as never,
       item: (s.item ? gen.items.get(s.item as never)?.name : undefined) as never,
       status: (SD_STATUS[s.status || ''] || '') as never,
       boosts: s.boosts,
@@ -116,17 +118,23 @@ function smogonResult(c: Case, power: number) {
     return p
   }
   const f = c.field || {}
-  const weather = {
-    sun: 'Sun',
-    rain: 'Rain',
-    sand: 'Sand',
-    snow: 'Snow',
-    harshsun: 'Harsh Sunshine',
-    heavyrain: 'Heavy Rain',
-  }[f.weather || ''] as never
-  const terrain = { electric: 'Electric', grassy: 'Grassy', misty: 'Misty', psychic: 'Psychic' }[
-    f.terrain || ''
-  ] as never
+  const weather = (
+    {
+      sun: 'Sun',
+      rain: 'Rain',
+      sand: 'Sand',
+      snow: 'Snow',
+      harshsun: 'Harsh Sunshine',
+      heavyrain: 'Heavy Rain',
+      strongwinds: 'Strong Winds',
+    } as Record<string, string>
+  )[f.weather || ''] as never
+  const terrain = (
+    { electric: 'Electric', grassy: 'Grassy', misty: 'Misty', psychic: 'Psychic' } as Record<
+      string,
+      string
+    >
+  )[f.terrain || ''] as never
   const field = new Field({
     gameType: c.spread || f.doubles ? 'Doubles' : 'Singles',
     weather,
@@ -309,6 +317,123 @@ const cases: Case[] = [
     atk: { species: 'gallade', sp: { atk: MAX }, ability: 'sharpness' },
     def: { species: 'kingambit' },
     move: 'sacredsword',
+  },
+  // ── 위력·공격 보정 특성 (실제 보유 포켓몬으로) ─────
+  {
+    name: '단단한발톱: 비접촉기는 그대로',
+    atk: { species: 'barbaracle', sp: { atk: MAX }, ability: 'toughclaws' },
+    def: { species: 'garchomp' },
+    move: 'stoneedge',
+  },
+  {
+    name: '예리함: 베기 아닌 기술은 그대로',
+    atk: { species: 'gallade', sp: { atk: MAX }, ability: 'sharpness' },
+    def: { species: 'kingambit' },
+    move: 'closecombat',
+  },
+  {
+    name: '철주먹 펀치',
+    atk: { species: 'conkeldurr', sp: { atk: MAX }, ability: 'ironfist' },
+    def: { species: 'kingambit' },
+    move: 'machpunch',
+  },
+  {
+    name: '옹골찬턱 물기',
+    atk: { species: 'tyrantrum', sp: { atk: MAX }, ability: 'strongjaw' },
+    def: { species: 'gholdengo' },
+    move: 'crunch',
+  },
+  {
+    name: '메가런처 파동',
+    atk: { species: 'clawitzer', sp: { spa: MAX }, ability: 'megalauncher' },
+    def: { species: 'gholdengo' },
+    move: 'darkpulse',
+  },
+  {
+    name: '펑크록 소리 (공격)',
+    atk: { species: 'toxtricity', sp: { spa: MAX }, ability: 'punkrock' },
+    def: { species: 'garchomp' },
+    move: 'boomburst',
+  },
+  {
+    name: '펑크록 소리 (방어 0.5)',
+    atk: { species: 'garchomp', sp: { spa: MAX } },
+    def: { species: 'toxtricity', ability: 'punkrock' },
+    move: 'hypervoice',
+  },
+  {
+    name: '이판사판 반동기',
+    atk: { species: 'staraptor', sp: { atk: MAX }, ability: 'reckless' },
+    def: { species: 'scizor' },
+    move: 'bravebird',
+  },
+  {
+    name: '우격다짐 부가효과 기술',
+    atk: { species: 'feraligatr', sp: { atk: MAX }, ability: 'sheerforce' },
+    def: { species: 'garchomp' },
+    move: 'icepunch',
+  },
+  {
+    name: '의욕 물리 1.5',
+    atk: { species: 'flapple', sp: { atk: MAX }, ability: 'hustle' },
+    def: { species: 'garchomp' },
+    move: 'dragonclaw',
+  },
+  {
+    name: '순수한힘 2배',
+    atk: { species: 'medicham', sp: { atk: MAX }, ability: 'purepower' },
+    def: { species: 'garchomp' },
+    move: 'zenheadbutt',
+  },
+  {
+    name: '모래의힘 (모래바람 땅 1.3)',
+    atk: { species: 'excadrill', sp: { atk: MAX }, ability: 'sandforce' },
+    def: { species: 'gholdengo' },
+    move: 'earthquake',
+    field: { weather: 'sand' },
+  },
+  {
+    name: '선파워 (쾌청 특공 1.5)',
+    atk: { species: 'charizard', sp: { spa: MAX }, ability: 'solarpower' },
+    def: { species: 'garchomp' },
+    move: 'flamethrower',
+    field: { weather: 'sun' },
+  },
+  {
+    name: '수포 물 2배',
+    atk: { species: 'araquanid', sp: { atk: MAX }, ability: 'waterbubble' },
+    def: { species: 'garchomp' },
+    move: 'liquidation',
+  },
+  {
+    name: '맹화 (HP 1/3 이하)',
+    atk: { species: 'charizard', sp: { spa: MAX }, ability: 'blaze', hpPercent: 30 },
+    def: { species: 'scizor' },
+    move: 'flamethrower',
+  },
+  {
+    name: '심록 (HP 1/3 이하)',
+    atk: { species: 'venusaur', sp: { spa: MAX }, ability: 'overgrow', hpPercent: 30 },
+    def: { species: 'garchomp' },
+    move: 'gigadrain',
+  },
+  {
+    name: '급류 (HP 1/3 이하)',
+    atk: { species: 'blastoise', sp: { spa: MAX }, ability: 'torrent', hpPercent: 30 },
+    def: { species: 'garchomp' },
+    move: 'surf',
+  },
+  {
+    name: '벌레의알림 (HP 1/3 이하)',
+    atk: { species: 'beedrill', sp: { atk: MAX }, ability: 'swarm', hpPercent: 30 },
+    def: { species: 'gholdengo' },
+    move: 'xscissor',
+  },
+  {
+    name: '맹화 (HP 1/3 초과면 그대로)',
+    atk: { species: 'charizard', sp: { spa: MAX }, ability: 'blaze', hpPercent: 50 },
+    def: { species: 'scizor' },
+    move: 'flamethrower',
   },
   {
     name: '사이코쇼크 방어 참조',
@@ -765,5 +890,90 @@ describe('배틀 상황에 따라 위력이 바뀌는 기술 (Showdown 계산식
     const d = { ...def(), hp: 120 }
     expect(calcDamage(move('endeavor'), a, d, data.types.chart).max).toBe(70)
     expect(calcDamage(move('endeavor'), { ...a, hp: 200 }, d, data.types.chart).max).toBe(0)
+  })
+})
+
+describe('배틀 폼: 캐스퐁(날씨예보) / 모르페코(오라휠)', () => {
+  const mon = (species: string, ability: string): Combatant => {
+    const p = data.pokemon[species]!
+    return { species: p, stats: calcStats(p.stats, {}), ability, item: '' }
+  }
+  const chart = data.types.chart
+  it('캐스퐁은 날씨에 따라 타입이 바뀐다 (쾌청 불꽃 / 비 물 / 설경 얼음)', () => {
+    const cast = mon('castform', 'forecast')
+    const atk = mon('garchomp', 'roughskin')
+    const surf = data.moves.surf!
+    expect(calcDamage(surf, atk, cast, chart, {}).effectiveness).toBe(1)
+    expect(calcDamage(surf, atk, cast, chart, { weather: 'sun' }).effectiveness).toBe(2)
+    expect(calcDamage(surf, atk, cast, chart, { weather: 'rain' }).effectiveness).toBe(0.5)
+    // 구름제거/에어록이면 날씨가 없는 것과 같음 → 노말
+    expect(
+      calcDamage(surf, { ...atk, ability: 'airlock' }, cast, chart, { weather: 'sun' })
+        .effectiveness,
+    ).toBe(1)
+    // 쾌청 웨더볼: 불꽃 + 자속
+    const wb = data.moves.weatherball!
+    const sunny = calcDamage(wb, cast, atk, chart, { weather: 'sun' })
+    expect(sunny.type).toBe('fire')
+    expect(powerIndex(wb, cast, { weather: 'sun' })).toBeGreaterThan(
+      powerIndex(wb, { ...cast, ability: '' }, { weather: 'sun' })!,
+    )
+    expect(typesInWeather(cast.species, 'forecast', 'snow')).toEqual(['ice'])
+  })
+  it('오라휠: 배부른모양 전기 / 배고픈모양 악', () => {
+    const aura = data.moves.aurawheel!
+    expect(effectiveMoveType(aura, 'hungerswitch', {}, data.pokemon.morpeko)).toBe('electric')
+    expect(effectiveMoveType(aura, 'hungerswitch', {}, data.pokemon.morpekohangry)).toBe('dark')
+  })
+})
+
+describe('챔피언스 신규 특성 (@smogon/calc 에 없음 → 같은 효과의 검증된 계산과 비교)', () => {
+  const mon = (species: string, ability: string, hpPct = 100): Combatant => {
+    const p = data.pokemon[species]!
+    const stats = calcStats(p.stats, { spa: 32 })
+    return { species: p, stats, ability, item: '', hp: Math.floor((stats.hp * hpPct) / 100) }
+  }
+  const chart = data.types.chart
+  const def = mon('garchomp', 'roughskin')
+  it('불꽃의갈기 = 불꽃 기술 공격 1.5배 (맹화 발동과 같은 보정), 다른 타입은 그대로', () => {
+    const fire = data.moves.flamethrower!
+    const mane = calcDamage(fire, mon('pyroarmega', 'firemane'), def, chart)
+    const blaze = calcDamage(fire, mon('pyroarmega', 'blaze', 30), def, chart)
+    expect(mane.rolls).toEqual(blaze.rolls)
+    const hv = data.moves.hypervoice!
+    expect(calcDamage(hv, mon('pyroarmega', 'firemane'), def, chart).rolls).toEqual(
+      calcDamage(hv, mon('pyroarmega', ''), def, chart).rolls,
+    )
+  })
+  it('메가솔라 = 자신만 쾌청 판정 (불꽃 1.5배, 물은 약해지지 않음)', () => {
+    const fire = data.moves.flamethrower!
+    const sol = calcDamage(fire, mon('meganiummega', 'megasol'), def, chart)
+    const sun = calcDamage(fire, mon('meganiummega', ''), def, chart, { weather: 'sun' })
+    expect(sol.rolls).toEqual(sun.rolls)
+    const surf = data.moves.surf!
+    expect(calcDamage(surf, mon('meganiummega', 'megasol'), def, chart).rolls).toEqual(
+      calcDamage(surf, mon('meganiummega', ''), def, chart).rolls,
+    )
+  })
+})
+
+describe('결정력 (powerIndex) 랭크', () => {
+  it('공격 +2 = 2배, −1 = 2/3배 (랭크 → 실능치 보정 순)', () => {
+    const p = data.pokemon.garchomp!
+    const base: Combatant = {
+      species: p,
+      stats: calcStats(p.stats, { atk: 32 }),
+      ability: '',
+      item: '',
+    }
+    const eq = data.moves.earthquake!
+    const v0 = powerIndex(eq, base)!
+    expect(powerIndex(eq, { ...base, boosts: { atk: 2 } })).toBe(v0 * 2)
+    expect(Math.abs(powerIndex(eq, { ...base, boosts: { atk: -1 } })! - (v0 * 2) / 3)).toBeLessThan(
+      150,
+    )
+    // 특수기는 공격 랭크와 무관
+    const dp = data.moves.dragonpulse!
+    expect(powerIndex(dp, { ...base, boosts: { atk: 6 } })).toBe(powerIndex(dp, base))
   })
 })

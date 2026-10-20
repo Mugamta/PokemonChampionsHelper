@@ -46,13 +46,16 @@
           :key="i"
           :slot="s"
           v-model:mega-on="mine.megaOn.value[i]"
+          v-model:alt-on="mine.altOn.value[i]"
           mega-toggle
+          form-toggle
           :order="entry.order(i)"
           :dim="entry.isFull.value && entry.order(i) == null"
           :spread="mode === 'double'"
           :field="field"
           clickable
           @select="entry.toggle(i)"
+          @update:weather="field.weather = $event"
         />
       </section>
 
@@ -110,6 +113,15 @@
         <h2 class="panel-title">
           {{ t('entry.opponentTitle') }}
           <span class="spacer" />
+          <button
+            type="button"
+            class="btn btn-sm"
+            :title="t('entry.autoSetHint')"
+            :disabled="!opp.filled.value"
+            @click="autoSetAll"
+          >
+            {{ t('entry.autoSet') }}
+          </button>
           <button type="button" class="btn btn-sm btn-danger" @click="opp.reset()">
             {{ t('common.reset') }}
           </button>
@@ -119,7 +131,10 @@
           :key="i"
           v-model:slot="opp.slots.value[i]!"
           v-model:mega-on="opp.megaOn.value[i]!"
+          v-model:alt-on="opp.altOn.value[i]!"
+          v-model:field-weather="field.weather"
           :index="i"
+          auto-set
           :species-ids="reg.selectableSpecies.value"
           :exclude-species="
             opp.slots.value
@@ -153,6 +168,19 @@ const calc = useTeamCalc()
 const mine = useTeam('mine')
 const opp = useTeam('opp')
 const entry = useEntry(props.mode)
+const auto = useAutoSet()
+// 상대 파티 전체를 자동 배치로 다시 채움 (포켓몬을 고를 때도 자동으로 채워진다)
+const autoSetAll = () => {
+  opp.slots.value.forEach((s, i) => {
+    if (!s.species) return
+    // 도구 중복 금지: 앞 슬롯들이 이미 고른 도구는 피함
+    auto.apply(
+      s,
+      opp.slots.value.filter((_, j) => j < i).map((x) => x.item),
+    )
+    opp.megaOn.value[i] = true
+  })
+}
 
 const field = reactive<{ weather: Weather; terrain: Terrain }>({ weather: '', terrain: '' })
 const crit = ref(false)
@@ -164,10 +192,15 @@ const myAttackers = computed(() => {
   const idx = entry.picks.value.length
     ? entry.picks.value
     : mine.slots.value.map((_, i) => i).filter((i) => mine.slots.value[i]!.species)
-  return idx.map((i) => ({ i, r: calc.resolve(mine.slots.value[i], mine.megaOn.value[i]) }))
+  return idx.map((i) => ({
+    i,
+    r: calc.resolve(mine.slots.value[i], mine.megaOn.value[i], mine.altOn.value[i] ?? undefined),
+  }))
 })
 const oppResolved = computed(() =>
-  opp.slots.value.map((s, i) => calc.resolve(s, opp.megaOn.value[i])),
+  opp.slots.value.map((s, i) =>
+    calc.resolve(s, opp.megaOn.value[i], opp.altOn.value[i] ?? undefined),
+  ),
 )
 
 const blocker = computed(() => {

@@ -9,9 +9,12 @@
           </h1>
           <TeamTypeConsistency :slots="mine.slots.value" :mega-on="mine.megaOn.value" />
         </div>
-        <!-- 안내는 파티가 덜 찼을 때만 -->
-        <p v-if="!mine.isComplete.value" class="page-sub">
-          {{ t('party.subtitle') }}
+        <!-- 안내 / 준비 완료: 두 문구를 같은 칸에 겹쳐 두고 하나만 보이게 → 파티가 완성돼도 줄 높이가 그대로 (레이아웃 안 밀림) -->
+        <p class="page-sub sub-stack" aria-live="polite">
+          <span :class="{ off: mine.isComplete.value }">{{ t('party.subtitle') }}</span>
+          <span class="ready" :class="{ off: !mine.isComplete.value }"
+            >✓ {{ t('party.ready') }}</span
+          >
         </p>
       </div>
       <div class="head-actions">
@@ -36,13 +39,14 @@
       </div>
     </div>
 
-    <div class="party-body fit-scroll">
-      <div class="grid">
+    <div ref="bodyEl" class="party-body fit-scroll">
+      <div ref="gridEl" class="grid">
         <TeamSlotEditor
           v-for="(_, i) in mine.slots.value"
           :key="i"
           v-model:slot="mine.slots.value[i]!"
           v-model:mega-on="mine.megaOn.value[i]!"
+          v-model:alt-on="mine.altOn.value[i]!"
           :index="i"
           :narrow="fit"
           :species-ids="reg.selectableSpecies.value"
@@ -51,6 +55,7 @@
           :not-allowed="
             !!mine.slots.value[i]!.species && !reg.isAllowed(mine.slots.value[i]!.species)
           "
+          :preview-inline="pvInline"
         />
       </div>
     </div>
@@ -73,6 +78,53 @@ const others = (i: number, key: 'species' | 'item') =>
     .map((s) => s[key])
     .filter(Boolean)
 
+// ── 결정력 미리보기 조건 펼치기 ─────────────
+// 넓은 화면 한 화면 배치에서 카드 아래에 남는 공간이 펼친 조건 높이보다 크면 카드 안에 펼친다 (작은 화면은 지금처럼 팝오버).
+// 펼친 상태에서도 "접었을 때의 카드 높이"(= 지금 높이 − 펼쳐서 늘어난 만큼)로 판단해서 펼침/접힘이 번갈아 바뀌지 않게 한다.
+const bodyEl = ref<HTMLElement | null>(null)
+const gridEl = ref<HTMLElement | null>(null)
+const pvInline = ref(false)
+const pvHeight = { collapsed: 0, inline: 0 } // 조건 영역(.preview) 높이 실측값
+const PV_EXTRA_GUESS = 150 // 아직 펼쳐 본 적이 없을 때 늘어날 높이 추정
+const measurePreview = () => {
+  const body = bodyEl.value
+  const grid = gridEl.value
+  if (!fit.value || !body || !grid) {
+    pvInline.value = false
+    return
+  }
+  const pv = grid.querySelector<HTMLElement>('.preview')
+  if (pv) pvHeight[pvInline.value ? 'inline' : 'collapsed'] = pv.offsetHeight
+  const extra =
+    pvHeight.inline && pvHeight.collapsed ? pvHeight.inline - pvHeight.collapsed : PV_EXTRA_GUESS
+  const collapsedGrid = grid.offsetHeight - (pvInline.value ? extra : 0)
+  pvInline.value = body.clientHeight - collapsedGrid >= extra + 8
+}
+let ro: ResizeObserver | null = null
+let raf = 0
+const schedule = () => {
+  cancelAnimationFrame(raf)
+  raf = requestAnimationFrame(measurePreview)
+}
+onMounted(() => {
+  ro = new ResizeObserver(schedule)
+  watch(
+    [bodyEl, gridEl],
+    ([b, g], old) => {
+      for (const el of old ?? []) if (el) ro?.unobserve(el)
+      if (b) ro?.observe(b)
+      if (g) ro?.observe(g)
+      schedule()
+    },
+    { immediate: true },
+  )
+})
+watch(fit, schedule)
+onBeforeUnmount(() => {
+  ro?.disconnect()
+  cancelAnimationFrame(raf)
+})
+
 const onReset = () => {
   if (window.confirm(t('party.resetConfirm'))) mine.reset()
 }
@@ -88,6 +140,19 @@ const guard = (e: MouseEvent) => {
   align-items: center;
   column-gap: 18px;
   row-gap: 2px;
+}
+.sub-stack {
+  display: grid;
+}
+.sub-stack > span {
+  grid-area: 1 / 1;
+}
+.sub-stack > .off {
+  visibility: hidden;
+}
+.ready {
+  color: var(--good);
+  font-weight: 600;
 }
 .head-actions {
   display: flex;

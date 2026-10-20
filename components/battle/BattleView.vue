@@ -18,6 +18,17 @@
       </div>
       <div class="head-actions">
         <NuxtLink :to="`/${mode}`" class="btn btn-sm">← {{ t('nav.entry') }}</NuxtLink>
+        <!-- 정정 모드: 필드 포켓몬을 바꿔도 교체 효과(설치기·등장 특성·물러남 효과) 없이 상태만 고침 -->
+        <button
+          v-if="b.state.value && !b.staleReason.value"
+          type="button"
+          class="btn btn-sm"
+          :class="{ 'btn-edit-on': b.editMode.value }"
+          :title="t('battle.editModeHint')"
+          @click="b.editMode.value = !b.editMode.value"
+        >
+          ✎ {{ t(b.editMode.value ? 'battle.editModeOn' : 'battle.editMode') }}
+        </button>
         <button type="button" class="btn btn-sm btn-danger" @click="onReset">
           {{ t('common.reset') }}
         </button>
@@ -31,7 +42,17 @@
       }}</NuxtLink>
     </div>
 
+    <!-- 진행 중인 배틀의 구성이 바뀜 → 이어갈 수 없음, 확인 후 초기화 -->
+    <div v-else-if="b.staleReason.value" class="panel empty-state stale" role="alert">
+      <p class="bad-text">⚠ {{ t('battle.stale.title') }}</p>
+      <p>{{ t('battle.stale.' + b.staleReason.value) }}</p>
+      <button type="button" class="btn btn-primary" @click="b.reset()">
+        {{ t('battle.stale.confirm') }}
+      </button>
+    </div>
+
     <template v-else-if="b.state.value">
+      <p v-if="b.editMode.value" class="edit-banner">✎ {{ t('battle.editModeBanner') }}</p>
       <div class="layout">
         <section class="col fit-scroll">
           <BattleMonPanel
@@ -55,7 +76,9 @@
               :fainted="b.isFainted('mine', i)"
               compact
               clickable
-              @select="s.preview = i"
+              @select="
+                b.editMode.value ? b.sendOut('mine', s.focus.mine, i, 'correct') : (s.preview = i)
+              "
             >
               <template #extra>
                 <UiHpBar
@@ -120,7 +143,7 @@
                 class="mini"
                 :class="{ active: s.sides.opp.active.includes(i) }"
                 :disabled="b.isFainted('opp', i)"
-                @click="b.sendOut('opp', s.focus.opp, i)"
+                @click="b.sendOut('opp', s.focus.opp, i, b.editMode.value ? 'correct' : 'switch')"
               >
                 <UiPokeSprite
                   :id="b.resolveAt('opp', i)?.species.id || null"
@@ -140,7 +163,7 @@
                   :key="i"
                   type="button"
                   class="mini cand"
-                  @click="b.sendOut('opp', s.focus.opp, i)"
+                  @click="b.sendOut('opp', s.focus.opp, i, b.editMode.value ? 'correct' : 'switch')"
                 >
                   <UiPokeSprite :id="b.resolveAt('opp', i)?.species.id || null" :size="40" />
                   <span>{{ gd.name('pokemon', b.resolveAt('opp', i)?.species.id) }}</span>
@@ -207,6 +230,19 @@ const onReset = () => {
 }
 .head-actions .btn {
   text-decoration: none;
+}
+.edit-banner {
+  margin: 0 0 10px;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px dashed var(--warn);
+  color: var(--warn);
+  font-size: 12px;
+  font-weight: 700;
+}
+.btn-edit-on {
+  border-color: var(--warn);
+  color: var(--warn);
 }
 .empty-state {
   display: flex;

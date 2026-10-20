@@ -46,10 +46,15 @@ export function useGameData() {
     if (data.value || loading.value) return
     loading.value = true
     try {
-      const parts = await Promise.all(CORE_FILES.map((f) => fetchJson(`${f}.json`)))
-      const core = Object.fromEntries(
-        CORE_FILES.map((f, i) => [f, parts[i]]),
-      ) as unknown as GameData
+      const [parts, usage] = await Promise.all([
+        Promise.all(CORE_FILES.map((f) => fetchJson(`${f}.json`))),
+        // 사용률 통계는 없어도 동작 (자동 배치가 규칙만 씀)
+        fetchJson<GameData['usage']>('usage.json').catch(() => ({})),
+      ])
+      const core = {
+        ...Object.fromEntries(CORE_FILES.map((f, i) => [f, parts[i]])),
+        usage,
+      } as unknown as GameData
       await loadLocale(locale.value)
       data.value = core
     } finally {

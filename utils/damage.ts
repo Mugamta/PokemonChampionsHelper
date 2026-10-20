@@ -61,6 +61,15 @@ export interface DamageOptions {
   charged?: boolean // 충전 상태 (전기로바꾸기 발동 후) — 전기 기술 위력 2배
   timesHit?: number // 분노의주먹: 지금까지 공격을 맞은 횟수 (위력 50 + 50×n, 최대 350)
   damagedByTarget?: boolean // 눈사태: 이번 턴 대상에게 먼저 맞음 (위력 2배)
+  targetDamagedThisTurn?: boolean // 승부굳히기: 대상이 이번 턴 이미 데미지를 받음 (위력 2배)
+  lastMoveFailed?: boolean // 분함의발구르기·열불내기: 지난 기술이 실패 (위력 2배)
+  statsLoweredThisTurn?: boolean // 분풀이: 이번 턴 능력이 떨어짐 (위력 2배)
+  roundBoost?: boolean // 돌림노래: 같은 턴에 먼저 돌림노래를 쓴 포켓몬이 있음 (위력 2배)
+  fickleDouble?: boolean // 변덕레이저: 30% 로 위력 2배 (calc.cell 이 두 경우를 섞어서 계산)
+  stockpile?: number // 토해내기: 비축 횟수 (위력 100 × n, 0 이면 실패)
+  beatUp?: number[] // 집단구타: 때리는 같은 편(기절·상태이상 제외)의 공격 종족값 → 타마다 위력 5 + 종족값/10
+  damageTaken?: { physical: number; special: number; last: number } // 카운터·미러코트·메탈버스트·앙갚음: 이번 턴 받은 데미지
+  focusEnergy?: boolean // 기충전 (급소 단계 +2)
 }
 
 export interface DamageResult {
@@ -144,6 +153,8 @@ const PINCH_ABILITIES: Record<string, TypeId> = {
 }
 // 위력 보정이 아닌 고정 데미지 기술
 const FIXED_LEVEL_MOVES = new Set(['seismictoss', 'nightshade'])
+// 받은 데미지를 되돌려 주는 기술 (배틀 화면이 DamageOptions.damageTaken 을 채움)
+export const REVENGE_MOVES = new Set(['counter', 'mirrorcoat', 'metalburst', 'comeuppance'])
 // 항상 급소 (전투무장/조가비갑옷이면 아님)
 const ALWAYS_CRIT = new Set([
   'surgingstrikes',
@@ -192,6 +203,25 @@ export const withMoldBreaker = (attacker: Combatant, defender: Combatant): Comba
 const IGNORES_WEATHER = new Set(['cloudnine', 'airlock'])
 export const effectiveWeather = (field: FieldState, a: Combatant, d: Combatant): Weather =>
   IGNORES_WEATHER.has(a.ability) || IGNORES_WEATHER.has(d.ability) ? '' : field.weather || ''
+
+// 날씨예보(캐스퐁): 날씨에 따라 폼이 바뀌어 타입이 달라진다 (종족값은 같음). 쾌청 → 불꽃, 비 → 물, 설경 → 얼음
+const FORECAST_FORM: Partial<Record<Weather, { id: string; type: TypeId }>> = {
+  sun: { id: 'castformsunny', type: 'fire' },
+  harshsun: { id: 'castformsunny', type: 'fire' },
+  rain: { id: 'castformrainy', type: 'water' },
+  heavyrain: { id: 'castformrainy', type: 'water' },
+  snow: { id: 'castformsnowy', type: 'ice' },
+}
+// 그 날씨에서의 캐스퐁 폼 id (날씨예보가 아니거나 해당 날씨가 아니면 null)
+export const forecastForm = (ability: string, weather: Weather | '') =>
+  ability === 'forecast' ? (FORECAST_FORM[weather as Weather]?.id ?? null) : null
+// 화면 표시용: 그 날씨에서의 타입 (캐스퐁만 바뀜)
+export const typesInWeather = (species: Pokemon, ability: string, weather: Weather | '') =>
+  withForecast({ species, ability } as Combatant, weather).species.types
+export const withForecast = (c: Combatant, weather: Weather | ''): Combatant => {
+  const f = c.ability === 'forecast' ? FORECAST_FORM[weather as Weather] : undefined
+  return f ? { ...c, species: { ...c.species, types: [f.type] } } : c
+}
 
 // 타입 상성 (특성/도구에 의한 무효 포함)
 export function typeEffectiveness(
@@ -297,6 +327,9 @@ function resolveMoveType(
       skinBoost: false,
     }
   }
+  // 오라휠: 모르페코 배부른모양 전기 / 배고픈모양 악
+  if (move.id === 'aurawheel')
+    return { type: a.species?.id === 'morpekohangry' ? 'dark' : 'electric', skinBoost: false }
   if (move.id === 'ragingbull') {
     const t = (
       {
@@ -355,6 +388,22 @@ function resolveBasePower(
       return opts.movesLast && !opts.targetSwitchedIn ? move.power * 2 : move.power
     case 'avalanche':
       return opts.damagedByTarget ? move.power * 2 : move.power
+    case 'assurance':
+      return opts.targetDamagedThisTurn ? move.power * 2 : move.power
+    case 'stompingtantrum':
+    case 'temperflare':
+      return opts.lastMoveFailed ? move.power * 2 : move.power
+    case 'lashout':
+      return opts.statsLoweredThisTurn ? move.power * 2 : move.power
+    case 'round':
+      return opts.roundBoost ? move.power * 2 : move.power
+    case 'ficklebeam':
+      return opts.fickleDouble ? move.power * 2 : move.power
+    case 'spitup':
+      return 100 * Math.min(3, opts.stockpile || 0)
+    case 'beatup':
+      // 연속기로 계산할 때는 타마다 위력이 들어옴(perHitDamage). 1타만이면 자신의 공격 종족값
+      return move.power || 5 + Math.floor(a.species.stats.atk / 10)
     case 'venoshock':
       return d.status === 'psn' || d.status === 'tox' ? 130 : 65
     case 'brine':
@@ -431,11 +480,14 @@ export function calcDamage(
   opts: DamageOptions = {},
 ): DamageResult {
   const level = opts.level ?? 50
-  const [attacker, noItemDefender] = withoutItems(field, rawAttacker, rawDefender) as [
+  const [noItemAttacker, noItemDefender] = withoutItems(field, rawAttacker, rawDefender) as [
     Combatant,
     Combatant,
   ]
-  const defender = withMoldBreaker(attacker, noItemDefender)
+  // 캐스퐁은 날씨에 맞는 타입으로 (틀깨기와 무관하게 폼은 이미 바뀌어 있음)
+  const forecastWeather = effectiveWeather(field, noItemAttacker, noItemDefender)
+  const attacker = withForecast(noItemAttacker, forecastWeather)
+  const defender = withMoldBreaker(attacker, withForecast(noItemDefender, forecastWeather))
   const move =
     rawMove.id === 'shellsidearm' ? shellSideArm(rawMove, attacker, defender, field) : rawMove
   const merciless =
@@ -456,6 +508,8 @@ export function calcDamage(
   })
 
   if (move.category === 'status') return { ...zero(), effectiveness: 1 }
+  // 토해내기: 비축이 없으면 실패
+  if (move.id === 'spitup' && !(opts.stockpile && opts.stockpile > 0)) return zero('fail')
   const eff = typeEffectiveness(type, move, attacker, defender, chart, field)
   if (eff.mult === 0) return zero(eff.reason)
   if ((weather === 'harshsun' && type === 'water') || (weather === 'heavyrain' && type === 'fire'))
@@ -476,6 +530,18 @@ export function calcDamage(
     const aHpNow = attacker.hp ?? attacker.stats.hp
     const v =
       move.id === 'finalgambit' ? aHpNow : Math.max(0, (defender.hp ?? defender.stats.hp) - aHpNow)
+    return { rolls: Array(16).fill(v), min: v, max: v, effectiveness: 1, type, power: 0 }
+  }
+  // 카운터(물리)·미러코트(특수) = 이번 턴 받은 데미지 × 2, 메탈버스트·앙갚음 = 마지막으로 받은 데미지 × 1.5
+  if (REVENGE_MOVES.has(move.id)) {
+    const t = opts.damageTaken
+    const v = !t
+      ? 0
+      : move.id === 'counter'
+        ? t.physical * 2
+        : move.id === 'mirrorcoat'
+          ? t.special * 2
+          : Math.floor(t.last * 1.5)
     return { rolls: Array(16).fill(v), min: v, max: v, effectiveness: 1, type, power: 0 }
   }
   if (HALF_HP_MOVES.has(move.id)) {
@@ -778,9 +844,14 @@ export const isSpreadMove = (
 
 // ── 결정력 (공격 실능치 × 위력 × 자속 × 날씨 × 화상) ─────────────
 // 방어 측과 무관한 화력 지표. 위력/공격 보정은 calcDamage 와 같은 offense() 를 그대로 쓴다.
-export function powerIndex(move: Move, attacker: Combatant, field: FieldState = {}): number | null {
+export function powerIndex(
+  move: Move,
+  rawAttacker: Combatant,
+  field: FieldState = {},
+): number | null {
   if (move.category === 'status' || !move.power) return null
-  const weather: Weather = IGNORES_WEATHER.has(attacker.ability) ? '' : field.weather || ''
+  const weather: Weather = IGNORES_WEATHER.has(rawAttacker.ability) ? '' : field.weather || ''
+  const attacker = withForecast(rawAttacker, weather)
   const dummy: Combatant = {
     species: { ...attacker.species, types: [], abilities: [], weight: 1 },
     stats: attacker.stats,
@@ -819,7 +890,18 @@ export interface HitInfo {
 // spread: 더블에서 여러 대상을 맞히는 경우 (부자유친 미발동)
 // 트리플악셀·트리플킥·찍찍베기는 두 번째부터 매 타 명중 판정 → 최소 1타. 스킬링크·속임수주사위면 그 판정이 없다
 // (찍찍베기 + 속임수주사위는 4~10회)
-export function hitInfo(move: Move, attacker?: Combatant, spread = false): HitInfo {
+export function hitInfo(
+  move: Move,
+  attacker?: Combatant,
+  spread = false,
+  opts: DamageOptions = {},
+): HitInfo {
+  // 집단구타: 같은 편(자신 포함, 기절·상태이상 제외) 한 마리당 1타, 위력 5 + 공격 종족값/10
+  if (move.id === 'beatup') {
+    const bases = opts.beatUp?.length ? opts.beatUp : [attacker?.species.stats.atk ?? 0]
+    const hitPowers = bases.map((b) => 5 + Math.floor(b / 10))
+    return { min: hitPowers.length, max: hitPowers.length, hitPowers }
+  }
   const skillLink = attacker?.ability === 'skilllink'
   const dice = attacker?.item === 'loadeddice'
   const sure = skillLink || dice

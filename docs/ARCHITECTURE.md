@@ -10,14 +10,15 @@ components/
   ui/                  PokeSprite, ItemIcon, TypeBadge, CategoryBadge, HpBar, DamageCell, RankControl,
                        TypeGroup(포켓몬 타입 + 방어 상성 툴팁), TypeTip(상성 툴팁 내용)
   team/                SlotEditor(슬롯 편집), SlotCard(읽기 전용 카드), SpeciesPicker / ItemPicker / MovePicker / NaturePicker,
+                       FormToggle(배틀 폼 토글 / 캐스퐁 날씨 버튼), PreviewConditions(결정력 미리보기 조건: 날씨·필드·상태이상·랭크),
                        TypeConsistency(파티 전원에게 1배 이상 들어가는 공격 타입 한 줄)
-  battle/              EntryView(선출), BattleView(배틀) 와 그 하위 패널들
+  battle/              EntryView(선출), BattleView(배틀) 와 그 하위 패널들 (DamageInput = 데미지 / 체력 전후 입력칸)
                        (SpeedPanel = 상대 스피드 구간 막대, EstimatePanel = 상대 배분 추정)
   perf/                포켓몬 성능표: BulkTable / PowerTable / SpeedTable, MonCell(포켓몬 칸)
 composables/           상태 + 계산 연결 (아래 표)
 utils/                 순수 계산 (tests/ 에서 테스트): types.ts, stats.ts, damage.ts, ko.ts, typeCheck.ts(타입 상성 도우미),
                        speedInference.ts(선후공 → 상대 스피드 구간), statInference.ts(데미지 → 상대 배분 격자),
-                       perfTable.ts(성능표 내구·결정력·스피드)
+                       perfTable.ts(성능표 내구·결정력·스피드), autoSet.ts(상대 포켓몬 자동 배치), accuracy.ts(명중·급소)
 plugins/locale.client.ts  언어 선택 (localStorage 'pch_lang' → 브라우저 언어 → ko)
 plugins/theme.client.ts   화면 테마 낮/밤/시스템 (localStorage 'pch_theme', 없으면 시스템) → <html data-theme> + Vuetify 테마
 i18n/locales/          화면 문구 ko/en/ja (.json) + Vuetify 문구 병합(.ts)
@@ -42,8 +43,8 @@ Nuxt 컴포넌트 이름은 폴더 접두사가 붙는다: `components/team/Slot
 | 라우트 | 컴포넌트 | 내용 |
 |---|---|---|
 | `/` | pages/index.vue | 모드 카드, 현재 레귤레이션, 파티 진행도 |
-| `/party` | pages/party.vue → TeamSlotEditor ×6 | 포켓몬/특성/도구/성격/능력P/기술, 실능치·HP 배수·내구·결정력, 결정력 미리보기 조건 |
-| `/single`, `/double` | BattleEntryView(mode) | 왼쪽 내 파티(눌러서 선출), 가운데 데미지 표(방향 탭), 오른쪽 상대 6마리 입력(compact SlotEditor) |
+| `/party` | pages/party.vue → TeamSlotEditor ×6 | 포켓몬/특성/도구/성격/능력P/기술, 실능치·HP 배수·내구·결정력, 결정력 미리보기 조건, "통계 추천" 버튼(사용률 통계가 있는 포켓몬) |
+| `/single`, `/double` | BattleEntryView(mode) | 왼쪽 내 파티(눌러서 선출), 가운데 데미지 표(방향 탭), 오른쪽 상대 6마리 입력(compact SlotEditor, 포켓몬을 고르면 자동 배치 + "자동 배치" 버튼) |
 | `/single/battle`, `/double/battle` | BattleView(mode) | 필드 포켓몬 패널, 필드 상태, 행동 입력·턴 적용, 예상 흐름, 스피드 구간, 배분 추정, 데미지 표 2종 |
 | `/stats` | pages/stats.vue → PerfBulkTable / PerfPowerTable / PerfSpeedTable | 포켓몬 성능표. 검색, 탭은 `?tab=bulk|power|speed` |
 
@@ -53,9 +54,10 @@ Nuxt 컴포넌트 이름은 폴더 접두사가 붙는다: `components/team/Slot
 |---|---|
 | `useGameData()` | `public/data` 로드(1회), 현재 언어 이름/설명 로드, `name/text/pokemon/move/learnset/megaFor/pokemonSprite/itemSprite/options` |
 | `useRegulation()` | 레귤레이션 목록, 현재 시각 자동 선택/수동 선택, `isAllowed(id)`, `selectableSpecies` |
-| `useTeam(side)` | `'mine' | 'opp'` 6슬롯 (`TeamSlot`), 메가 미리보기 토글. localStorage `pch-team-mine-v2` / `pch-team-opp-v2` 자동 저장. `migrateLegacyTeam()` 은 예전 한글 저장분 이전 |
+| `useTeam(side)` | `'mine' | 'opp'` 6슬롯 (`TeamSlot`), 메가 미리보기 토글(`megaOn`), 배틀 폼 토글(`altOn`, null = 기본값). localStorage `pch-team-mine-v2` / `pch-team-opp-v2` 자동 저장. `migrateLegacyTeam()` 은 예전 한글 저장분 이전 |
 | `useEntry(mode)` | 선출 순서(내 파티 인덱스 배열), 싱글 3 / 더블 4 |
-| `useTeamCalc()` | 슬롯 → `ResolvedSlot`(메가 폼·실능치·특성), `combatant()`, 데미지 표 칸 `cell()`, 결정력 `power()` |
+| `useTeamCalc()` | 슬롯 → `ResolvedSlot`(메가 폼·실능치·특성), `combatant()`, 데미지 표 칸 `cell()`, 결정력 `power()`, 연속기 타수 `hits()` |
+| `useAutoSet()` | 상대 포켓몬 자동 배치: 현재 레귤레이션의 사용률 통계(`usage.json`, `usageSet`)가 있으면 우선, 없으면 `utils/autoSet.ts` 규칙. 슬롯에 적용(`apply`, 같은 파티 도구 중복 피함) |
 | `useBattle(mode)` | 배틀 상태 머신. `useState('battle-{mode}')` 에 저장(화면 이동해도 유지, 선출/상대 구성이 바뀌면 자동 초기화) |
 | `useBattleAnalysis(b)` | 행동 순서, 스피드 구간(`speedBands`), 시나리오 데미지, ①②③ 흐름, 연속기 자멸 위험, 상태이상 예고. 문구는 `{key, params}` |
 | `useOppEstimate(b)` | 상대 배분 추정: 저장된 관측(주고받은 데미지)마다 그 시점 상태로 다시 계산해 내구·공격·도구 후보 범위를 좁힌다 |

@@ -11,19 +11,26 @@
       <div class="head-main">
         <TeamSpeciesPicker v-model="slot.species" :ids="speciesIds" :exclude="excludeSpecies" />
         <div v-if="resolved" class="head-meta">
-          <UiTypeGroup :types="resolved.species.types" small />
+          <UiTypeGroup :types="shownTypes" small />
           <label v-if="resolved.megaId" class="mega-switch">
             <input v-model="megaOn" type="checkbox" />
             <span>{{ megaOn ? gd.name('pokemon', resolved.megaId) : t('common.mega') }}</span>
           </label>
-          <span
-            v-if="resolved.formId"
-            class="form-note small"
-            :title="t('party.formNote.' + resolved.formId)"
-            >{{ t('battle.form.' + resolved.formId)
-            }}{{ resolved.isAlt ? '' : ` (${t('party.formOnAttack')})` }}</span
-          >
+          <!-- 배틀 폼 (킬가르도·돌핀맨·모르페코 체크 / 캐스퐁은 날씨 버튼) -->
+          <TeamFormToggle v-model:alt-on="altOn" v-model:weather="castWeather" :r="resolved" />
           <span v-if="notAllowed" class="warn-text small">{{ t('party.notInRegulation') }}</span>
+          <!-- 내 파티: 사용률 통계 기준 추천 배치 (통계가 있는 포켓몬만) -->
+          <button
+            v-if="!autoSet && usage"
+            type="button"
+            class="btn btn-sm usage-btn"
+            :title="
+              t('party.usageHint', { month: usage.month, count: usage.count.toLocaleString() })
+            "
+            @click="applyUsage"
+          >
+            {{ t('party.usageApply') }}
+          </button>
         </div>
       </div>
     </header>
@@ -125,16 +132,29 @@
           v-model="slot.moves[i]"
           :learnset="learnset"
           :exclude="slot.moves.filter((_, j) => j !== i)"
-          :power="calc.power(resolved, slot.moves[i]!, previewField, previewStatus)"
+          :power="calc.power(resolved, slot.moves[i]!, previewField, previewStatus, preview.ranks)"
+          :hits="calc.hits(resolved, slot.moves[i]!)"
           :ability="resolved.ability"
+          :species="calc.attackForm(resolved).species"
           :field="previewField"
           :show-info="!compact"
         />
       </div>
 
-      <!-- 결정력 미리보기 조건: 누르면 떠 있는 창으로 (카드 높이가 바뀌지 않게). 켜 둔 조건은 버튼에 이름으로 표시 -->
-      <div v-if="!compact" class="preview">
-        <v-menu location="top start" :close-on-content-click="false" :offset="6">
+      <!-- 결정력 미리보기 조건. 화면에 남는 공간이 있으면 카드 안에 펼치고(previewInline),
+           없으면 누르면 떠 있는 창으로 (카드 높이가 바뀌지 않게). 켜 둔 조건은 버튼에 이름으로 표시 -->
+      <div v-if="!compact" class="preview" :class="{ inline: previewInline }">
+        <template v-if="previewInline">
+          <span class="section-label">{{ t('party.previewConditions') }}</span>
+          <TeamPreviewConditions
+            v-model:weather="preview.weather"
+            v-model:terrain="preview.terrain"
+            v-model:status="preview.status"
+            v-model:ranks="preview.ranks"
+            inline
+          />
+        </template>
+        <v-menu v-else location="top start" :close-on-content-click="false" :offset="6">
           <template #activator="{ props: mp, isActive }">
             <button
               type="button"
@@ -146,54 +166,13 @@
               <span v-if="previewSummary" class="pv-on">{{ previewSummary }}</span>
             </button>
           </template>
-          <div class="pv-pop">
-            <div class="pv-group">
-              <span class="pv-label">{{ t('weather.label') }}</span>
-              <!-- 4칸 격자: 쾌청/큰가뭄, 비/폭우, 모래바람/난기류가 같은 세로줄 -->
-              <div class="chip-row weather-grid">
-                <button
-                  v-for="w in WEATHERS"
-                  :key="w"
-                  type="button"
-                  class="chip"
-                  :class="{ active: preview.weather === w }"
-                  @click="preview.weather = preview.weather === w ? '' : w"
-                >
-                  {{ t('weather.' + w) }}
-                </button>
-              </div>
-            </div>
-            <div class="pv-group">
-              <span class="pv-label">{{ t('terrain.label') }}</span>
-              <div class="chip-row">
-                <button
-                  v-for="tr in TERRAINS"
-                  :key="tr"
-                  type="button"
-                  class="chip"
-                  :class="{ active: preview.terrain === tr }"
-                  @click="preview.terrain = preview.terrain === tr ? '' : tr"
-                >
-                  {{ t('terrain.' + tr) }}
-                </button>
-              </div>
-            </div>
-            <div class="pv-group">
-              <span class="pv-label">{{ t('party.previewStatus') }}</span>
-              <div class="chip-row">
-                <button
-                  v-for="s in ['brn', 'par'] as const"
-                  :key="s"
-                  type="button"
-                  class="chip warn"
-                  :class="{ active: preview.status === s }"
-                  @click="preview.status = preview.status === s ? '' : s"
-                >
-                  {{ t('status.' + s) }}
-                </button>
-              </div>
-            </div>
-          </div>
+          <TeamPreviewConditions
+            v-model:weather="preview.weather"
+            v-model:terrain="preview.terrain"
+            v-model:status="preview.status"
+            v-model:ranks="preview.ranks"
+            class="pv-pop"
+          />
         </v-menu>
       </div>
     </template>
@@ -211,10 +190,11 @@ import {
 } from '~/utils/types'
 import { SP_PER_STAT_MAX, SP_TOTAL_MAX, isSpValid, spTotal } from '~/utils/stats'
 import { hpRemainderHint } from '~/utils/ko'
+import { typesInWeather } from '~/utils/damage'
 
 const slot = defineModel<TeamSlot>('slot', { required: true })
 const megaOn = defineModel<boolean>('megaOn', { default: true })
-defineProps<{
+const props = defineProps<{
   index: number
   speciesIds: string[]
   excludeSpecies?: string[]
@@ -222,18 +202,25 @@ defineProps<{
   compact?: boolean
   narrow?: boolean // 폭이 좁은 카드 (넓은 화면에서 파티 6장을 한 줄로 놓을 때)
   notAllowed?: boolean
+  previewInline?: boolean // 결정력 미리보기 조건을 카드 안에 펼침 (파티 화면에 남는 공간이 있을 때)
+  autoSet?: boolean // 포켓몬을 고르면 특성·도구·성격·능력 포인트·기술 자동 배치 (선출 화면 상대 파티)
 }>()
 
 const { t } = useI18n()
 const gd = useGameData()
 const calc = useTeamCalc()
+const auto = useAutoSet()
 
-const WEATHERS: Weather[] = ['sun', 'rain', 'sand', 'snow', 'harshsun', 'heavyrain', 'strongwinds']
-const TERRAINS: Terrain[] = ['electric', 'grassy', 'misty', 'psychic']
-const preview = reactive<{ weather: Weather; terrain: Terrain; status: Status }>({
+const preview = reactive<{
+  weather: Weather
+  terrain: Terrain
+  status: Status
+  ranks: { atk: number; spa: number }
+}>({
   weather: '',
   terrain: '',
   status: '',
+  ranks: { atk: 0, spa: 0 },
 })
 const previewField = computed(() => ({ weather: preview.weather, terrain: preview.terrain }))
 const previewStatus = computed(() => preview.status)
@@ -243,12 +230,32 @@ const previewSummary = computed(() =>
     preview.weather && t('weather.' + preview.weather),
     preview.terrain && t('terrain.' + preview.terrain),
     preview.status && t('status.' + preview.status),
+    ...(['atk', 'spa'] as const)
+      .filter((k) => preview.ranks[k])
+      .map((k) => `${t('stat.' + k)}${preview.ranks[k] > 0 ? '+' : ''}${preview.ranks[k]}`),
   ]
     .filter(Boolean)
     .join(' · '),
 )
 
-const resolved = computed(() => calc.resolve(slot.value, megaOn.value))
+// 배틀 폼 (null = 기본값). 포켓몬을 바꾸면 기본값으로
+const altOn = defineModel<boolean | null>('altOn', { default: null })
+// 선출 화면(compact)의 화면 전체 날씨. 캐스퐁 모습 버튼이 바꾼다 (파티 화면은 카드의 미리보기 날씨)
+const fieldWeather = defineModel<Weather>('fieldWeather', { default: '' })
+const castWeather = computed<Weather>({
+  get: () => (props.compact ? fieldWeather.value : preview.weather),
+  set: (w) => {
+    if (props.compact) fieldWeather.value = w
+    else preview.weather = w
+  },
+})
+const resolved = computed(() => calc.resolve(slot.value, megaOn.value, altOn.value ?? undefined))
+// 캐스퐁은 날씨에 맞는 타입으로 표시
+const shownTypes = computed(() =>
+  resolved.value
+    ? typesInWeather(resolved.value.species, resolved.value.ability, castWeather.value)
+    : [],
+)
 const learnset = computed(() => gd.learnset(slot.value.species))
 const spValid = computed(() => isSpValid(slot.value.sp))
 const hpHint = computed(() =>
@@ -263,6 +270,7 @@ const hpHint = computed(() =>
 )
 
 // 포켓몬이 바뀌면 특성/도구/기술 초기화 (능력 포인트는 유지). 지우면 전부 초기화.
+// autoSet 이면 초기화 대신 자동 배치 (utils/autoSet.ts).
 // 슬롯 객체 자체가 교체된 경우(저장분 복원/이전 버전 데이터 이전)는 사용자가 바꾼 게 아니므로 건드리지 않는다.
 let lastSlot = slot.value
 watch(
@@ -273,6 +281,12 @@ watch(
       return
     }
     if (id === prev) return
+    megaOn.value = true
+    altOn.value = null
+    if (id && props.autoSet) {
+      auto.apply(slot.value, props.excludeItems)
+      return
+    }
     const p = gd.pokemon(id)
     slot.value.ability = p?.abilities[0] || ''
     slot.value.item = ''
@@ -281,9 +295,16 @@ watch(
       slot.value.nature = 'serious'
       for (const k of STAT_KEYS) slot.value.sp[k] = 0
     }
-    megaOn.value = true
   },
 )
+
+// 사용률 통계 기준 추천: 특성·도구·성격·능력 포인트·기술을 덮어씀 (기술이 이미 있으면 확인)
+const usage = computed(() => (slot.value.species ? auto.usageInfo(slot.value.species) : null))
+const applyUsage = () => {
+  if (slot.value.moves.some(Boolean) && !window.confirm(t('party.usageConfirm'))) return
+  auto.apply(slot.value, props.excludeItems, true)
+  megaOn.value = true
+}
 
 const natureClass = (k: StatKey) => {
   const n = resolved.value?.nature
@@ -297,6 +318,12 @@ const bulk = (k: 'def' | 'spd') => {
 </script>
 
 <style scoped>
+/* 사용률 통계 추천 버튼 (카드 머리 줄에 들어가도록 작게) */
+.usage-btn {
+  min-height: 22px;
+  padding: 0 8px;
+  font-size: 11px;
+}
 .slot {
   position: relative;
   padding: 14px;
@@ -572,9 +599,6 @@ const bulk = (k: 'def' | 'spd') => {
 }
 /* 떠 있는 창 (body 로 옮겨져서 카드 안 스타일과 무관) */
 .pv-pop {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
   min-width: 330px;
   padding: 10px 12px;
   background: var(--panel-solid);
@@ -590,26 +614,14 @@ const bulk = (k: 'def' | 'spd') => {
   font-size: 10px;
   letter-spacing: 0;
 }
-/* 조건 묶음: 왼쪽 이름표 + 칩 */
-.pv-group {
-  display: grid;
-  grid-template-columns: 52px minmax(0, 1fr);
-  gap: 8px;
-  align-items: start;
-}
-.weather-grid {
-  display: grid;
-  grid-template-columns: repeat(4, max-content);
-}
-.pv-label {
-  padding-top: 5px;
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--text-3);
-}
 .preview {
   padding-top: 8px;
   border-top: 1px dashed var(--line);
+}
+.preview.inline {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 /* compact: 선출 화면의 상대 입력 */

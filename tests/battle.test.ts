@@ -183,7 +183,7 @@ describe('랭크 변화 반응', () => {
     const b = setup(
       'single',
       [slot('garchomp', { ability: 'contrary' }), slot('lucario', { item: 'whiteherb' })],
-      [slot('gholdengo')],
+      [slot('kingambit')],
     )
     b.sendOut('opp', 0, 0)
     moveAction(b, 'mine', 0, 'closecombat')
@@ -342,6 +342,188 @@ describe('더블: 아군도 맞히는 광역기', () => {
     moveAction(b, 'mine', 0, 'earthquake')
     S(b).actions.mine[0]!.allyAmount = 9999
     expect(b.validationError.value).toBe('errAlly')
+  })
+})
+
+describe('설치기 (교체로 들어올 때)', () => {
+  it('스텔스록·압정뿌리기·독압정·끈적끈적네트, 땅에 없는 포켓몬은 압정·네트 무시, 정정은 적용 안 함', () => {
+    const b = setup(
+      'single',
+      [slot('garchomp'), slot('gyarados'), slot('incineroar')],
+      [slot('kingambit')],
+    )
+    b.sendOut('opp', 0, 0)
+    for (const k of ['stealthrock', 'spikes', 'toxicspikes', 'stickyweb'])
+      b.toggleSideCondition('mine', k)
+    // 갸라도스(물/비행): 스텔스록 2배 = 1/4, 압정·독압정·네트는 땅에 없어서 무시
+    switchAction(b, 'mine', 0, 1)
+    b.executeTurn()
+    const gy = mon(b, 'mine', 1)
+    const gyMax = b.maxHp('mine', 1)
+    expect(gy.hp).toBe(gyMax - Math.floor((gyMax * 2) / 8))
+    expect(gy.status).toBe('')
+    expect(gy.boosts.spe).toBe(0)
+    // 어흥염(불꽃/악): 스텔스록 2배 + 압정 1겹 1/8, 독(턴 끝 1/8), 스피드 −1
+    switchAction(b, 'mine', 0, 2)
+    b.executeTurn()
+    const inc = mon(b, 'mine', 2)
+    const incMax = b.maxHp('mine', 2)
+    // 스텔스록 + 압정 + 턴 끝 독 데미지 1/8
+    expect(inc.hp).toBe(incMax - Math.floor((incMax * 2) / 8) - 2 * Math.floor(incMax / 8))
+    expect(inc.status).toBe('psn')
+    expect(inc.boosts.spe).toBe(-1)
+    // 정정(상태 정정 모드)은 설치기·등장 효과 없음, 그냥 교체는 적용
+    const before = mon(b, 'mine', 0).hp
+    b.sendOut('mine', 0, 0, 'correct')
+    expect(mon(b, 'mine', 0).hp).toBe(before)
+    expect(S(b).sides.mine.active[0]).toBe(0)
+    b.sendOut('mine', 0, 1)
+    expect(mon(b, 'mine', 1).hp).toBe(gyMax - 2 * Math.floor((gyMax * 2) / 8))
+  })
+})
+
+describe('행동으로 인한 교체 / 빗나감 / 더블 광역기 / 조건부 기술', () => {
+  it('유턴: 공격 후 고른 포켓몬으로 교체 (설치기 적용), 드래곤테일: 상대가 교체', () => {
+    const b = setup(
+      'single',
+      [slot('scizor'), slot('gyarados')],
+      [slot('garchomp'), slot('kingambit')],
+    )
+    b.sendOut('opp', 0, 0)
+    b.toggleSideCondition('mine', 'stealthrock')
+    moveAction(b, 'mine', 0, 'uturn', 20)
+    S(b).actions.mine[0]!.selfSwitch = 1
+    expect(b.canSelfSwitch('mine', 0)).toBe(true)
+    b.executeTurn()
+    expect(S(b).sides.mine.active[0]).toBe(1)
+    expect(mon(b, 'mine', 1).hp).toBe(b.maxHp('mine', 1) - Math.floor((b.maxHp('mine', 1) * 2) / 8))
+    moveAction(b, 'opp', 0, 'dragontail', 30)
+    S(b).actions.opp[0]!.foeSwitch = 0
+    expect(b.canForceSwitch('opp', 0)).toBe(true)
+    b.executeTurn()
+    expect(S(b).sides.mine.active[0]).toBe(0)
+  })
+  it('빗나감: 데미지 없음, 무릎차기는 최대 HP 1/2 반동, 다음 턴 분함의발구르기 2배', () => {
+    const b = setup('single', [slot('medicham')], [slot('garchomp')])
+    b.sendOut('opp', 0, 0)
+    moveAction(b, 'mine', 0, 'highjumpkick', 50)
+    S(b).actions.mine[0]!.missed = true
+    b.executeTurn()
+    expect(mon(b, 'opp', 0).hp).toBe(100)
+    expect(mon(b, 'mine', 0).hp).toBe(b.maxHp('mine', 0) - Math.floor(b.maxHp('mine', 0) / 2))
+    expect(mon(b, 'mine', 0).lastFailed).toBe(true)
+    expect(b.attackOpts('mine', 0, 'stompingtantrum').lastMoveFailed).toBe(true)
+  })
+  it('더블 광역기: 두 상대에게 각각 입력한 피해를 적용', () => {
+    const b = setup(
+      'double',
+      [slot('garchomp'), slot('gyarados')],
+      [slot('kingambit'), slot('gholdengo')],
+    )
+    b.sendOut('opp', 0, 0)
+    b.sendOut('opp', 1, 1)
+    moveAction(b, 'mine', 0, 'earthquake', 40)
+    S(b).actions.mine[0]!.amount2 = 30
+    b.executeTurn()
+    expect(mon(b, 'opp', 0).hp).toBe(60)
+    expect(mon(b, 'opp', 1).hp).toBe(70)
+  })
+  it('카운터: 먼저 받은 물리 데미지 × 2 / 승부굳히기: 이미 맞은 상대에게 2배', () => {
+    const b = setup('single', [slot('scizor')], [slot('garchomp')])
+    if (!b.mineSlots.value[0]?.species) return
+    b.sendOut('opp', 0, 0)
+    moveAction(b, 'opp', 0, 'earthquake', 50)
+    moveAction(b, 'mine', 0, 'counter')
+    S(b).observedOrder = 'opp'
+    const order = b.turnOrder()
+    const opts = b.actionOpts('mine', 0, 0, 'counter', order)
+    expect(opts.damageTaken?.physical).toBe(50)
+  })
+})
+
+describe('확정 부가효과 / 명중·회피 랭크', () => {
+  it('진흙뿌리기(100%) 명중 −1, 빗나가면 효과 없음', () => {
+    const b = setup('single', [slot('garchomp')], [slot('kingambit')])
+    b.sendOut('opp', 0, 0)
+    moveAction(b, 'mine', 0, 'mudslap', 10)
+    b.executeTurn()
+    expect(mon(b, 'opp', 0).boosts.accuracy).toBe(-1)
+    // 빗나가면 효과 없음
+    moveAction(b, 'mine', 0, 'mudslap', 0)
+    S(b).actions.mine[0]!.missed = true
+    b.executeTurn()
+    expect(mon(b, 'opp', 0).boosts.accuracy).toBe(-1)
+  })
+  it('전기자석파: 마비 (전기 타입·이미 상태이상이면 안 걸림), 니트로차지: 맞히면 스피드 +1', () => {
+    const b = setup('single', [slot('charizard')], [slot('kingambit')])
+    b.sendOut('opp', 0, 0)
+    moveAction(b, 'mine', 0, 'flamecharge', 20)
+    b.executeTurn()
+    expect(mon(b, 'mine', 0).boosts.spe).toBe(1)
+    moveAction(b, 'mine', 0, 'thunderwave')
+    b.executeTurn()
+    expect(mon(b, 'opp', 0).status).toBe('par')
+  })
+  it('명중 랭크가 데미지 칸 명중률에 반영', () => {
+    const b = setup('single', [slot('garchomp')], [slot('kingambit')])
+    b.sendOut('opp', 0, 0)
+    const an = useBattleAnalysis(b)
+    moveAction(b, 'mine', 0, 'stoneedge')
+    expect(an.mineActionPreview.value!.hitChance).toBeCloseTo(0.8)
+    b.changeBoost('opp', 0, 'evasion', 1)
+    expect(an.mineActionPreview.value!.hitChance).toBeCloseTo(0.6)
+  })
+})
+
+describe('배틀 구성이 바뀌면', () => {
+  it('시작 전이면 바로 새로, 진행 중이면 이유를 알리고 확인 후 초기화', () => {
+    const b = setup('single', [slot('garchomp'), slot('gyarados')], [slot('kingambit')])
+    b.sendOut('opp', 0, 0)
+    b.executeTurn()
+    useEntry('single').picks.value = [1, 0, 2]
+    expect(b.staleReason.value).toBe('picks')
+    b.ensure()
+    expect(S(b).turn).toBe(2) // 진행 중 → 자동 초기화 안 함
+    b.reset()
+    expect(b.staleReason.value).toBe('')
+  })
+})
+
+describe('둔갑 (따라큐)', () => {
+  it('첫 공격은 최대 HP 1/8 고정, 맞으면 풀림, 틀깨기는 무시', () => {
+    const b = setup('single', [slot('garchomp')], [slot('mimikyu', { ability: 'disguise' })])
+    b.sendOut('opp', 0, 0)
+    const an = useBattleAnalysis(b)
+    moveAction(b, 'mine', 0, 'earthquake')
+    const c = an.mineActionPreview.value!
+    const maxHp = b.resolveAt('opp', 0)!.stats.hp
+    expect(c.disguise).toBe(true)
+    expect([c.min, c.max]).toEqual([Math.floor(maxHp / 8), Math.floor(maxHp / 8)])
+    expect(c.ko!.hits).toBeGreaterThanOrEqual(2)
+    S(b).actions.mine[0]!.amount = 12
+    b.executeTurn()
+    expect(mon(b, 'opp', 0).alt).toBe(true)
+    moveAction(b, 'mine', 0, 'earthquake')
+    expect(an.mineActionPreview.value!.disguise).toBe(false)
+  })
+})
+
+describe('꼬르륵스위치 (모르페코)', () => {
+  it('턴이 끝날 때마다 배부른모양 ↔ 배고픈모양, 물러나면 배부른모양', () => {
+    const b = setup('single', [slot('morpeko'), slot('garchomp')], [slot('garchomp')])
+    b.sendOut('opp', 0, 0)
+    expect(mon(b, 'mine', 0).alt).toBe(false)
+    b.executeTurn()
+    expect(mon(b, 'mine', 0).alt).toBe(true)
+    expect(b.resolveAt('mine', 0)!.species.id).toBe('morpekohangry')
+    b.executeTurn()
+    expect(mon(b, 'mine', 0).alt).toBe(false)
+    b.executeTurn()
+    expect(mon(b, 'mine', 0).alt).toBe(true)
+    S(b).actions.mine[0]!.kind = 'switch'
+    S(b).actions.mine[0]!.switchTo = 1
+    b.executeTurn()
+    expect(mon(b, 'mine', 0).alt).toBe(false)
   })
 })
 
@@ -586,5 +768,229 @@ describe('상대 배분 추정 (주고받은 데미지 누적)', () => {
     const e = useOppEstimate(b).estimate(0)!
     expect(e.items).toContain('')
     expect(e.items).not.toContain('wiseglasses')
+  })
+})
+
+describe('하품', () => {
+  it('맞으면 졸음 → 다음 턴 끝에 잠듦 (턴 끝 예정 표시)', () => {
+    const b = setup('single', [slot('hippowdon')], [slot('kingambit')])
+    b.sendOut('opp', 0, 0)
+    const an = useBattleAnalysis(b)
+    moveAction(b, 'mine', 0, 'yawn')
+    expect(an.pendingLines.value.map((l) => l.key)).toContain('battle.pending.yawnUsed')
+    b.executeTurn()
+    expect(mon(b, 'opp', 0).volatiles.yawn).toBe(2)
+    expect(mon(b, 'opp', 0).status).toBe('')
+    expect(an.pendingLines.value.map((l) => l.key)).toContain('battle.pending.yawn')
+    b.executeTurn()
+    expect(mon(b, 'opp', 0).status).toBe('slp')
+    expect(mon(b, 'opp', 0).volatiles.yawn).toBeUndefined()
+  })
+  it('그 사이에 교체하면 졸음이 풀림', () => {
+    const b = setup('single', [slot('hippowdon')], [slot('kingambit'), slot('garchomp')])
+    b.sendOut('opp', 0, 0)
+    moveAction(b, 'mine', 0, 'yawn')
+    b.executeTurn()
+    switchAction(b, 'opp', 0, 1)
+    b.executeTurn()
+    expect(mon(b, 'opp', 0).status).toBe('')
+    expect(mon(b, 'opp', 0).volatiles.yawn).toBeUndefined()
+    expect(mon(b, 'opp', 1).status).toBe('')
+  })
+  it('이미 상태이상이거나 일렉트릭필드(땅에 있음)면 실패', () => {
+    const b = setup('single', [slot('hippowdon')], [slot('kingambit')])
+    b.sendOut('opp', 0, 0)
+    mon(b, 'opp', 0).status = 'par'
+    moveAction(b, 'mine', 0, 'yawn')
+    b.executeTurn()
+    expect(mon(b, 'opp', 0).volatiles.yawn).toBeUndefined()
+    mon(b, 'opp', 0).status = ''
+    S(b).terrain.key = 'electric'
+    moveAction(b, 'mine', 0, 'yawn')
+    b.executeTurn()
+    expect(mon(b, 'opp', 0).volatiles.yawn).toBeUndefined()
+  })
+  it('매직미러면 쓴 쪽이 졸음', () => {
+    const b = setup('single', [slot('hippowdon')], [slot('clefable', { item: 'clefablite' })])
+    b.sendOut('opp', 0, 0)
+    b.setMega('opp', 0, true) // 메가픽시 (매직미러)
+    moveAction(b, 'mine', 0, 'yawn')
+    b.executeTurn()
+    expect(mon(b, 'opp', 0).volatiles.yawn).toBeUndefined()
+    expect(mon(b, 'mine', 0).volatiles.yawn).toBe(2)
+  })
+  it('직접 켜면 "이번 턴 끝에 잠듦" 상태', () => {
+    const b = setup('single', [slot('hippowdon')], [slot('kingambit')])
+    b.sendOut('opp', 0, 0)
+    b.toggleVolatile('opp', 0, 'yawn')
+    expect(mon(b, 'opp', 0).volatiles.yawn).toBe(2)
+    b.executeTurn()
+    expect(mon(b, 'opp', 0).status).toBe('slp')
+  })
+})
+
+describe('턴 끝 회복·데미지', () => {
+  it('내 먹다남은음식: 턴 끝 1/16 회복', () => {
+    const b = setup('single', [slot('hippowdon', { item: 'leftovers' })], [slot('kingambit')])
+    b.sendOut('opp', 0, 0)
+    const max = mon(b, 'mine', 0).hp
+    moveAction(b, 'opp', 0, 'ironhead', 50)
+    b.executeTurn()
+    expect(mon(b, 'mine', 0).hp).toBe(max - 50 + Math.floor(max / 16))
+  })
+  it('상대 먹다남은음식: 확정 전에는 없음, "상대 도구 확정"으로 고르면 그 턴 끝부터 자동, 지우면 취소', () => {
+    const b = setup('single', [slot('garchomp')], [slot('kingambit', { item: 'choiceband' })])
+    b.sendOut('opp', 0, 0)
+    const an = useBattleAnalysis(b)
+    moveAction(b, 'mine', 0, 'earthquake', 30)
+    b.executeTurn()
+    expect(mon(b, 'opp', 0).hp).toBe(70)
+    const max = b.resolveAt('opp', 0)!.stats.hp
+    const step = (Math.floor(max / 16) / max) * 100
+    // 이번 턴 끝에 먹다남은음식 회복을 봄 → 행동 입력 중 확정
+    b.confirmItem('opp', 0, 'leftovers')
+    expect(b.oppSlots.value[0]!.item).toBe('leftovers')
+    expect(an.pendingLines.value.map((l) => l.key)).toContain('battle.pending.residual')
+    b.executeTurn()
+    expect(mon(b, 'opp', 0).hp).toBeCloseTo(70 + step)
+    b.executeTurn()
+    expect(mon(b, 'opp', 0).hp).toBeCloseTo(70 + 2 * step)
+    b.confirmItem('opp', 0, '')
+    expect(an.pendingLines.value.map((l) => l.key)).toContain('battle.pending.itemUnknown')
+    b.executeTurn()
+    expect(mon(b, 'opp', 0).hp).toBeCloseTo(70 + 2 * step)
+  })
+  it('검은진흙: 독 타입이 아니면 1/8 데미지', () => {
+    const b = setup('single', [slot('garchomp', { item: 'blacksludge' })], [slot('kingambit')])
+    b.sendOut('opp', 0, 0)
+    const max = mon(b, 'mine', 0).hp
+    b.executeTurn()
+    expect(mon(b, 'mine', 0).hp).toBe(max - Math.floor(max / 8))
+  })
+  it('그래스필드: 땅에 있으면 1/16 회복 (비행 타입은 없음)', () => {
+    const b = setup('single', [slot('garchomp')], [slot('corviknight')])
+    b.sendOut('opp', 0, 0)
+    mon(b, 'mine', 0).hp = 100
+    mon(b, 'opp', 0).hp = 50
+    S(b).terrain.key = 'grassy'
+    S(b).terrain.total = 5
+    b.executeTurn()
+    expect(mon(b, 'mine', 0).hp).toBe(100 + Math.floor(b.resolveAt('mine', 0)!.stats.hp / 16))
+    expect(mon(b, 'opp', 0).hp).toBe(50)
+  })
+  it('씨뿌리기: 맞은 상대가 턴 끝 1/8 잃고 쓴 쪽이 그만큼 회복', () => {
+    const b = setup('single', [slot('venusaur')], [slot('kingambit')])
+    b.sendOut('opp', 0, 0)
+    mon(b, 'mine', 0).hp = 50
+    moveAction(b, 'mine', 0, 'leechseed')
+    b.executeTurn()
+    const oppMax = b.resolveAt('opp', 0)!.stats.hp
+    const drain = Math.floor(oppMax / 8)
+    expect(mon(b, 'opp', 0).volatiles.leechseed).toBeTruthy()
+    expect(mon(b, 'opp', 0).hp).toBeCloseTo(100 - (drain / oppMax) * 100)
+    expect(mon(b, 'mine', 0).hp).toBe(50 + drain)
+  })
+})
+
+describe('모래바람 데미지', () => {
+  it('턴 끝 1/16 (바위·땅·강철 제외)', () => {
+    const b = setup('single', [slot('gyarados')], [slot('hippowdon')])
+    b.sendOut('opp', 0, 0)
+    expect(S(b).weather.key).toBe('sand')
+    const max = mon(b, 'mine', 0).hp
+    b.executeTurn()
+    expect(mon(b, 'mine', 0).hp).toBe(max - Math.floor(max / 16))
+    expect(mon(b, 'opp', 0).hp).toBe(100)
+  })
+  it('모래바람이 가라앉는 턴에는 데미지 없음', () => {
+    const b = setup('single', [slot('gyarados')], [slot('hippowdon')])
+    b.sendOut('opp', 0, 0)
+    const max = mon(b, 'mine', 0).hp
+    S(b).weather.cur = S(b).weather.total - 1 // 이번 턴 끝에 끝남
+    b.executeTurn()
+    expect(S(b).weather.key).toBe('')
+    expect(mon(b, 'mine', 0).hp).toBe(max)
+  })
+  it('날씨부정이 필드에 있으면 날씨 데미지 없음, 방진도 없음', () => {
+    const b = setup('single', [slot('altaria', { ability: 'cloudnine' })], [slot('hippowdon')])
+    b.sendOut('opp', 0, 0)
+    const max = mon(b, 'mine', 0).hp
+    b.executeTurn()
+    expect(mon(b, 'mine', 0).hp).toBe(max)
+    const c = setup('single', [slot('reuniclus', { ability: 'overcoat' })], [slot('hippowdon')])
+    c.sendOut('opp', 0, 0)
+    const max2 = mon(c, 'mine', 0).hp
+    c.executeTurn()
+    expect(mon(c, 'mine', 0).hp).toBe(max2)
+  })
+})
+
+describe('행동 불가 (잠듦·얼음 등)', () => {
+  it('잠든 채 행동 불가 → 상태 유지, 다음 턴 기본값도 행동 불가, 예상 흐름에 이유', () => {
+    const b = setup('single', [slot('garchomp')], [slot('kingambit')])
+    b.sendOut('opp', 0, 0)
+    const an = useBattleAnalysis(b)
+    mon(b, 'mine', 0).status = 'slp'
+    Object.assign(S(b).actions.mine[0]!, { kind: 'cant', cantReason: 'slp' })
+    moveAction(b, 'opp', 0, 'ironhead')
+    expect(an.forecast.value.map((l) => l.key)).toContain('battle.flow.cant')
+    b.executeTurn()
+    expect(mon(b, 'mine', 0).status).toBe('slp')
+    expect(S(b).actions.mine[0]!.kind).toBe('cant')
+  })
+  it('깨어나서 기술을 쓰면 잠듦이 풀림 (잠꼬대는 그대로)', () => {
+    const b = setup('single', [slot('garchomp')], [slot('kingambit')])
+    b.sendOut('opp', 0, 0)
+    mon(b, 'mine', 0).status = 'slp'
+    moveAction(b, 'mine', 0, 'sleeptalk')
+    b.executeTurn()
+    expect(mon(b, 'mine', 0).status).toBe('slp')
+    moveAction(b, 'mine', 0, 'earthquake', 30)
+    b.executeTurn()
+    expect(mon(b, 'mine', 0).status).toBe('')
+    expect(mon(b, 'opp', 0).hp).toBe(70)
+  })
+  it('얼음은 불꽃 기술에 맞으면 녹음, 이유가 마비인데 상태이상이 없으면 마비로', () => {
+    const b = setup('single', [slot('charizard')], [slot('kingambit')])
+    b.sendOut('opp', 0, 0)
+    mon(b, 'opp', 0).status = 'frz'
+    Object.assign(S(b).actions.opp[0]!, { kind: 'cant', cantReason: 'frz' })
+    moveAction(b, 'mine', 0, 'flamethrower', 40)
+    b.executeTurn()
+    expect(mon(b, 'opp', 0).status).toBe('')
+    Object.assign(S(b).actions.opp[0]!, { kind: 'cant', cantReason: 'par' })
+    b.executeTurn()
+    expect(mon(b, 'opp', 0).status).toBe('par')
+    expect(S(b).actions.opp[0]!.kind).toBe('move') // 마비는 다음 턴 기본값이 기술 사용
+  })
+})
+
+describe('상대 도구 확정', () => {
+  it('그라운드코트를 확정하면 지금 필드가 8턴으로', () => {
+    const b = setup('single', [slot('garchomp')], [slot('rillaboom', { ability: 'grassysurge' })])
+    b.sendOut('opp', 0, 0)
+    expect(S(b).terrain.key).toBe('grassy')
+    expect(S(b).terrain.total).toBe(5)
+    b.confirmItem('opp', 0, 'terrainextender')
+    expect(S(b).terrain.total).toBe(8)
+    expect(mon(b, 'opp', 0).itemKnown).toBe(true)
+  })
+})
+
+describe('바톤터치', () => {
+  it('랭크 변화와 일부 특수 상태(기충전·아쿠아링 등)를 나오는 포켓몬에게 넘김', () => {
+    const b = setup('single', [slot('garchomp')], [slot('polteageist'), slot('gyarados')])
+    b.sendOut('opp', 0, 0)
+    Object.assign(mon(b, 'opp', 0).boosts, { atk: 2, spa: 2, spe: 2, def: -1, spd: -1 })
+    mon(b, 'opp', 0).volatiles.focusenergy = 1
+    mon(b, 'opp', 0).volatiles.taunt = 1 // 도발은 넘어가지 않음
+    moveAction(b, 'opp', 0, 'batonpass')
+    S(b).actions.opp[0]!.selfSwitch = 1
+    b.executeTurn()
+    expect(S(b).sides.opp.active[0]).toBe(1)
+    expect(mon(b, 'opp', 1).boosts).toMatchObject({ atk: 2, spa: 2, spe: 2, def: -1, spd: -1 })
+    expect(mon(b, 'opp', 1).volatiles.focusenergy).toBeTruthy()
+    expect(mon(b, 'opp', 1).volatiles.taunt).toBeUndefined()
+    expect(mon(b, 'opp', 0).boosts.atk).toBe(0)
   })
 })

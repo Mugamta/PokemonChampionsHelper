@@ -1,17 +1,14 @@
 {
   "app": {
     "title": "Pokémon Champions Helper",
-    "short": "Champions Helper",
     "loading": "Loading game data...",
     "language": "Language"
   },
   "nav": {
-    "home": "Home",
     "party": "Party",
     "single": "Singles",
     "double": "Doubles",
     "entry": "Team Preview",
-    "battle": "Battle",
     "help": "Help",
     "about": "About",
     "contact": "Contact",
@@ -50,7 +47,9 @@
     "bulk": "Bulk",
     "physBulk": "Phys. bulk",
     "specBulk": "Spec. bulk",
-    "spLeft": "{n} left"
+    "spLeft": "{n} left",
+    "accuracy": "Acc",
+    "evasion": "Eva"
   },
   "category": {
     "physical": "Physical",
@@ -86,7 +85,12 @@
     "jawlock": "Jaw Lock",
     "ingrain": "Ingrain",
     "partiallytrapped": "Bind / Wrap",
-    "charge": "Charge"
+    "charge": "Charge",
+    "focusenergy": "Focus Energy",
+    "stockpile": "Stockpile",
+    "yawn": "Drowsy",
+    "yawnSoon": "Drowsy (sleeps at end of turn)",
+    "aquaring": "Aqua Ring"
   },
   "weather": {
     "label": "Weather",
@@ -105,7 +109,13 @@
     "electric": "Electric Terrain",
     "grassy": "Grassy Terrain",
     "misty": "Misty Terrain",
-    "psychic": "Psychic Terrain"
+    "psychic": "Psychic Terrain",
+    "short": {
+      "electric": "Electric",
+      "grassy": "Grassy",
+      "misty": "Misty",
+      "psychic": "Psychic"
+    }
   },
   "room": {
     "label": "Rooms",
@@ -130,37 +140,24 @@
   },
   "common": {
     "none": "None",
-    "select": "Select",
-    "search": "Search",
     "pokemon": "Pokémon",
     "ability": "Ability",
     "item": "Item",
     "nature": "Nature",
     "neutralNature": "Neutral",
-    "moves": "Moves",
     "move": "Move",
     "power": "Power",
     "accuracy": "Acc",
     "pp": "PP",
     "priority": "Priority",
-    "type": "Type",
     "mega": "Mega Evolution",
-    "megaActive": "Mega Evolved",
     "crit": "Critical hit",
     "empty": "Empty",
     "reset": "Reset",
-    "confirm": "OK",
-    "cancel": "Cancel",
-    "turns": "{cur}/{total} turns",
-    "infinite": "∞",
     "decisive": "Power index",
     "immune": "No effect",
-    "effectiveness": "×{n}",
-    "ppEstimated": "Estimated PP",
     "mine": "My team",
-    "opponent": "Opponent",
-    "unknown": "Unknown",
-    "slot": "Slot {n}"
+    "opponent": "Opponent"
   },
   "home": {
     "tagline": "Damage calculator, team preview and turn tracker for Pokémon Champions ranked battles",
@@ -186,13 +183,14 @@
     "toSingle": "Singles preview",
     "toDouble": "Doubles preview",
     "previewConditions": "Power index conditions",
-    "hpHint": "HP number",
-    "megaHint": "Hold the Mega Stone to calculate in Mega form",
     "notInRegulation": "Not allowed in the current regulation",
     "formOnAttack": "when attacking",
     "formNote": {
-      "palafinhero": "Palafin almost always fights in Hero Form after switching once, so stats and tables use Hero Form. The battle screen switches automatically.",
-      "aegislashblade": "Stats are shown in Shield Forme; attack damage is calculated in Blade Forme."
+      "palafinhero": "On = Hero Form, off = Zero Form (when it first comes in). In practice it fights as Hero Form after switching out once, so it is on by default. The battle screen switches automatically.",
+      "aegislashblade": "On = stats and damage taken while in Blade Forme (after it attacked first in the same turn). Its own attacks always use Blade Forme either way.",
+      "morpekohangry": "On = Hangry Mode: Aura Wheel becomes Dark-type (Electric in Full Belly Mode). Base stats are the same. The battle screen switches it every turn.",
+      "castform": "Castform's form follows the weather (Sunny = sun, Rainy = rain, Snowy = snow). Clicking one switches the weather used for the calculation.",
+      "mimikyubusted": "On = Disguise already broken. Off = the first hit is blocked and it takes only 1/8 of max HP."
     },
     "previewStatus": "Status",
     "typeChanged": "{ability}: {from} → {to} type",
@@ -203,14 +201,19 @@
       "tail": " attacks.",
       "basis": " (based on {n})",
       "none": "No attacking type hits every Pokémon for 1× or more."
-    }
+    },
+    "ready": "Party ready — you can go to Singles or Doubles team preview.",
+    "previewRank": "Stages",
+    "hitsPowerHint": "Power index covers all hits (expected hit count): {dist}",
+    "usageApply": "Usage set",
+    "usageHint": "Fill with the most-used moves, spread, ability and item from Smogon singles usage stats ({month}, {count} uses). Overwrites the current entries",
+    "usageConfirm": "Replace the current ability, item, nature, stat points and moves with the usage-based set?"
   },
   "entry": {
     "titleSingle": "Singles Team Preview",
     "titleDouble": "Doubles Team Preview",
     "pickHint": "Tap your Pokémon to set the bring order ({n})",
     "opponentTitle": "Opponent's team",
-    "matrixTitle": "Damage table",
     "mineToOpp": "{name} → Opponent",
     "oppToMine": "{name} → My picks",
     "spreadLegend": "Spread moves show two rows: (spread) 0.75× and (single) 1×",
@@ -220,7 +223,8 @@
     "toBattle": "Start battle",
     "needOpponent": "Enter all 6 opposing Pokémon",
     "needPick": "Pick {n} of your Pokémon",
-    "noPick": "No Pokémon picked yet"
+    "autoSet": "Auto-fill",
+    "autoSetHint": "Refill the opponent Pokémon's ability, item, nature, stat points and moves (overwrites your edits). Picking a Pokémon also fills these automatically. Pokémon in the current regulation's usage stats (Smogon singles, monthly) get their most-used moves, spread, ability and item; others use the power/bulk ratio rules"
   },
   "battle": {
     "titleSingle": "Single Battle",
@@ -275,14 +279,6 @@
     "observeOrder": "Turn order",
     "iMovedFirst": "I moved first",
     "oppMovedFirst": "Opponent moved first",
-    "hitItemUsed": "Opponent's on-hit item activated",
-    "hitItemSkip": "Item effects were involved this turn, so bulk is not estimated",
-    "hitItemOptions": {
-      "berry": "Resist Berry",
-      "rockyhelmet": "Rocky Helmet",
-      "weaknesspolicy": "Weakness Policy",
-      "other": "Other / unknown"
-    },
     "statusForecast": "End of turn, {name}: {dmg} from {status} ({frac})",
     "flow": {
       "switchTurn": "Switches happen first, so turn order isn't forecast for this turn.",
@@ -303,7 +299,8 @@
       "bulky": "Bulky (H32 · B/D32+)",
       "oppSpeed": "opponent Speed {n}",
       "mineLabel": "my {name}",
-      "oppLabel": "opposing {name}"
+      "oppLabel": "opposing {name}",
+      "cant": "{name} can't move ({reason})"
     },
     "multiHit": {
       "fixed": "{n} hits",
@@ -321,7 +318,9 @@
     },
     "ko": {
       "sure": "guaranteed {n}HKO",
-      "chance": "{p}% chance to {n}HKO"
+      "chance": "{p}% chance to {n}HKO",
+      "real": "Real {p}%",
+      "realHint": "Chance to KO within {n} hit(s) including accuracy {acc}% and crit {crit}%"
     },
     "spreadNote": "0.75× spread applied",
     "focus": "Analysis target",
@@ -329,11 +328,15 @@
     "resetConfirm": "Reset the current battle?",
     "form": {
       "palafinhero": "Hero Form",
-      "aegislashblade": "Blade Forme"
+      "aegislashblade": "Blade Forme",
+      "morpekohangry": "Hangry Mode",
+      "mimikyubusted": "Busted"
     },
     "formHint": {
       "palafinhero": "Becomes Hero Form after switching out once (applied automatically)",
-      "aegislashblade": "Blade Forme after an attacking move, Shield Forme after King's Shield or switching out (applied automatically). Attacks are always calculated in Blade Forme"
+      "aegislashblade": "Blade Forme after an attacking move, Shield Forme after King's Shield or switching out (applied automatically). Attacks are always calculated in Blade Forme",
+      "morpekohangry": "Switches between Full Belly and Hangry Mode at the end of every turn (automatic). Aura Wheel is Electric in Full Belly Mode and Dark in Hangry Mode",
+      "mimikyubusted": "Disguise breaks after being hit once (automatic). Before that, the first hit is blocked and it takes only 1/8 of max HP"
     },
     "itemGone": "lost",
     "itemGoneHint": "Click to mark the item as used/lost (Focus Sash, berries, Knock Off...). Resist berries and Air Balloon are handled automatically when damage is entered",
@@ -379,7 +382,61 @@
       "itemFixed": "Using the entered item",
       "scarfRuledOut": "A damage-boosting item is confirmed → no Choice Scarf",
       "note": "Narrows each time a turn is applied. Allows ±1 pt on damage dealt and ±1 HP on damage taken; multi-hit, fixed-damage moves and turns with a hit-triggered item are skipped. Uses the entered ability."
-    }
+    },
+    "disguise": "Disguise",
+    "disguiseHint": "Disguise: blocks the first hit and takes only 1/8 of max HP (counted in KO hits). Ignored by Mold Breaker",
+    "acc": "Acc {p}%",
+    "fickle": "30%: 2× power",
+    "missed": "Missed/failed",
+    "missedHint": "Check if the move missed or failed: no damage, crash damage (1/2 max HP) for High Jump Kick etc., and Stomping Tantrum / Temper Flare double next turn",
+    "dealtPctTo": "Damage to {name} (%)",
+    "takenDmgTo": "Damage taken by {name}",
+    "selfSwitch": "Switched in after attacking",
+    "foeSwitch": "Opponent switched in after the hit",
+    "noSwitch": "No switch",
+    "editMode": "Correct state",
+    "editModeOn": "Correcting (turn off)",
+    "editModeHint": "When on, changing the Pokémon on the field is not treated as a switch (no hazards, entry abilities or switch-out effects) — it just fixes the state. Fix HP, stages and status as needed",
+    "editModeBanner": "Correction mode: clicking a benched Pokémon (your side) or a revealed/candidate Pokémon (opponent) swaps the field Pokémon without any effects. Turn it off when done.",
+    "stale": {
+      "title": "The battle in progress can't continue",
+      "picks": "Your team selection changed. Confirm to start a new battle with the current selection.",
+      "mine": "One of your Pokémon or items changed. Confirm to start a new battle.",
+      "opp": "The opponent's team changed. Confirm to start a new battle.",
+      "confirm": "OK — reset battle"
+    },
+    "chance": {
+      "title": "Chance effects this turn",
+      "effect": "{name}'s {move}: {target} {effect} {p}%",
+      "boost": "{name}'s {move}: {target} {stat} {delta} {p}%",
+      "flinch": "flinch",
+      "fickle": "{name}'s {move}: 30% chance of double power",
+      "moody": "{name}: Moody — at the end of the turn a random stat +2 and another −1 (enter the result in the stages)"
+    },
+    "pending": {
+      "title": "End of turn",
+      "yawn": "{name}: falls asleep at the end of this turn unless switched out (Yawn)",
+      "yawnUsed": "{name} uses Yawn → {target}: falls asleep at the end of next turn (switching out clears it)",
+      "residual": "{name}: {delta} at end of turn ({src})",
+      "itemUnknown": "{name}: heals at end of turn if it holds {item} (not confirmed — pick it in \"Confirm opponent's item\" below the actions when you see it)"
+    },
+    "cant": "Can't move",
+    "cantHint": "Choose when the Pokémon could not use a move (asleep, frozen, fully paralyzed, etc.; no damage). Asleep/frozen keeps this as the default next turn; choose \"Use move\" when it wakes up or thaws and the status is cleared",
+    "cantReason": {
+      "slp": "Asleep",
+      "frz": "Frozen",
+      "par": "Paralyzed",
+      "flinch": "Flinched",
+      "other": "Other"
+    },
+    "hpMode": "HP before/after",
+    "hpModeHint": "When on, enter HP before → after the hit instead of the damage (the difference is the damage). Leave \"before\" empty to use the current HP. Opponent in %, yours in HP",
+    "hpBefore": "HP before the hit (empty = current HP)",
+    "hpAfter": "After",
+    "pctRangeHint": "Opponent HP is shown only as a whole %, so the actual damage is somewhere in this range. Stat estimation also checks within ±1%p",
+    "itemConfirm": "Confirm opponent's item",
+    "itemConfirmHint": "Pick it when the opponent's item was revealed this turn (Leftovers recovery, White Herb, resist berry, Terrain Extender, etc.). The opponent's item is set and marked confirmed, and is used for calculations and end-of-turn effects from this turn on. Clear to unconfirm",
+    "itemKnown": "Confirmed"
   },
   "help": {
     "title": "Help",
@@ -457,9 +514,9 @@
     "hits": "{n} hits",
     "crit": "always crits",
     "cfg": {
-      "s0": "S0",
-      "s32": "S32",
-      "s32plus": "S32+nature"
+      "s0": "A/C 0",
+      "s32": "A/C 32",
+      "s32plus": "A/C 32+nature"
     },
     "pen": {
       "recoil": "Recoil",
@@ -471,46 +528,64 @@
       "selfDamage": "HP cost",
       "condition": "Conditional",
       "accuracy": "Acc {n}",
-      "randomHits": "Random hits"
+      "randomHits": "Random hits",
+      "crash": "Damage on miss",
+      "accuracyAny": "Accuracy < 100"
     },
     "power": {
-      "note": "Attack index = power × Atk (SpA) stat × STAB × ability (no item, Mega Evolutions hold their Mega Stone, no weather or terrain). Shows the strongest move of each type; if it has a drawback (recoil, stat drop, accuracy below 100, …) the best drawback-free move that never misses is shown below it. Abilities are chosen to maximise the index and shown only when they matter (Skill Link = always 5 hits). Multi-hit moves with a random hit count show the expected value by hit-count probability (top) and min–max (bottom), assuming the move hits: 2–5 hits are 35/35/15/15%, Population Bomb and Triple Axel check accuracy again from the second hit. Body Press uses Defense, and moves that use the target's stats (Foul Play) or whose power depends on the target (weight, HP, …) are excluded."
+      "note": "Attack index = power × Atk (SpA) stat × STAB × ability (no item, Mega Evolutions hold their Mega Stone, no weather or terrain). A/C = Attack SP for physical moves, Special Attack SP for special moves (Body Press uses Defense). Moves with a drawback unchecked above are never picked; if the picked move has a drawback, the best drawback-free move that never misses is shown below it. Abilities are chosen to maximise the index and shown only when they matter (Skill Link = always 5 hits). Multi-hit moves with a random hit count show the expected value by hit-count probability (top) and min–max (bottom), assuming the move hits: 2–5 hits are 35/35/15/15%, Population Bomb and Triple Axel check accuracy again from the second hit. Moves that use the target's stats (Foul Play) or whose power depends on the target (weight, HP, …) are excluded.",
+      "rank": "Atk/SpA stage"
     },
     "bulk": {
-      "plus": "Nature boost (+10% Def and SpD)",
-      "hp": "HP (H32)",
-      "def": "Def (B32)",
-      "spd": "SpD (D32)",
-      "phys": "Phys. bulk H×B",
-      "spec": "Spec. bulk H×D",
-      "note": "Stats with 32 SP in HP, Def and SpD, and bulk indices (HP × Def, HP × SpD). No ability or item modifiers. The nature toggle applies +10% to both Def and SpD (in practice only one of them)."
+      "phys": "Physical bulk (H × B ÷ 0.411)",
+      "spec": "Special bulk (H × D ÷ 0.411)",
+      "note": "Bulk index = HP stat × Def (SpD) stat ÷ 0.411 (same formula as the Party screen). H = HP, B = Def, D = SpD SP; nature = a Def (SpD) boosting nature. The stage applies to Def and SpD. No ability or item modifiers.",
+      "rank": "Def/SpD stage",
+      "cfg": {
+        "phys": {
+          "h0": "No SP",
+          "h32": "H32",
+          "hb32": "H32 B32",
+          "hb32plus": "H32 B32 nature"
+        },
+        "spec": {
+          "h0": "No SP",
+          "h32": "H32",
+          "hb32": "H32 D32",
+          "hb32plus": "H32 D32 nature"
+        }
+      }
     },
     "speed": {
-      "cfgLabel": "Investment",
-      "fieldLabel": "Field",
-      "fieldNone": "None",
       "ability": "Include ability boosts",
-      "onlyMatch": "Only rows with searched Pokémon",
-      "legend": "+ after the base stat = S32 with a boosting nature, no mark = S32 neutral, S0 = no investment. Multiplier = Choice Scarf × ability × Tailwind (×2) × Sticky Web (−1 stage). Abilities assume their condition is met (weather/terrain, Unburden after the item is used, Quick Feet with a status, Speed Boost after one turn). Mega Evolutions hold their Mega Stone, so no Scarf.",
+      "legend": "S = Speed SP, nature = Speed-boosting nature, Scarf = Choice Scarf ×1.5 (— for Mega Evolutions, which hold their Mega Stone). Ability rows assume the condition is met (Swift Swim, Chlorophyll, Sand Rush, Slush Rush, Surge Surfer, Unburden ×2; Quick Feet ×1.5; Speed Boost +1 stage). Unburden is not combined with Scarf.",
       "base": "Base",
-      "mult": "Mult.",
-      "speed": "Speed",
       "cfg": {
         "s0": "S0",
         "s32": "S32",
         "s32plus": "S32+nature",
         "scarf": "Scarf S32",
         "scarfPlus": "Scarf S32+nature"
-      }
+      },
+      "rank": "Speed stage"
     },
-    "reliable": "Sort by drawback-free move",
-    "reliableHint": "If the strongest move has a drawback, sort by the alternative instead. Types with no drawback-free move go last.",
     "hitsRange": "{min}–{max} hits",
     "hitsExp": "avg {n} hits",
     "hitPct": "{n}: {p}%",
     "rangeHint": "For multi-hit moves with a random hit count: top = expected value by hit-count probability, bottom = min–max",
     "loadedDice": "Holding Loaded Dice",
     "unreleased": "(not in game yet)",
-    "loadedDiceHint": "Calculated as if holding Loaded Dice: 2–5 hit moves hit 4 or 5 times (50% each), Population Bomb 4–10 times, Triple Axel all 3 hits. Not applied to Mega Evolutions (they hold a Mega Stone). Acrobatics loses its no-item doubling."
+    "loadedDiceHint": "Calculated as if holding Loaded Dice: 2–5 hit moves hit 4 or 5 times (50% each), Population Bomb 4–10 times, Triple Axel all 3 hits. Not applied to Mega Evolutions (they hold a Mega Stone). Acrobatics loses its no-item doubling.",
+    "penaltyLabel": "Moves to pick from",
+    "penAll": "Include all",
+    "penNone": "Exclude all"
+  },
+  "form": {
+    "castform": {
+      "normal": "Normal",
+      "sunny": "Sunny",
+      "rainy": "Rainy",
+      "snowy": "Snowy"
+    }
   }
 }

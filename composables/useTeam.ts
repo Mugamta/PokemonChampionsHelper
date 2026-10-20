@@ -28,6 +28,8 @@ export function useTeam(side: Side) {
   const slots = useState<TeamSlot[]>(`team-${side}`, freshTeam)
   // 메가스톤을 들고 있을 때 메가진화 상태로 계산할지 (슬롯별 미리보기 토글)
   const megaOn = useState<boolean[]>(`team-${side}-mega`, () => Array(6).fill(true))
+  // 배틀 폼(킬가르도 블레이드폼 / 돌핀맨 마이티폼 / 모르페코 배고픈모양)으로 계산할지. null = 기본값 (useTeamCalc DEFAULT_ALT)
+  const altOn = useState<(boolean | null)[]>(`team-${side}-alt`, () => Array(6).fill(null))
 
   if (import.meta.client && !hydrated[side]) {
     hydrated[side] = true
@@ -35,14 +37,15 @@ export function useTeam(side: Side) {
     if (Array.isArray(saved?.slots) && saved.slots.length === 6) {
       slots.value = saved.slots.map((s: Partial<TeamSlot>) => ({ ...emptySlot(), ...s }))
       if (Array.isArray(saved.megaOn)) megaOn.value = saved.megaOn
+      if (Array.isArray(saved.altOn) && saved.altOn.length === 6) altOn.value = saved.altOn
     }
     watch(
-      [slots, megaOn],
+      [slots, megaOn, altOn],
       () => {
         try {
           localStorage.setItem(
             STORAGE_KEY[side],
-            JSON.stringify({ slots: slots.value, megaOn: megaOn.value }),
+            JSON.stringify({ slots: slots.value, megaOn: megaOn.value, altOn: altOn.value }),
           )
         } catch {
           // 저장 실패(용량 초과/차단)는 무시
@@ -55,13 +58,14 @@ export function useTeam(side: Side) {
   const reset = () => {
     slots.value = freshTeam()
     megaOn.value = Array(6).fill(true)
+    altOn.value = Array(6).fill(null)
   }
 
   // 6마리 모두 정하고 각자 기술이 1개 이상
   const isComplete = computed(() => slots.value.every((s) => s.species && s.moves.some(Boolean)))
   const filled = computed(() => slots.value.filter((s) => s.species).length)
 
-  return { slots, megaOn, reset, isComplete, filled }
+  return { slots, megaOn, altOn, reset, isComplete, filled }
 }
 
 // 예전 한글 이름 저장분 → 새 형식. 내 파티가 비어 있을 때만 1회 실행.
@@ -82,6 +86,9 @@ export async function migrateLegacyTeam(
   const reverse = (table: Record<string, string>) => {
     const m: Record<string, string> = {}
     for (const [id, name] of Object.entries(table)) m[name.replace(/\s/g, '')] ??= id
+    // "에써르 (수컷의 모습)"처럼 기본 폼에 괄호 이름이 붙은 경우 예전 저장분("에써르")도 찾도록
+    for (const [id, name] of Object.entries(table))
+      m[name.replace(/\s*\(.*\)$/, '').replace(/\s/g, '')] ??= id
     return m
   }
   const rev = {
