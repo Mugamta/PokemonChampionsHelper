@@ -2,7 +2,15 @@
 
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { autoSet, exclusiveMoves, usageSet, type UsageTable } from '../utils/autoSet'
+import {
+  autoSet,
+  exclusiveMoves,
+  pickUsageTable,
+  topUsage,
+  usageSet,
+  type UsageData,
+  type UsageTable,
+} from '../utils/autoSet'
 import type { Move, Nature, Pokemon } from '../utils/types'
 
 const load = (f: string) =>
@@ -253,14 +261,54 @@ describe('사용률 통계 우선', () => {
     expect(usageSet(pokemon.corviknight!, table, pokemon, build('corviknight'))).toBeNull()
   })
 
-  it('생성된 usage.json: 기술은 배우는 것만, 능력 포인트 합 66 이하', () => {
-    const usage = load('usage') as Record<string, UsageTable>
-    for (const t of Object.values(usage))
+  it('생성된 usage.json: 싱글·더블 모두, 기술은 배우는 것만, 능력 포인트 합 66 이하', () => {
+    const usage = load('usage') as UsageData
+    expect(Object.keys(usage.single).length).toBeGreaterThan(0)
+    expect(Object.keys(usage.double).length).toBeGreaterThan(0)
+    for (const t of [...Object.values(usage.single), ...Object.values(usage.double)])
       for (const [id, u] of Object.entries(t.pokemon)) {
         const p = pokemon[id]!
         const learn = p.learnset ?? pokemon[p.mega?.from ?? '']?.learnset ?? []
-        for (const m of u.moves) expect(learn).toContain(m)
+        for (const m of [...u.moves, ...Object.keys(u.moveUsage ?? {})]) expect(learn).toContain(m)
         if (u.sp) expect(u.sp.reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(66)
       }
+  })
+})
+
+describe('사용률 상위 (첫 화면)', () => {
+  const mk = (month: string, mons: UsageTable['pokemon']): UsageTable => ({
+    format: 'f',
+    month,
+    battles: 1,
+    pokemon: mons,
+  })
+  const set = (count: number, usage?: number) => ({
+    count,
+    usage,
+    moves: [],
+    ability: '',
+    items: [],
+  })
+  const tables = {
+    'M-A': mk('2026-06', {}),
+    'M-B': mk('2026-09', {}),
+    'M-C': mk('2026-09', {}),
+  }
+
+  it('현재 레귤레이션 표, 없으면 가장 최근 달 (같으면 뒤 레귤레이션)', () => {
+    expect(pickUsageTable(tables, 'M-A')?.reg).toBe('M-A')
+    expect(pickUsageTable(tables, 'M-D')?.reg).toBe('M-C')
+    expect(pickUsageTable(tables, null)?.reg).toBe('M-C')
+    expect(pickUsageTable(undefined, 'M-A')).toBeNull()
+  })
+
+  it('채용률 순, 같으면 사용 수 순', () => {
+    const t = mk('2026-09', {
+      a: set(100, 0.1),
+      b: set(50, 0.3),
+      c: set(200, 0.1),
+      d: set(10, 0.05),
+    })
+    expect(topUsage(t, 3).map((u) => u.id)).toEqual(['b', 'c', 'a'])
   })
 })

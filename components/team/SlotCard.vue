@@ -19,7 +19,10 @@
     <div v-if="r" class="top">
       <UiPokeSprite :id="r.species.id" :size="compact ? 48 : 64" :fainted="fainted" />
       <div class="ident">
-        <span class="name">{{ gd.name('pokemon', r.species.id) }}</span>
+        <span class="name"
+          >{{ gd.name('pokemon', r.species.id)
+          }}<span v-if="genderMark" class="gender-mark">{{ genderMark }}</span></span
+        >
         <span class="types">
           <UiTypeGroup :types="typesInWeather(r.species, r.ability, field?.weather ?? '')" small />
           <label v-if="megaToggle && r.megaId" class="mega-switch" @click.stop @keydown.stop>
@@ -111,6 +114,11 @@ const gd = useGameData()
 const calc = useTeamCalc()
 
 const r = computed(() => calc.resolve(props.slot, props.megaOn ?? true, props.altOn ?? undefined))
+// 성별 기호 (정해진 종은 데이터, 아니면 고른 값)
+const genderMark = computed(() => {
+  const g = gd.pokemon(props.slot.species)?.gender ?? props.slot.gender
+  return g === 'M' ? '♂' : g === 'F' ? '♀' : ''
+})
 // 스킨류 특성(메가 포함)으로 바뀐 기술 타입
 const moveType = (id: string) => {
   const m = gd.move(id)
@@ -122,6 +130,11 @@ const isSpread = (m: string) => isSpreadMove(gd.move(m))
 </script>
 
 <style scoped>
+.gender-mark {
+  margin-left: 3px;
+  color: var(--text-3);
+  font-weight: 800;
+}
 .card {
   position: relative;
   display: flex;

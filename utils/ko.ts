@@ -48,6 +48,21 @@ export function koHitIndex(damages: number[], hp: number): number | null {
   return null
 }
 
+// 대타 뒤의 연속기: 대타가 먼저 받고(대타 HP 를 넘긴 데미지는 버려짐) 대타가 사라진 다음 타부터 본체가 받는다
+export function koHitIndexWithSub(damages: number[], sub: number, hp: number): number | null {
+  let left = sub
+  let sum = 0
+  for (let i = 0; i < damages.length; i++) {
+    if (left > 0) {
+      left -= damages[i]!
+      continue
+    }
+    sum += damages[i]!
+    if (sum >= hp) return i + 1
+  }
+  return null
+}
+
 // 접촉 반격(까칠한피부/철가시 1/8, 울퉁불퉁멧 1/6)을 받으며 연속기를 진행할 때 누가 먼저 쓰러지는지
 export type TrajectoryOutcome = { outcome: 'defender' | 'attacker' | 'survives'; atHit: number }
 export function simulateMultiHit(
@@ -82,7 +97,9 @@ export function statusDamage(maxHp: number, status: string, ability = '', toxicT
   if ((status === 'psn' || status === 'tox') && ability === 'poisonheal') return 0
   if (status === 'psn') return Math.max(1, Math.floor(maxHp / 8))
   if (status === 'brn') return Math.max(1, Math.floor(maxHp / (ability === 'heatproof' ? 32 : 16)))
-  if (status === 'tox') return Math.max(1, Math.floor((maxHp * Math.max(1, toxicTurn)) / 16))
+  // 맹독: 1/16 씩 늘어나 최대 15/16
+  if (status === 'tox')
+    return Math.max(1, Math.floor((maxHp * Math.min(15, Math.max(1, toxicTurn))) / 16))
   return 0
 }
 

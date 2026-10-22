@@ -37,16 +37,18 @@ Nuxt 컴포넌트 이름은 폴더 접두사가 붙는다: `components/team/Slot
 /  ──▶ /party ──┬──▶ /single ──▶ /single/battle   (선출 3마리, 1:1)
                 └──▶ /double ──▶ /double/battle   (선출 4마리, 2:2, 광역기 0.75배)
 /stats                                           (포켓몬 성능표)
+/dex                                             (포켓몬 도감)
 /help  /about  /contact
 ```
 
 | 라우트 | 컴포넌트 | 내용 |
 |---|---|---|
 | `/` | pages/index.vue | 모드 카드, 현재 레귤레이션, 파티 진행도 |
-| `/party` | pages/party.vue → TeamSlotEditor ×6 | 포켓몬/특성/도구/성격/능력P/기술, 실능치·HP 배수·내구·결정력, 결정력 미리보기 조건, "통계 추천" 버튼(사용률 통계가 있는 포켓몬) |
+| `/party` | pages/party.vue → TeamSlotEditor ×6 | 포켓몬/성별(TeamGenderToggle, 둘 다 가능한 종만 ♂/♀)/특성/도구/성격/능력P/기술, 실능치·HP 배수·내구·결정력, 결정력 미리보기 조건, "통계 추천" 버튼(사용률 통계가 있는 포켓몬) |
 | `/single`, `/double` | BattleEntryView(mode) | 왼쪽 내 파티(눌러서 선출), 가운데 데미지 표(방향 탭), 오른쪽 상대 6마리 입력(compact SlotEditor, 포켓몬을 고르면 자동 배치 + "자동 배치" 버튼) |
 | `/single/battle`, `/double/battle` | BattleView(mode) | 필드 포켓몬 패널, 필드 상태, 행동 입력·턴 적용, 예상 흐름, 스피드 구간, 배분 추정, 데미지 표 2종 |
 | `/stats` | pages/stats.vue → PerfBulkTable / PerfPowerTable / PerfSpeedTable | 포켓몬 성능표. 검색, 탭은 `?tab=bulk|power|speed` |
+| `/dex` | pages/dex.vue → DexDetail / DexMoves | 포켓몬 도감. 목록은 성능표와 같음(usePerfList), `?id=`. 종족값·실능치(배분·성격·랭크)·스피드(도구)·내구·타입별 실질 내구(반감열매·특성), 배우는 기술 전부의 위력·명중·PP·우선도·결정력·사용률. 처음엔 통계 배분. 계산 utils/dex.ts |
 
 ## composables
 
@@ -54,10 +56,11 @@ Nuxt 컴포넌트 이름은 폴더 접두사가 붙는다: `components/team/Slot
 |---|---|
 | `useGameData()` | `public/data` 로드(1회), 현재 언어 이름/설명 로드, `name/text/pokemon/move/learnset/megaFor/pokemonSprite/itemSprite/options` |
 | `useRegulation()` | 레귤레이션 목록, 현재 시각 자동 선택/수동 선택, `isAllowed(id)`, `selectableSpecies` |
-| `useTeam(side)` | `'mine' | 'opp'` 6슬롯 (`TeamSlot`), 메가 미리보기 토글(`megaOn`), 배틀 폼 토글(`altOn`, null = 기본값). localStorage `pch-team-mine-v2` / `pch-team-opp-v2` 자동 저장. `migrateLegacyTeam()` 은 예전 한글 저장분 이전 |
+| `useTeam(side)` | `'mine' | 'opp'` 6슬롯 (`TeamSlot`), 완성 여부 `isComplete`(6마리·기술 1개 이상·내 파티는 성별까지, 성별 미선택 슬롯 `missingGender`), 메가 미리보기 토글(`megaOn`), 배틀 폼 토글(`altOn`, null = 기본값). localStorage `pch-team-mine-v2` / `pch-team-opp-v2` 자동 저장. `migrateLegacyTeam()` 은 예전 한글 저장분 이전 |
 | `useEntry(mode)` | 선출 순서(내 파티 인덱스 배열), 싱글 3 / 더블 4 |
 | `useTeamCalc()` | 슬롯 → `ResolvedSlot`(메가 폼·실능치·특성), `combatant()`, 데미지 표 칸 `cell()`, 결정력 `power()`, 연속기 타수 `hits()` |
-| `useAutoSet()` | 상대 포켓몬 자동 배치: 현재 레귤레이션의 사용률 통계(`usage.json`, `usageSet`)가 있으면 우선, 없으면 `utils/autoSet.ts` 규칙. 슬롯에 적용(`apply`, 같은 파티 도구 중복 피함) |
+| `useUsageKind()` | 사용률 통계 종류(싱글/더블) 선택, localStorage `pch_usage_kind`. 첫 화면·도감·파티 화면이 공유 (`TeamUsageKindToggle`) |
+| `useAutoSet(kind?)` | 상대 포켓몬 자동 배치: 현재 레귤레이션의 싱글/더블 사용률 통계(`usage.json`, `usageSet`, kind 생략 시 `useUsageKind`)가 있으면 우선, 없으면 `utils/autoSet.ts` 규칙. 슬롯에 적용(`apply`, 같은 파티 도구 중복 피함) |
 | `useBattle(mode)` | 배틀 상태 머신. `useState('battle-{mode}')` 에 저장(화면 이동해도 유지, 선출/상대 구성이 바뀌면 자동 초기화) |
 | `useBattleAnalysis(b)` | 행동 순서, 스피드 구간(`speedBands`), 시나리오 데미지, ①②③ 흐름, 연속기 자멸 위험, 상태이상 예고. 문구는 `{key, params}` |
 | `useOppEstimate(b)` | 상대 배분 추정: 저장된 관측(주고받은 데미지)마다 그 시점 상태로 다시 계산해 내구·공격·도구 후보 범위를 좁힌다 |
@@ -74,7 +77,9 @@ Nuxt 컴포넌트 이름은 폴더 접두사가 붙는다: `components/team/Slot
   `transform`(변신 대상), `timesHit`(분노의주먹), 상대만 `obs`(배분 추정 관측) · `speedSp`(선후공으로 좁힌 스피드 SP 구간)
 - 진영별: 해저드(`hazards`), 벽/순풍 등(`screens`), 확인된 상대(`revealed`)
 - 전역: 날씨(원시 날씨는 `permanent` + 원인 포켓몬), 필드, 공간(트릭룸 등), 페어리록, 턴, 관찰한 선후공, 분석 대상 칸(`focus`)
-- `executeTurn()`: 교체 → 메가진화(모두) → 행동 순서(`turnOrder`: 우선도 → 관찰한 선후공 / 스피드)대로 기술
+- 동시 등장 묶음 `entry`(선두·쓰러진 뒤 교체, 다음 턴 적용 전까지 발동 순서 수정 가능) + `entryObs`(관찰한 등장 특성 순서),
+  쓰러진 뒤 교체 `pendingReplace` / `replaceFainted` (components/battle/ReplacePanel.vue, EntryOrder.vue)
+- `executeTurn()`: 교체(양쪽이면 등장 특성 스피드 순) → 메가진화(모두) → 행동 순서(`turnOrder`: 우선도 → 관찰한 선후공 / 스피드)대로 기술
   (관측 기록 → 벽 깨기 → 효과 자동 반영 → 변신 → 입력한 데미지) → 원시 날씨 원인 기절 체크 → 이번 턴 상태이상
   → 턴 종료 상태이상 데미지·특수상태 경과 → 날씨/필드/공간/벽 경과 → 입력 초기화. 실행 전 스냅샷(최대 30) 저장.
 

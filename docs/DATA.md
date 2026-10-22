@@ -26,12 +26,12 @@ op.gg 는 자동 수집을 차단(CloudFront 403)하므로 쓰지 않는다.
 
 | 파일 | 형식 |
 |---|---|
-| `pokemon.json` | `{ id: { id, num, base, forme, types, stats{hp..spe}, abilities[], weight, learnset[] \| mega{from,item}, megas[]?, battleForm? } }` — 메가는 learnset 없음(원종 것 사용). 배틀 폼(`palafinhero`, `aegislashblade`)은 `battleForm{from}`, 원래 폼은 `battleForm{to}`. 레귤레이션 목록에 없어서 슬롯에서는 못 고르고 스프라이트는 원래 폼 것을 쓴다 |
-| `moves.json` | `{ id: { id, num, type, category, power, accuracy\|null, pp, ppEstimated?, priority, target, flags[], effects[] } }` — effects 는 `utils/types.ts MoveEffect`. flags 는 계산에 쓰는 것만 (접촉/펀치/소리 등 + 부자유친 제외용 charge/futuremove/noparentalbond) |
+| `pokemon.json` | `{ id: { id, num, base, forme, types, stats{hp..spe}, abilities[], weight, gender?, learnset[] \| mega{from,item}, megas[]?, battleForm? } }` — `gender` 는 성별이 정해진 종만 (`M` 수컷만 / `F` 암컷만 / `N` 무성, Showdown `gender`), 없으면 둘 다 가능. 메가는 learnset 없음(원종 것 사용). 배틀 폼(`palafinhero`, `aegislashblade`)은 `battleForm{from}`, 원래 폼은 `battleForm{to}`. 레귤레이션 목록에 없어서 슬롯에서는 못 고르고 스프라이트는 원래 폼 것을 쓴다 |
+| `moves.json` | `{ id: { id, num, type, category, power, accuracy\|null, pp, ppEstimated?, priority, target, flags[], effects[] } }` — effects 는 `utils/types.ts MoveEffect`. flags 는 계산에 쓰는 것만 (접촉/펀치/소리 등 + 부자유친 제외용 charge/futuremove/noparentalbond + 매직미러 반사용 reflectable + 대타 무시 bypasssub) |
 | `items.json` | `{ id: { id, num, megaStone?{원종id: 메가id}, berry? } }` |
 | `abilities.json`, `natures.json`, `types.json` | 특성 목록 / `{ plus, minus }` / `{ types[], chart[공격][방어] }` |
 | `regulations.json` | `[{ id, start, end, rules, pokemon[id] }]` |
-| `usage.json` | `{ [레귤레이션 id]: { format, month, battles, pokemon: { [폼 id]: { count, moves[4], nature, sp[H,A,B,C,D,S], ability, items[3] } } } }` — Smogon 월별 사용률 통계(싱글 `gen9championsbssreg<id>`, 레이팅 가중 1500, 가장 최근 달). 사용 수 200 미만 제외. 선출 화면 상대 자동 배치에 사용. 받기 실패하면 기존 파일 유지, 새 달 반영은 `--refresh` |
+| `usage.json` | `{ single | double: { [레귤레이션 id]: { format, month, battles, pokemon: { [폼 id]: { count, usage, moves[4], moveShare[4], moveUsage{기술: 비율}, nature, sp[H,A,B,C,D,S], spreadShare, ability, items[3], itemShare[3] } } } } }` (`usage` = 팀 채용률 0~1·전체 합 6, `*Share` = 그 포켓몬 안에서의 비율 0~1, 분모는 특성 수치 합) — Smogon 월별 사용률 통계(싱글 `gen9championsbssreg<id>`, 더블 VGC 1판 `gen9championsvgc<연도>reg<id>` — bo3 제외, 레이팅 가중 1500, 가장 최근 달). 예전 형식(레귤레이션 → 표)은 읽을 때 싱글로 간주(useGameData). 사용 수 200 미만 제외. 선출 화면 상대 자동 배치(그 화면의 배틀 모드), 첫 화면 TOP 6·도감·파티 통계 추천(사용자가 고른 종류, `useUsageKind`)에 사용. 받기 실패하면 기존 파일 유지, 새 달 반영은 `--refresh`. 화면에는 출처(포맷·자료 월·배틀 수)를 선출 화면·상대 슬롯·소개 페이지에 표시 (게임 내 랭크배틀 통계가 아니므로) |
 | `names.{ko,en,ja}.json` | `{ pokemon, moves, abilities, items, natures, types }` 각각 `{ id: 이름 }` |
 | `texts.{ko,en,ja}.json` | `{ moves, abilities, items }` 설명문 |
 

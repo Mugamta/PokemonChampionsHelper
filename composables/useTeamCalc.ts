@@ -5,7 +5,14 @@
 import type { Combatant, DamageOptions, FieldState } from '~/utils/damage'
 import { calcDamage, hitInfo, perHitDamage, powerIndex, withoutItems } from '~/utils/damage'
 import { calcStats } from '~/utils/stats'
-import { holdsOnAtFull, koChance, koHitIndex, koProbWithin, type KoInfo } from '~/utils/ko'
+import {
+  holdsOnAtFull,
+  koChance,
+  koHitIndex,
+  koHitIndexWithSub,
+  koProbWithin,
+  type KoInfo,
+} from '~/utils/ko'
 import { critChance, hitChance } from '~/utils/accuracy'
 import { hitsUsed } from '~/utils/perfTable'
 import type { Nature, Pokemon, StatTable, Status, TeamSlot, TypeId } from '~/utils/types'
@@ -43,6 +50,21 @@ export interface Cell {
   // 실전 KO 확률(%): ko.hits 번 안에 쓰러뜨릴 확률 — 명중·급소·변덕레이저(30% 위력 2배) 포함. 단타 기술만 (아니면 null)
   koReal: number | null
   fickle: boolean // 변덕레이저: max 는 위력 2배일 때
+  // 대타 뒤 (대타를 무시하는 기술·틈새포착이 아닐 때): 이번 공격은 대타가 받음 → KO 타수는 대타를 깨는 타수 + 본체 타수.
+  // breaks: 이번 한 번으로 대타가 깨지는가
+  sub?: { hp: number; breaks: 'sure' | 'maybe' | 'none' } | null
+  // 확정 전 상대 도구의 추측(선출 화면 도구)을 지녔다면의 결과. 본 결과는 확정한 사실만으로 계산한 것
+  guess?: CellGuess | null
+}
+export interface CellGuess {
+  item: string
+  min: number
+  max: number
+  pctMin: number
+  pctMax: number
+  lethal: boolean
+  ko: KoInfo | null
+  koHit: Cell['koHit']
 }
 
 // 배틀 밖(파티/선출 표)에서 쓰는 배틀 폼 기본값. 팔라피는 실전에서 거의 항상 마이티폼으로 싸운다.
@@ -149,8 +171,17 @@ export function useTeamCalc() {
     const info = hitInfo(move, atk, spread, opts)
     const multi = info.max > 1
     const holdOn = holdsOnAtFull(atk, def)
-    // 둔갑(따라큐, 둔갑이 풀리기 전): 첫 공격은 막고 최대 HP 1/8 데미지. 틀깨기면 무시
+    // 대타: 대타를 무시하는 기술(소리 기술 등)·틈새포착이 아니면 대타가 먼저 받는다
+    const subHp =
+      def.sub &&
+      one.effectiveness > 0 &&
+      !move.flags.includes('bypasssub') &&
+      atk.ability !== 'infiltrator'
+        ? def.sub
+        : 0
+    // 둔갑(따라큐, 둔갑이 풀리기 전): 첫 공격은 막고 최대 HP 1/8 데미지. 틀깨기면 무시 (대타가 있으면 대타가 먼저)
     const disguise =
+      !subHp &&
       def.ability === 'disguise' &&
       def.species.id === 'mimikyu' &&
       atk.ability !== 'moldbreaker' &&
@@ -167,8 +198,22 @@ export function useTeamCalc() {
       if (disguise) per.min[0] = per.max[0] = chip
       min = per.min.slice(0, info.min).reduce((s, v) => s + v, 0)
       max = per.max.reduce((s, v) => s + v, 0)
-      const best = koHitIndex(capFirst(per.max), defHp)
-      koHit = best ? { best, worst: koHitIndex(capFirst(per.min), defHp) } : null
+      const idx = (d: number[]) =>
+        subHp ? koHitIndexWithSub(d, subHp, defHp) : koHitIndex(capFirst(d), defHp)
+      const best = idx(per.max)
+      koHit = best ? { best, worst: idx(per.min) } : null
+    } else if (subHp) {
+      // 대타를 깨는 타수 + 그 뒤 본체를 쓰러뜨리는 타수 (대타를 넘긴 데미지는 버려짐)
+      const brk = koChance(one.rolls, subHp, 4)
+      const rest = koChance(one.rolls, defHp, 3, holdOn)
+      ko =
+        brk && rest
+          ? {
+              hits: brk.hits + rest.hits,
+              guaranteed: brk.guaranteed && rest.guaranteed,
+              percent: brk.guaranteed ? rest.percent : (brk.percent * rest.percent) / 100,
+            }
+          : null
     } else if (disguise) {
       // 첫 타는 1/8 고정, 그 뒤로 보통 데미지 → N타 = 1 + 남은 HP 를 깎는 타수
       min = max = chip
@@ -189,7 +234,7 @@ export function useTeamCalc() {
       : null
     if (dbl && !multi && !disguise) max = dbl.max
     let koReal: number | null = null
-    if (!multi && !disguise && one.effectiveness > 0) {
+    if (!multi && !disguise && !subHp && one.effectiveness > 0) {
       const fixed = one.rolls.every((v) => v === one.rolls[0])
       const critRolls =
         fixed || pc === 0 || opts.crit
@@ -224,7 +269,7 @@ export function useTeamCalc() {
       max,
       pctMin: maxHp ? (min / maxHp) * 100 : 0,
       pctMax: maxHp ? (max / maxHp) * 100 : 0,
-      lethal: max >= defHp && !(holdOn && !multi),
+      lethal: subHp ? multi && !!koHit : max >= defHp && !(holdOn && !multi),
       ko,
       hits: multi ? { min: info.min, max: info.max } : null,
       koHit,
@@ -237,6 +282,9 @@ export function useTeamCalc() {
       critChance: pc,
       koReal,
       fickle,
+      sub: subHp
+        ? { hp: subHp, breaks: min >= subHp ? 'sure' : max >= subHp ? 'maybe' : 'none' }
+        : null,
     }
   }
 

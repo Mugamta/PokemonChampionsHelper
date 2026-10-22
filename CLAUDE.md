@@ -10,12 +10,14 @@
 - [docs/DATA.md](docs/DATA.md) — `public/data/*.json` 형식, `scripts/build-data.mjs` 파이프라인, 스프라이트, 레귤레이션 추가 방법
 - [docs/BATTLE_MECHANICS.md](docs/BATTLE_MECHANICS.md) — 실능치/데미지 공식, 반영된 특성·도구 목록, 테스트 방법
 - [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) — 확인 필요한 데이터, 미반영 효과, 환경 주의사항
+- [docs/BUGS.md](docs/BUGS.md) — 남은 버그 / 미구현 목록 (main 에서 하나씩 고쳐 나감)
 
 ## 스택 / 명령어
 
 - Nuxt 4 + Vue 3 + Vuetify 4 + @nuxtjs/i18n, **`ssr: false` (SPA)**, TypeScript(새 코드)
 - `srcDir` = 레포 루트 (`app/` 폴더를 만들지 말 것). `~/` = 루트.
-- `npm run dev` (localhost:3000) / `npm test` (vitest, 데미지 계산을 @smogon/calc 와 대조 + 배틀 상태 머신) / `npm run lint` / `npm run format` (Prettier) / `npm run build:data`
+- `npm run dev` (localhost:3000) / `npm test` (vitest, 데미지 계산을 @smogon/calc 와 대조 + 배틀 상태 머신) / `npm run lint` / `npm run format` (Prettier) / `npm run typecheck` (vue-tsc, .vue 포함) / `npm run build:data`
+- TypeScript 는 vue-tsc 와 맞는 5.9 로 고정 (6.x 는 vue-tsc 가 실행 안 됨). 줄바꿈은 `.gitattributes` 로 LF 고정
 - 배포: `main` push → GitHub Actions(`npm install` → `npm test` → `nuxt build --preset github_pages`, base `/PokemonChampionsHelper/`)
 - Windows Git Bash 에서 base URL 로 빌드할 때는 `MSYS_NO_PATHCONV=1` 필수 (안 하면 경로가 변환돼 모든 HTML 이 "Redirecting..." 이 됨)
 

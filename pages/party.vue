@@ -11,13 +11,21 @@
         </div>
         <!-- 안내 / 준비 완료: 두 문구를 같은 칸에 겹쳐 두고 하나만 보이게 → 파티가 완성돼도 줄 높이가 그대로 (레이아웃 안 밀림) -->
         <p class="page-sub sub-stack" aria-live="polite">
-          <span :class="{ off: mine.isComplete.value }">{{ t('party.subtitle') }}</span>
+          <span :class="{ off: mine.isComplete.value || genderNames }">{{
+            t('party.subtitle')
+          }}</span>
+          <!-- 성별을 안 고른 포켓몬이 있으면 그 이름 -->
+          <span class="warn-text" :class="{ off: mine.isComplete.value || !genderNames }">{{
+            t('party.genderMissing', { names: genderNames })
+          }}</span>
           <span class="ready" :class="{ off: !mine.isComplete.value }"
             >✓ {{ t('party.ready') }}</span
           >
         </p>
       </div>
       <div class="head-actions">
+        <span class="muted small" :title="t('usage.kindHint')">{{ t('usage.kind') }}</span>
+        <TeamUsageKindToggle />
         <span class="muted small">✓ {{ t('party.saved') }}</span>
         <button type="button" class="btn btn-sm btn-danger" @click="onReset">
           {{ t('common.reset') }}
@@ -69,6 +77,7 @@ definePageMeta({ fit: true })
 const { t } = useI18n()
 const reg = useRegulation()
 const mine = useTeam('mine')
+const gd = useGameData()
 const fit = useFitLayout()
 
 // 같은 파티 안에서 포켓몬/도구 중복 금지 (다른 슬롯에서 쓴 값 제외)
@@ -128,6 +137,9 @@ onBeforeUnmount(() => {
 const onReset = () => {
   if (window.confirm(t('party.resetConfirm'))) mine.reset()
 }
+const genderNames = computed(() =>
+  mine.missingGender.value.map((i) => gd.name('pokemon', mine.slots.value[i]!.species)).join(', '),
+)
 const guard = (e: MouseEvent) => {
   if (!mine.isComplete.value) e.preventDefault()
 }

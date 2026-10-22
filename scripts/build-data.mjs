@@ -288,6 +288,8 @@ for (const id of [...inReg, ...megaIds].sort()) {
     stats: Object.fromEntries(Object.entries(s.baseStats).map(([k, v]) => [STAT[k], v])),
     abilities: [...new Set(Object.values(s.abilities).map(toID))],
     weight: s.weightkg,
+    // 성별이 정해진 종만 (M 수컷만 / F 암컷만 / N 무성). 없으면 둘 다 가능 → 슬롯에서 고름
+    ...(s.gender && { gender: s.gender }),
     ...(isMega
       ? { mega: { from: base, item: toID(s.requiredItem) } }
       : { learnset: learnsetOf(id) }),
@@ -376,8 +378,23 @@ const FLAGS = [
   'charge',
   'futuremove',
   'noparentalbond',
+  'reflectable',
+  'bypasssub',
 ]
-const VOLATILES = new Set(['flinch', 'confusion'])
+// 기술이 상대에게 거는 특수 상태 중 배틀 화면에서 다루는 것 (확률·확정 모두)
+const VOLATILES = new Set([
+  'flinch',
+  'confusion',
+  'taunt',
+  'encore',
+  'torment',
+  'disable',
+  'attract',
+  'healblock',
+  'partiallytrapped',
+  'octolock',
+  'saltcure',
+])
 const ratio = (a) => (Array.isArray(a) ? a[0] / a[1] : undefined)
 
 function moveEffects(m) {
@@ -666,7 +683,8 @@ for (const L of Object.keys(names)) {
 }
 
 // ── 6.5 사용률 (Smogon 월별 통계) ─────────────
-// 레귤레이션마다 싱글 포맷(gen9championsbssreg<id>) 통계 중 가장 최근 달의 chaos JSON (레이팅 가중 1500).
+// 레귤레이션마다 싱글 포맷(gen9championsbssreg<id>)·더블 포맷(gen9championsvgc<연도>reg<id>) 통계 중
+// 가장 최근 달의 chaos JSON (레이팅 가중 1500). usage.json = { single: {레귤레이션: 표}, double: {…} }.
 // 포켓몬(폼)별 사용 수 + 가장 많이 쓴 기술 4개·배분(성격+능력 포인트)·특성·도구 → 선출 화면 상대 자동 배치에 사용.
 // 받기 실패(오프라인 등)면 기존 usage.json 을 유지한다. 새 달 반영은 --refresh.
 const STATS = 'https://www.smogon.com/stats'
@@ -677,6 +695,7 @@ const top = (obj, ok) =>
     .filter(([k]) => k && k !== 'nothing' && ok(k))
     .sort((a, b) => b[1] - a[1])
     .map(([k]) => k)
+const round4 = (v) => Math.round(v * 10000) / 10000
 function summarizeUsage(json, month, format) {
   const out = {}
   for (const [name, d] of Object.entries(json.data)) {
@@ -684,6 +703,9 @@ function summarizeUsage(json, month, format) {
     const p = pokemon[id]
     const count = d['Raw count']
     if (!p || count < USAGE_MIN) continue
+    // 비율의 분모: 이 포켓몬의 가중 사용 수 (특성 수치 합 = Smogon moveset 통계의 기준)
+    const weight = Object.values(d.Abilities || {}).reduce((a, b) => a + b, 0) || 1
+    const share = (obj, ids) => ids.map((k) => round4((obj?.[k] ?? 0) / weight))
     const learn = new Set(p.learnset ?? pokemon[p.mega?.from]?.learnset ?? [])
     const spread = top(d.Spreads, (k) => {
       const sp = k.split(':')[1]?.split('/').map(Number) ?? []
@@ -692,13 +714,28 @@ function summarizeUsage(json, month, format) {
       )
     })[0]
     const [nature, sp] = spread ? spread.split(':') : []
+    const moveIds = top(d.Moves, (m) => !!moves[m] && learn.has(m)).slice(0, 4)
+    const itemIds = top(d.Items, (i) => !!items[i]).slice(0, 3)
     out[id] = {
       count,
-      moves: top(d.Moves, (m) => !!moves[m] && learn.has(m)).slice(0, 4),
+      usage: round4(d.usage), // 팀 채용률 (0~1, 전체 합 6)
+      moves: moveIds,
+      moveShare: share(d.Moves, moveIds),
+      // 기술별 채용률 전체 (0.5% 이상, 도감 기술표)
+      moveUsage: Object.fromEntries(
+        top(d.Moves, (m) => !!moves[m] && learn.has(m))
+          .map((m) => [m, round4(d.Moves[m] / weight)])
+          .filter(([, v]) => v >= 0.005),
+      ),
       ...(nature &&
-        natureOut[toID(nature)] && { nature: toID(nature), sp: sp.split('/').map(Number) }),
+        natureOut[toID(nature)] && {
+          nature: toID(nature),
+          sp: sp.split('/').map(Number),
+          spreadShare: round4(d.Spreads[spread] / weight),
+        }),
       ability: top(d.Abilities, (a) => !!abilities[a])[0] ?? '',
-      items: top(d.Items, (i) => !!items[i]).slice(0, 3),
+      items: itemIds,
+      itemShare: share(d.Items, itemIds),
     }
   }
   return { format, month, battles: json.info['number of battles'], pokemon: out }
@@ -709,20 +746,27 @@ async function buildUsage() {
     .map((m) => m[1])
     .sort()
     .reverse()
-  const out = {}
-  for (const r of regulations) {
-    const format = `gen9championsbssreg${toID(r.id)}`
-    const file = `${format}-${USAGE_CUTOFF}.json`
-    for (const month of months.slice(0, 6)) {
-      const list = await cached(`${STATS}/${month}/chaos/`, `smogon/${month}/chaos.html`)
-      if (!list.includes(`"${file}"`)) continue
-      const json = JSON.parse(
-        await cached(`${STATS}/${month}/chaos/${file}`, `smogon/${month}/${file}`),
-      )
-      out[r.id] = summarizeUsage(json, month, format)
-      break
+  // 싱글 = 배틀스타디움 싱글(bss), 더블 = VGC 1판 포맷 (연도가 붙음, 3판 2선승 bo3 포맷은 제외)
+  const FORMATS = {
+    single: (id) => new RegExp(`"(gen9championsbssreg${id})-${USAGE_CUTOFF}\\.json"`),
+    double: (id) => new RegExp(`"(gen9championsvgc\\d{4}reg${id})-${USAGE_CUTOFF}\\.json"`),
+  }
+  const out = { single: {}, double: {} }
+  for (const [kind, re] of Object.entries(FORMATS)) {
+    for (const r of regulations) {
+      for (const month of months.slice(0, 6)) {
+        const list = await cached(`${STATS}/${month}/chaos/`, `smogon/${month}/chaos.html`)
+        const format = list.match(re(toID(r.id)))?.[1]
+        if (!format) continue
+        const file = `${format}-${USAGE_CUTOFF}.json`
+        const json = JSON.parse(
+          await cached(`${STATS}/${month}/chaos/${file}`, `smogon/${month}/${file}`),
+        )
+        out[kind][r.id] = summarizeUsage(json, month, format)
+        break
+      }
+      if (!out[kind][r.id]) warn.push(`사용률 통계 없음: ${kind} ${r.id}`)
     }
-    if (!out[r.id]) warn.push(`사용률 통계 없음: ${format}`)
   }
   return out
 }

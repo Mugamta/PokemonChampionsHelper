@@ -11,6 +11,8 @@
       <div class="head-main">
         <TeamSpeciesPicker v-model="slot.species" :ids="speciesIds" :exclude="excludeSpecies" />
         <div v-if="resolved" class="head-meta">
+          <!-- 성별 (헤롱헤롱·헤롱헤롱바디 판정) -->
+          <TeamGenderToggle v-model="slot.gender" :species="slot.species" :required="!autoSet" />
           <UiTypeGroup :types="shownTypes" small />
           <label v-if="resolved.megaId" class="mega-switch">
             <input v-model="megaOn" type="checkbox" />
@@ -19,13 +21,33 @@
           <!-- 배틀 폼 (킬가르도·돌핀맨·모르페코 체크 / 캐스퐁은 날씨 버튼) -->
           <TeamFormToggle v-model:alt-on="altOn" v-model:weather="castWeather" :r="resolved" />
           <span v-if="notAllowed" class="warn-text small">{{ t('party.notInRegulation') }}</span>
+          <!-- 상대 파티: 자동 배치 기준 (사용률 통계 / 규칙) — 어느 쪽이든 추측 -->
+          <span
+            v-if="autoSet && slot.species"
+            class="basis-tag"
+            :title="
+              usage
+                ? t('usage.basisStatsHint', {
+                    month: usage.month,
+                    count: usage.count.toLocaleString(),
+                  })
+                : t('usage.basisRulesHint')
+            "
+            >{{
+              usage ? t('usage.basisStats', { month: usage.month }) : t('usage.basisRules')
+            }}</span
+          >
           <!-- 내 파티: 사용률 통계 기준 추천 배치 (통계가 있는 포켓몬만) -->
           <button
             v-if="!autoSet && usage"
             type="button"
             class="btn btn-sm usage-btn"
             :title="
-              t('party.usageHint', { month: usage.month, count: usage.count.toLocaleString() })
+              t('party.usageHint', {
+                format: auto.source.value?.format ?? '',
+                month: usage.month,
+                count: usage.count.toLocaleString(),
+              })
             "
             @click="applyUsage"
           >
@@ -180,6 +202,7 @@
 </template>
 
 <script setup lang="ts">
+import type { UsageKind } from '~/utils/autoSet'
 import {
   STAT_KEYS,
   type StatKey,
@@ -204,12 +227,13 @@ const props = defineProps<{
   notAllowed?: boolean
   previewInline?: boolean // 결정력 미리보기 조건을 카드 안에 펼침 (파티 화면에 남는 공간이 있을 때)
   autoSet?: boolean // 포켓몬을 고르면 특성·도구·성격·능력 포인트·기술 자동 배치 (선출 화면 상대 파티)
+  usageKind?: UsageKind // 사용률 통계 종류 (선출 화면 = 배틀 모드, 생략하면 사용자가 고른 종류)
 }>()
 
 const { t } = useI18n()
 const gd = useGameData()
 const calc = useTeamCalc()
-const auto = useAutoSet()
+const auto = useAutoSet(() => props.usageKind)
 
 const preview = reactive<{
   weather: Weather
@@ -281,6 +305,7 @@ watch(
       return
     }
     if (id === prev) return
+    slot.value.gender = '' // 포켓몬이 바뀌면 성별은 다시 고름 (정해진 종은 데이터를 따름)
     megaOn.value = true
     altOn.value = null
     if (id && props.autoSet) {
@@ -318,6 +343,14 @@ const bulk = (k: 'def' | 'spd') => {
 </script>
 
 <style scoped>
+.basis-tag {
+  font-size: 10px;
+  color: var(--text-3);
+  border: 1px dashed var(--line);
+  border-radius: 4px;
+  padding: 0 4px;
+  white-space: nowrap;
+}
 /* 사용률 통계 추천 버튼 (카드 머리 줄에 들어가도록 작게) */
 .usage-btn {
   min-height: 22px;

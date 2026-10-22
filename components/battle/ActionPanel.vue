@@ -24,7 +24,7 @@
               type="button"
               class="chip"
               :class="{ active: a.kind === 'move' }"
-              @click="a.kind = 'move'"
+              @click="setKind(a, 'move')"
             >
               {{ t('battle.useMove') }}
             </button>
@@ -32,8 +32,9 @@
               type="button"
               class="chip"
               :class="{ active: a.kind === 'switch' }"
-              :disabled="s.fairyLock > 0"
-              @click="a.kind = 'switch'"
+              :disabled="b.switchBlocked(side, slot)"
+              :title="b.switchBlocked(side, slot) ? t('battle.switchBlocked') : undefined"
+              @click="setKind(a, 'switch')"
             >
               {{ t('battle.switch') }}
             </button>
@@ -42,7 +43,7 @@
               class="chip"
               :class="{ active: a.kind === 'cant' }"
               :title="t('battle.cantHint')"
-              @click="a.kind = 'cant'"
+              @click="setKind(a, 'cant')"
             >
               {{ t('battle.cant') }}
             </button>
@@ -78,6 +79,17 @@
                 {{ t('battle.cantReason.' + r) }}
               </button>
             </div>
+            <!-- 혼란 자해·기타: 스스로 잃은 HP (내 쪽 실수치, 상대 %) -->
+            <div v-if="CANT_DAMAGE_REASONS.has(a.cantReason)" class="amount">
+              <span class="section-label">{{ t('battle.selfDamage') }}</span>
+              <BattleDamageInput v-model="a.amount" v-bind="selfHpOf(side, slot)" />
+              <span
+                v-if="a.cantReason === 'confusion' && confusionText(side, slot)"
+                class="muted small"
+              >
+                {{ confusionText(side, slot) }}
+              </span>
+            </div>
             <p class="muted small cant-hint">{{ t('battle.cantHint') }}</p>
           </template>
 
@@ -111,7 +123,14 @@
               <input v-model="a.useMega" type="checkbox" />
               {{ t('battle.useMega') }}
             </label>
-            <div class="amount">
+            <!-- 변화기: 데미지 입력 없이 빗나감·실패만 -->
+            <div v-if="b.isStatusMove(a.move)" class="amount-head">
+              <label class="crit" :title="t('battle.missedHint')">
+                <input v-model="a.missed" type="checkbox" />
+                {{ t('battle.missed') }}
+              </label>
+            </div>
+            <div v-else class="amount">
               <span class="section-label amount-head"
                 >{{
                   spreadOther(side, slot) != null
@@ -142,9 +161,42 @@
               </span>
               <BattleDamageInput
                 v-model="a.amount"
-                v-bind="hpOf(side, a.target)"
+                v-bind="hpOf(side, a.target, slot)"
                 :disabled="a.missed"
               />
+              <span v-if="subText(side, slot, a.target)" class="muted small">
+                {{ subText(side, slot, a.target) }}
+              </span>
+            </div>
+            <!-- 이 기술·도구·특성으로 맞은 쪽에게 생긴 확률 효과 (생길 수 있는 것만, 확정 효과는 자동) -->
+            <div v-if="inflictOpts(side, slot, a.target).length" class="fx-row">
+              <span class="section-label">{{
+                t('battle.inflictOnTarget', { name: targetName(side, a.target) })
+              }}</span>
+              <label v-for="k in inflictOpts(side, slot, a.target)" :key="k" class="crit">
+                <input
+                  type="checkbox"
+                  :checked="(a.inflicts ?? []).includes(k)"
+                  @change="toggleFx(a, 'inflicts', k)"
+                />
+                {{ fxLabel(k) }}
+              </label>
+            </div>
+            <!-- 접촉 → 맞은 쪽 특성(정전기 등)으로 공격한 쪽에게 생긴 효과 -->
+            <div v-if="contactOpts(side, slot).length" class="fx-row">
+              <span class="section-label">{{
+                t(side === 'opp' ? 'battle.contactInflict' : 'battle.contactInflictMine', {
+                  ability: contactAbility(side, slot),
+                })
+              }}</span>
+              <label v-for="k in contactOpts(side, slot)" :key="k" class="crit">
+                <input
+                  type="checkbox"
+                  :checked="(a.contactInflicts ?? []).includes(k)"
+                  @change="toggleFx(a, 'contactInflicts', k)"
+                />
+                {{ fxLabel(k) }}
+              </label>
             </div>
             <!-- 더블 광역기: 다른 상대 칸이 받은 피해 -->
             <div v-if="spreadOther(side, slot) != null" class="amount">
@@ -155,9 +207,28 @@
               }}</span>
               <BattleDamageInput
                 v-model="a.amount2"
-                v-bind="hpOf(side, 1 - a.target)"
+                v-bind="hpOf(side, 1 - a.target, slot)"
                 :disabled="a.missed"
               />
+              <span v-if="subText(side, slot, 1 - a.target)" class="muted small">
+                {{ subText(side, slot, 1 - a.target) }}
+              </span>
+            </div>
+            <div
+              v-if="spreadOther(side, slot) != null && inflictOpts(side, slot, 1 - a.target).length"
+              class="fx-row"
+            >
+              <span class="section-label">{{
+                t('battle.inflictOnTarget', { name: targetName(side, 1 - a.target) })
+              }}</span>
+              <label v-for="k in inflictOpts(side, slot, 1 - a.target)" :key="k" class="crit">
+                <input
+                  type="checkbox"
+                  :checked="(a.inflicts2 ?? []).includes(k)"
+                  @change="toggleFx(a, 'inflicts2', k)"
+                />
+                {{ fxLabel(k) }}
+              </label>
             </div>
             <!-- 공격 후 교체: 상대 (드래곤테일·울부짖기 / 탈출버튼·위기회피), 자기 (유턴 등 / 상대 레드카드) -->
             <label v-if="b.canForceSwitch(side, slot)" class="after-switch">
@@ -211,44 +282,29 @@
             </div>
           </template>
         </div>
-
-        <label class="inflict">
-          <span class="section-label">{{
-            t(side === 'mine' ? 'battle.inflictMine' : 'battle.inflictOpp')
-          }}</span>
-          <select v-model="s.inflict[side]" class="field-input">
-            <option value="">{{ t('common.none') }}</option>
-            <optgroup :label="t('battle.conditions')">
-              <option v-for="st in STATUSES" :key="st" :value="st">{{ t('status.' + st) }}</option>
-            </optgroup>
-            <optgroup v-for="g in VOLATILE_GROUPS" :key="g.label" :label="t('volatile.' + g.label)">
-              <option v-for="v in g.items" :key="v" :value="v">{{ t('volatile.' + v) }}</option>
-            </optgroup>
-          </select>
-        </label>
       </div>
     </div>
 
     <div class="observe">
       <span class="section-label">{{ t('battle.observeOrder') }}</span>
+      <!-- 한쪽만 교체: 교체가 항상 먼저라 그쪽으로 고정 / 둘 다 교체: 먼저 교체한 쪽을 고름 (나가는 포켓몬의 스피드) -->
       <div class="chip-row">
         <button
+          v-for="v in ['mine', 'opp'] as const"
+          :key="v"
           type="button"
           class="chip"
-          :class="{ active: s.observedOrder === 'mine' }"
-          @click="s.observedOrder = s.observedOrder === 'mine' ? 'unknown' : 'mine'"
+          :class="{ active: switchFixed ? switchFixed === v : s.observedOrder === v }"
+          :disabled="!!switchFixed"
+          @click="s.observedOrder = s.observedOrder === v ? 'unknown' : v"
         >
-          {{ t('battle.iMovedFirst') }}
+          {{ t(v === 'mine' ? 'battle.iMovedFirst' : 'battle.oppMovedFirst') }}
         </button>
-        <button
-          type="button"
-          class="chip"
-          :class="{ active: s.observedOrder === 'opp' }"
-          @click="s.observedOrder = s.observedOrder === 'opp' ? 'unknown' : 'opp'"
-        >
-          {{ t('battle.oppMovedFirst') }}
-        </button>
+        <span v-if="switchFixed || bothSwitch" class="order-note">{{
+          t(switchFixed ? 'battle.orderSwitchFixed' : 'battle.orderBothSwitch')
+        }}</span>
       </div>
+      <BattleEntryOrder :b="b" />
       <!-- 상대 도구 확정: 이번 턴에 드러난 도구 (먹다남은음식 회복·하양허브·반감열매·그라운드코트 등) -->
       <div class="item-confirm">
         <span class="section-label" :title="t('battle.itemConfirmHint')">{{
@@ -263,6 +319,33 @@
             :species="b.oppSlots.value[oi]?.species"
             @update:model-value="(v: string) => b.confirmItem('opp', oi, v)"
           />
+        </div>
+      </div>
+      <!-- 상대 특성 확정: 등장 문구·특성 발동으로 드러난 특성 (특성이 2개 이상인 포켓몬만) -->
+      <div v-if="abilityTargets.length" class="item-confirm">
+        <span class="section-label" :title="t('battle.abilityConfirmHint')">{{
+          t('battle.abilityConfirm')
+        }}</span>
+        <div v-for="oi in abilityTargets" :key="oi" class="ic-row">
+          <span v-if="abilityTargets.length > 1" class="ic-name">{{
+            gd.name('pokemon', b.resolveAt('opp', oi)?.species.id)
+          }}</span>
+          <select
+            class="field-input"
+            :value="b.oppAbilityOf(oi)"
+            @change="b.confirmAbility(oi, ($event.target as HTMLSelectElement).value)"
+          >
+            <option value="">
+              {{
+                t('battle.abilityUnknown', {
+                  name: gd.name('abilities', b.oppSlots.value[oi]?.ability || ''),
+                })
+              }}
+            </option>
+            <option v-for="a in abilitiesOf(oi)" :key="a" :value="a">
+              {{ gd.name('abilities', a) }}
+            </option>
+          </select>
         </div>
       </div>
     </div>
@@ -295,9 +378,9 @@
 
 <script setup lang="ts">
 import {
+  CANT_DAMAGE_REASONS,
   CANT_REASONS,
-  STATUSES,
-  VOLATILE_GROUPS,
+  type ActionState,
   type BattleSide,
   type useBattle,
 } from '~/composables/useBattle'
@@ -325,11 +408,19 @@ const benchOf = (side: BattleSide) =>
         (side === 'mine' || props.b.oppSlots.value[i]?.species),
     )
 const foeOf = (side: BattleSide): BattleSide => (side === 'mine' ? 'opp' : 'mine')
+// 분석 대상 칸의 교체 여부: 한쪽만 교체면 그쪽이 먼저(고정), 둘 다 교체면 교체 순서를 관찰
+const focusSwitch = (side: BattleSide) =>
+  s.value.actions[side][s.value.focus[side]]?.kind === 'switch'
+const bothSwitch = computed(() => focusSwitch('mine') && focusSwitch('opp'))
+const switchFixed = computed<BattleSide | null>(() =>
+  bothSwitch.value ? null : focusSwitch('mine') ? 'mine' : focusSwitch('opp') ? 'opp' : null,
+)
 // 더블: 광역기가 맞히는 다른 상대 칸 (없으면 null)
 const spreadOther = (side: BattleSide, slot: number) => {
   if (props.b.N < 2) return null
   const a = s.value.actions[side][slot]
-  if (!a || a.kind !== 'move' || !a.move || !isSpreadMove(gd.move(a.move))) return null
+  if (!a || a.kind !== 'move' || !a.move || props.b.isStatusMove(a.move)) return null
+  if (!isSpreadMove(gd.move(a.move))) return null
   const foe = foeOf(side)
   const i = s.value.sides[foe].active[1 - a.target]
   return i != null && !props.b.isFainted(foe, i) ? i : null
@@ -346,6 +437,12 @@ const canMega = (side: BattleSide, slot: number) => {
   if (i == null) return false
   const m = s.value.sides[side].mons[i]!
   return !!userOf(side, slot)?.megaId && !m.megaUsed
+}
+
+// 행동 종류를 바꾸면 입력한 HP 값은 비움 (기술 데미지 ↔ 행동 불가로 잃은 HP 는 단위가 다름)
+const setKind = (a: ActionState, kind: ActionState['kind']) => {
+  if (a.kind !== kind) a.amount = null
+  a.kind = kind
 }
 
 // 내 쪽: 정해둔 4개 기술 / 상대: 배울 수 있는 기술 전체 (선택하면 상대 파티의 기술 칸에 확정)
@@ -365,6 +462,12 @@ const moveOptions = (side: BattleSide, slot: number) => {
 const onMove = (side: BattleSide, slot: number, moveId: string) => {
   const a = s.value.actions[side][slot]!
   a.move = moveId
+  // 기술이 바뀌면 확률 효과 체크는 비움, 변화기면 데미지 입력도 비움
+  if (props.b.isStatusMove(moveId))
+    Object.assign(a, { amount: null, amount2: null, allyAmount: null, crit: false })
+  a.inflicts = []
+  a.inflicts2 = []
+  a.contactInflicts = []
   if (side !== 'opp' || !moveId) return
   const i = userIdx(side, slot)
   const team = i == null ? null : oppTeam.slots.value[i]
@@ -386,8 +489,15 @@ const oppActive = computed(() => {
       i != null && !!props.b.oppSlots.value[i]?.species && !props.b.isFainted('opp', i),
   )
 })
+// 특성을 확정할 수 있는 상대 (원종 특성이 2개 이상, 쓰러지지 않음)
+const abilitiesOf = (oi: number) => [
+  ...new Set(props.b.resolveAt('opp', oi, false)?.base.abilities ?? []),
+]
+const abilityTargets = computed(() =>
+  oppActive.value.filter((oi) => !props.b.isFainted('opp', oi) && abilitiesOf(oi).length > 1),
+)
 const confirmedItem = (oi: number) =>
-  s.value.sides.opp.mons[oi]?.itemKnown ? (props.b.oppSlots.value[oi]?.item ?? '') : ''
+  s.value.sides.opp.mons[oi]?.itemKnown ? props.b.oppItemOf(oi) : ''
 
 // 데미지 입력 방식 (DamageInput 과 공유)
 const dmgMode = useState<'damage' | 'hp'>('battle-dmg-mode', () => 'damage')
@@ -406,14 +516,74 @@ watch(dmgMode, (v) => {
     // 무시
   }
 })
-// 맞는 쪽(상대 필드 k칸)의 지금 HP: 내 기술 → 상대 %(0~100), 상대 기술 → 내 실수치
-const hpOf = (side: BattleSide, k: number) => {
+// 맞는 쪽(상대 필드 k칸)의 지금 HP: 내 기술 → 상대 %(0~100), 상대 기술 → 내 실수치.
+// 더블에서 같은 상대가 이번 턴 먼저 맞으면 그 뒤 HP 를 "맞기 전" 기본값으로
+const hpOf = (side: BattleSide, k: number, slot: number) => {
   const foe = foeOf(side)
   const i = s.value.sides[foe].active[k] ?? null
-  const hp = i == null ? 0 : s.value.sides[foe].mons[i]!.hp
+  const now = i == null ? 0 : s.value.sides[foe].mons[i]!.hp
+  const hp = props.b.N > 1 ? Math.max(0, now - props.b.earlierDamage(side, slot, k)) : now
   return side === 'mine'
     ? { unit: 'pct' as const, current: hp, max: 100 }
     : { unit: 'hp' as const, current: hp, max: i == null ? 0 : props.b.maxHp('mine', i) }
+}
+// ── 이번 턴 확률 효과 체크 ─────────────
+// 맞는 상대(k칸): 그 칸이 이번 턴 교체하면 들어오는 포켓몬
+const targetIdxOf = (side: BattleSide, k: number) => {
+  const foe = foeOf(side)
+  const fa = s.value.actions[foe][k]
+  return fa?.kind === 'switch' && fa.switchTo != null
+    ? fa.switchTo
+    : (s.value.sides[foe].active[k] ?? null)
+}
+const inflictOpts = (side: BattleSide, slot: number, k: number) =>
+  props.b.possibleInflicts(side, slot, targetIdxOf(side, k))
+const contactOpts = (side: BattleSide, slot: number) => {
+  const a = s.value.actions[side][slot]
+  return a ? props.b.possibleContactInflicts(side, slot, targetIdxOf(side, a.target)) : []
+}
+const contactAbility = (side: BattleSide, slot: number) => {
+  const a = s.value.actions[side][slot]
+  const r = a ? props.b.resolveAt(foeOf(side), targetIdxOf(side, a.target)) : null
+  return r ? gd.name('abilities', r.ability) : ''
+}
+const fxLabel = (k: string) =>
+  k === 'flinch'
+    ? t('battle.chance.flinch')
+    : k === 'confusion' || k === 'attract'
+      ? t('volatile.' + k)
+      : t('status.' + k)
+type FxKey = 'inflicts' | 'inflicts2' | 'contactInflicts'
+const toggleFx = (a: ActionState, key: FxKey, k: string) => {
+  const list = a[key] ?? []
+  a[key] = list.includes(k) ? list.filter((x) => x !== k) : [...list, k]
+}
+
+// 행동 불가로 스스로 잃은 HP 입력칸 (내 쪽 실수치, 상대 %)
+const selfHpOf = (side: BattleSide, slot: number) => {
+  const i = userIdx(side, slot)
+  const hp = i == null ? 0 : s.value.sides[side].mons[i]!.hp
+  return side === 'mine'
+    ? { unit: 'hp' as const, current: hp, max: i == null ? 0 : props.b.maxHp('mine', i) }
+    : { unit: 'pct' as const, current: hp, max: 100 }
+}
+const confusionText = (side: BattleSide, slot: number) => {
+  const i = userIdx(side, slot)
+  const r = i == null ? null : props.b.confusionRange(side, i)
+  if (!r) return ''
+  const u = side === 'mine' ? '' : '%'
+  return t('battle.confusionRange', { min: r[0] + u, max: r[1] + u })
+}
+// 맞는 상대(k칸)가 대타 뒤에 있으면 안내 (입력한 데미지는 대타가 받음)
+const subText = (side: BattleSide, slot: number, k: number) => {
+  const a = s.value.actions[side][slot]
+  const ui = userIdx(side, slot)
+  const foe = foeOf(side)
+  const ti = s.value.sides[foe].active[k]
+  if (!a?.move || gd.move(a.move)?.category === 'status') return ''
+  if (ui == null || ti == null || !props.b.behindSub(side, ui, foe, ti, a.move)) return ''
+  const sub = s.value.sides[foe].mons[ti]!.volatiles.substitute!
+  return t('battle.subTarget', { hp: foe === 'mine' ? sub : `${Math.round(sub * 10) / 10}%` })
 }
 
 const errMax = computed(() => {
@@ -551,6 +721,15 @@ const errMax = computed(() => {
   flex-direction: column;
   gap: 2px;
 }
+.fx-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+.fx-row .crit {
+  margin-left: 0;
+}
 .inflict {
   display: flex;
   flex-direction: column;
@@ -560,6 +739,10 @@ const errMax = computed(() => {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+.order-note {
+  font-size: 12px;
+  color: var(--text-3);
 }
 .item-confirm {
   display: flex;

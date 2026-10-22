@@ -28,28 +28,40 @@
           </div>
           <div class="sub">
             <button
-              v-if="r.slot.item && !r.isMega"
+              v-if="shownItem && !r.isMega"
               type="button"
               class="item-btn"
               :class="{ gone: m.itemGone }"
               :title="t(m.itemGone ? 'battle.itemRestore' : 'battle.itemGoneHint')"
               @click.stop="b.toggleItemGone(side, idx)"
             >
-              <UiItemIcon :id="r.slot.item" :size="18" />
-              <span>{{ gd.name('items', r.slot.item) }}</span>
+              <UiItemIcon :id="shownItem" :size="18" />
+              <span>{{ gd.name('items', shownItem) }}</span>
               <span v-if="m.itemGone" class="gone-tag">{{ t('battle.itemGone') }}</span>
               <span v-else-if="side === 'opp' && m.itemKnown" class="known-tag">{{
                 t('battle.itemKnown')
               }}</span>
+              <span v-else-if="itemGuessed" class="guess-tag" :title="t('battle.itemGuessHint')">{{
+                t('battle.itemGuess')
+              }}</span>
             </button>
             <template v-else>
-              <UiItemIcon v-if="r.slot.item" :id="r.slot.item" :size="18" />
-              <span>{{ gd.name('items', r.slot.item) || '—' }}</span>
+              <UiItemIcon v-if="shownItem" :id="shownItem" :size="18" />
+              <span>{{ gd.name('items', shownItem) || '—' }}</span>
             </template>
             <span class="sep">·</span>
             <span :title="gd.text('abilities', r.ability)">{{
               gd.name('abilities', r.ability)
             }}</span>
+            <span v-if="side === 'opp' && m.abilityKnown" class="known-tag">{{
+              t('battle.itemKnown')
+            }}</span>
+            <span
+              v-else-if="abilityGuessed"
+              class="guess-tag"
+              :title="t('battle.abilityGuessHint')"
+              >{{ t('battle.itemGuess') }}</span
+            >
           </div>
           <label v-if="megaAvailable" class="mega" @click.stop>
             <input
@@ -149,8 +161,10 @@
             >
               {{
                 s === 'tox' && m.status === 'tox'
-                  ? `${t('status.tox')} ${m.toxicTurn + 1}/16`
-                  : t('status.' + s)
+                  ? `${t('status.tox')} ${Math.min(15, m.toxicTurn + 1)}/16`
+                  : (s === 'slp' || s === 'frz') && m.status === s && m.toxicTurn
+                    ? t('status.turns', { status: t('status.' + s), n: m.toxicTurn })
+                    : t('status.' + s)
               }}
             </button>
           </div>
@@ -225,20 +239,50 @@ const max = computed(() => r.value?.stats.hp || 0)
 const hpPercent = computed(() =>
   !m.value ? 0 : props.side === 'opp' ? m.value.hp : max.value ? (m.value.hp / max.value) * 100 : 0,
 )
+// 보여 줄 도구: 계산에 쓰는 도구(내 쪽 / 상대 확정·메가스톤), 없으면 상대의 추측 도구
+const shownItem = computed(
+  () =>
+    r.value?.slot.item ||
+    (props.side === 'opp' && idx.value != null ? props.b.guessedItem(idx.value) : ''),
+)
+const itemGuessed = computed(() => props.side === 'opp' && !r.value?.slot.item && !!shownItem.value)
+// 상대 특성이 확정 전 추측 (메가진화 폼은 특성이 하나라 제외)
+const abilityGuessed = computed(
+  () => props.side === 'opp' && !r.value?.isMega && new Set(r.value?.base.abilities ?? []).size > 1,
+)
 const megaAvailable = computed(() => !!r.value?.megaId && !m.value?.megaUsed)
-const statusText = computed(() => (m.value?.status ? t('status.' + m.value.status) : ''))
+// 잠듦·얼음은 행동하지 못한 턴 수도 (풀릴 확률은 예상 흐름의 "이번 턴 확률 효과")
+const statusText = computed(() => {
+  const st = m.value?.status
+  if (!st) return ''
+  if ((st === 'slp' || st === 'frz') && m.value!.toxicTurn)
+    return t('status.turns', { status: t('status.' + st), n: m.value!.toxicTurn })
+  return t('status.' + st)
+})
 const volList = computed(() => Object.keys(m.value?.volatiles || {}))
 const volLabel = (v: string) => {
   const turn = m.value?.volatiles[v]
   if (!turn) return t('volatile.' + v)
   if (v === 'stockpile') return `${t('volatile.' + v)} ×${turn}` // 비축은 횟수
   if (v === 'yawn') return t(turn >= 2 ? 'volatile.yawnSoon' : 'volatile.yawn') // 졸음
+  if (v === 'mustrecharge' || v === 'truant') return t('volatile.' + v) // 반동·게으름 (턴 수 표시 없음)
+  // 대타: 남은 대타 HP (내 쪽 실수치, 상대 %) / 멸망의노래: 남은 카운트
+  if (v === 'substitute')
+    return `${t('volatile.' + v)} ${props.side === 'mine' ? turn : `${Math.round(turn * 10) / 10}%`}`
+  if (v === 'perishsong') return `${t('volatile.' + v)} ${turn}`
   const total = VOLATILE_DURATION[v]
   return `${t('volatile.' + v)} ${total == null ? '∞' : `${turn}/${total}`}`
 }
 </script>
 
 <style scoped>
+.guess-tag {
+  font-size: 10px;
+  color: var(--text-3);
+  border: 1px dashed var(--line);
+  border-radius: 4px;
+  padding: 0 3px;
+}
 .known-tag {
   font-size: 10px;
   color: var(--accent);

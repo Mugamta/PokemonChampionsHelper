@@ -14,16 +14,7 @@
           <NuxtLink to="/help" class="btn btn-ghost">{{ t('home.helpTitle') }}</NuxtLink>
         </div>
       </div>
-      <div class="showcase" aria-hidden="true">
-        <UiPokeSprite
-          v-for="(id, i) in showcase"
-          :id="id"
-          :key="id"
-          :size="i % 3 === 0 ? 116 : 92"
-          class="float"
-          :style="{ animationDelay: `${i * 0.35}s` }"
-        />
-      </div>
+      <HomeUsageTop class="showcase" />
     </section>
 
     <section v-if="reg.active.value" class="reg-card panel panel-pad">
@@ -75,7 +66,6 @@
 
 <script setup lang="ts">
 const { t } = useI18n()
-const gd = useGameData()
 const reg = useRegulation()
 const mine = useTeam('mine')
 
@@ -107,18 +97,6 @@ const modes = [
   { to: '/stats', icon: '▤', title: 'home.perfTitle', desc: 'home.perfDesc', tone: 'green' },
   { to: '/help', icon: '?', title: 'home.helpTitle', desc: 'home.helpDesc', tone: 'plain' },
 ]
-
-// 첫 화면 장식 포켓몬 (사용자 지정): 메가리자몽Y(와자몽) · 메가보만다 · 메가메타그로스 · 메가한카리아스 · 메가갑주무사 · 메가루카리오Z
-// 레귤레이션과 무관하게 항상 이 6마리 (데이터에 없는 것만 뺌)
-const SHOWCASE = [
-  'charizardmegay',
-  'salamencemega',
-  'metagrossmega',
-  'garchompmega',
-  'golisopodmega',
-  'lucariomegaz',
-]
-const showcase = computed(() => SHOWCASE.filter((id) => gd.pokemon(id)))
 </script>
 
 <style scoped>
@@ -130,8 +108,9 @@ const showcase = computed(() => SHOWCASE.filter((id) => gd.pokemon(id)))
 .hero {
   position: relative;
   display: grid;
-  grid-template-columns: 1.1fr 1fr;
-  gap: 20px;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.3fr);
+  align-items: center;
+  gap: 24px;
   padding: 36px;
   overflow: hidden;
   background: var(--hero-bg);
@@ -180,19 +159,6 @@ const showcase = computed(() => SHOWCASE.filter((id) => gd.pokemon(id)))
 .showcase {
   position: relative;
   z-index: 1;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-}
-.float {
-  animation: bob 3.2s ease-in-out infinite;
-}
-@keyframes bob {
-  50% {
-    transform: translateY(-8px);
-  }
 }
 
 .reg-card {
@@ -324,9 +290,6 @@ const showcase = computed(() => SHOWCASE.filter((id) => gd.pokemon(id)))
 @media (max-width: 600px) {
   .modes {
     grid-template-columns: 1fr;
-  }
-  .showcase {
-    display: none;
   }
 }
 </style>

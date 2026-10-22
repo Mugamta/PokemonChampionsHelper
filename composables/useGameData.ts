@@ -49,7 +49,14 @@ export function useGameData() {
       const [parts, usage] = await Promise.all([
         Promise.all(CORE_FILES.map((f) => fetchJson(`${f}.json`))),
         // 사용률 통계는 없어도 동작 (자동 배치가 규칙만 씀)
-        fetchJson<GameData['usage']>('usage.json').catch(() => ({})),
+        fetchJson<Record<string, unknown>>('usage.json')
+          .then((u): GameData['usage'] =>
+            // 예전 형식(레귤레이션 → 표, 싱글만)이면 싱글로
+            'single' in u || 'double' in u
+              ? { single: {}, double: {}, ...(u as GameData['usage']) }
+              : { single: u as NonNullable<GameData['usage']>['single'], double: {} },
+          )
+          .catch(() => ({ single: {}, double: {} })),
       ])
       const core = {
         ...Object.fromEntries(CORE_FILES.map((f, i) => [f, parts[i]])),

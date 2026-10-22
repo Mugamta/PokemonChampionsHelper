@@ -1,11 +1,16 @@
 // composables/useAutoSet.ts
 // 상대 포켓몬 자동 배치 (선출 화면). 현재 레귤레이션의 사용률 통계(usage.json)가 있으면 그것을 우선,
 // 없으면 utils/autoSet.ts 의 규칙. 여기서는 게임 데이터로 입력을 만들고 슬롯에 넣는다.
+// kind: 싱글 / 더블 통계 (선출 화면은 배틀 모드, 생략하면 사용자가 고른 종류 — useUsageKind)
 
-import { autoSet, exclusiveMoves, usageSet } from '~/utils/autoSet'
+import { toValue, type MaybeRefOrGetter } from 'vue'
+import { useUsageKind } from '~/composables/useUsageKind'
+import { autoSet, exclusiveMoves, usageSet, type UsageKind } from '~/utils/autoSet'
 import { emptySlot, type Move, type TeamSlot } from '~/utils/types'
 
-export function useAutoSet() {
+export function useAutoSet(kind?: MaybeRefOrGetter<UsageKind | undefined>) {
+  const pref = useUsageKind()
+  const usageKind = computed(() => toValue(kind) ?? pref.value)
   const gd = useGameData()
   const calc = useTeamCalc()
   const reg = useRegulation()
@@ -16,8 +21,21 @@ export function useAutoSet() {
 
   // 현재 레귤레이션의 사용률 통계 표
   const table = computed(() =>
-    reg.active.value ? gd.data.value?.usage?.[reg.active.value.id] : undefined,
+    reg.active.value ? gd.data.value?.usage?.[usageKind.value]?.[reg.active.value.id] : undefined,
   )
+  // 통계 출처·시점 (Smogon 월별 통계, Pokémon Showdown 챔피언스 싱글/더블 포맷). 통계가 없으면 null
+  const source = computed(() => {
+    const t = table.value
+    return t
+      ? {
+          kind: usageKind.value,
+          format: t.format,
+          month: t.month,
+          battles: t.battles,
+          url: `https://www.smogon.com/stats/${t.month}/`,
+        }
+      : null
+  })
   // 통계 정보 (원종·메가 폼 중 많이 쓴 쪽). 통계가 없으면 null
   const usageInfo = (speciesId: string) => {
     const base = gd.pokemon(speciesId)
@@ -69,5 +87,5 @@ export function useAutoSet() {
     slot.moves = [...s.moves]
   }
 
-  return { build, apply, usageInfo }
+  return { build, apply, usageInfo, source }
 }

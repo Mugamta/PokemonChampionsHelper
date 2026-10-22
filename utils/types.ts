@@ -1,6 +1,6 @@
 // utils/types.ts — public/data/*.json 형식과 계산 로직에서 공유하는 타입
 
-import type { UsageTable } from './autoSet'
+import type { UsageData } from './autoSet'
 
 export type StatKey = 'hp' | 'atk' | 'def' | 'spa' | 'spd' | 'spe'
 export type BoostKey = Exclude<StatKey, 'hp'>
@@ -56,6 +56,7 @@ export interface Pokemon {
   stats: StatTable
   abilities: string[]
   weight: number
+  gender?: 'M' | 'F' | 'N' // 성별이 정해진 종 (수컷만 / 암컷만 / 무성). 없으면 둘 다 가능
   learnset?: string[]
   megas?: string[]
   mega?: { from: string; item: string }
@@ -70,7 +71,8 @@ export type MoveEffect =
       chance?: number
     }
   | { type: 'status'; target: 'self' | 'target'; status: Exclude<Status, ''>; chance?: number }
-  | { type: 'volatile'; target: 'target'; status: 'flinch' | 'confusion'; chance?: number }
+  // 상대에게 거는 특수 상태 (풀죽음·혼란·도발·앙코르·트집·사슬묶기·헤롱헤롱·회복봉인·조이기류·문어굳히기·소금절이)
+  | { type: 'volatile'; target: 'target'; status: string; chance?: number }
   | { type: 'multihit'; min: number; max: number }
   | { type: 'recoil' | 'drain' | 'heal'; ratio: number }
   | { type: 'crit'; stage: number }
@@ -125,7 +127,7 @@ export interface GameData {
   types: { types: TypeId[]; chart: Record<TypeId, Record<TypeId, number>> }
   regulations: Regulation[]
   // 사용률 통계 (레귤레이션 id → 표). 파일이 없으면 빈 객체
-  usage?: Record<string, UsageTable>
+  usage?: UsageData
 }
 
 export interface NameTable {
@@ -144,8 +146,12 @@ export interface TextTable {
 }
 
 // 파티 슬롯 1칸 (내 파티 / 상대 파티 공통). species는 항상 원종 id, 메가 여부는 item(메가스톤)으로 판단
+// 슬롯 성별: '' = 모름(상대) / 안 고름, 성별이 정해진 종은 데이터(Pokemon.gender)를 따른다
+export type Gender = '' | 'M' | 'F'
+
 export interface TeamSlot {
   species: string
+  gender: Gender
   ability: string
   nature: string
   item: string
@@ -155,6 +161,7 @@ export interface TeamSlot {
 
 export const emptySlot = (): TeamSlot => ({
   species: '',
+  gender: '',
   ability: '',
   nature: 'serious',
   item: '',

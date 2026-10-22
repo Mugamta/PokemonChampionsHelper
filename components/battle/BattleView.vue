@@ -93,6 +93,7 @@
 
         <section class="col center fit-scroll">
           <BattleFieldPanel :b="b" :part="fit ? 'global' : 'all'" />
+          <BattleReplacePanel :b="b" />
           <BattleActionPanel :b="b" :an="an" />
           <BattleForecastPanel :an="an" />
           <BattleSpeedPanel v-if="!fit" :b="b" :an="an" />

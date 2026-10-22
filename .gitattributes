@@ -1,0 +1,10 @@
+# 줄바꿈은 LF 로 통일 (Windows 의 core.autocrlf=true 여도 작업 폴더를 LF 로 → Prettier/ESLint 와 일치)
+* text=auto eol=lf
+
+# 바이너리
+*.png binary
+*.webp binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.woff2 binary

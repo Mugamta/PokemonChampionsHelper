@@ -12,7 +12,8 @@
     "help": "Help",
     "about": "About",
     "contact": "Contact",
-    "stats": "Stats"
+    "stats": "Stats",
+    "dex": "Pokédex"
   },
   "regulation": {
     "label": "Regulation",
@@ -63,7 +64,8 @@
     "psn": "Poison",
     "tox": "Bad poison",
     "slp": "Sleep",
-    "frz": "Freeze"
+    "frz": "Freeze",
+    "turns": "{status} (turn {n})"
   },
   "volatile": {
     "groupMental": "Mental Herb",
@@ -90,7 +92,13 @@
     "stockpile": "Stockpile",
     "yawn": "Drowsy",
     "yawnSoon": "Drowsy (sleeps at end of turn)",
-    "aquaring": "Aqua Ring"
+    "aquaring": "Aqua Ring",
+    "substitute": "Substitute",
+    "perishsong": "Perish Song",
+    "magnetrise": "Magnet Rise",
+    "uproar": "Uproar",
+    "destinybond": "Destiny Bond",
+    "truant": "Truant"
   },
   "weather": {
     "label": "Weather",
@@ -170,14 +178,19 @@
     "helpTitle": "How to use",
     "helpDesc": "Learn how calculations work and how to use each screen.",
     "start": "Start",
-    "partyIncomplete": "Complete your 6-Pokémon party first",
+    "partyIncomplete": "Complete your 6-Pokémon party first (moves, gender)",
     "regulationNow": "Current regulation",
     "perfTitle": "Pokémon Stats Table",
-    "perfDesc": "Search and compare bulk, the best attack of each type, and speed tiers for every Pokémon in the regulation."
+    "perfDesc": "Search and compare bulk, the best attack of each type, and speed tiers for every Pokémon in the regulation.",
+    "usageTitle": "Top {n} usage",
+    "usageMeta": "{reg} rules · {month} stats ({battles} battles, Pokémon Showdown, weighted for rating 1500+)",
+    "usageItem": "Most used item",
+    "usageSpread": "Most common spread (nature · stat points)",
+    "usageMove": "Most used move"
   },
   "party": {
     "title": "Party Builder",
-    "subtitle": "Pick all 6 Pokémon with at least one move each to unlock team preview.",
+    "subtitle": "Pick all 6 Pokémon with at least one move each, and choose a gender for Pokémon that have one, to unlock team preview.",
     "resetConfirm": "Reset your party? All saved data will be cleared.",
     "saved": "Saved automatically",
     "toSingle": "Singles preview",
@@ -206,8 +219,9 @@
     "previewRank": "Stages",
     "hitsPowerHint": "Power index covers all hits (expected hit count): {dist}",
     "usageApply": "Usage set",
-    "usageHint": "Fill with the most-used moves, spread, ability and item from Smogon singles usage stats ({month}, {count} uses). Overwrites the current entries",
-    "usageConfirm": "Replace the current ability, item, nature, stat points and moves with the usage-based set?"
+    "usageHint": "Fill with the most used moves, spread, ability and item from Smogon monthly usage stats (Pokémon Showdown \"{format}\", {month} data, used {count} times). Overwrites current input",
+    "usageConfirm": "Replace the current ability, item, nature, stat points and moves with the usage-based set?",
+    "genderMissing": "Choose a gender for: {names}"
   },
   "entry": {
     "titleSingle": "Singles Team Preview",
@@ -224,7 +238,7 @@
     "needOpponent": "Enter all 6 opposing Pokémon",
     "needPick": "Pick {n} of your Pokémon",
     "autoSet": "Auto-fill",
-    "autoSetHint": "Refill the opponent Pokémon's ability, item, nature, stat points and moves (overwrites your edits). Picking a Pokémon also fills these automatically. Pokémon in the current regulation's usage stats (Smogon singles, monthly) get their most-used moves, spread, ability and item; others use the power/bulk ratio rules"
+    "autoSetHint": "Refill the opponents' ability, item, nature, stat points and moves (overwrites manual edits). Also filled automatically when you pick a Pokémon. Pokémon in the current regulation's usage stats (source below) get their most used set; others are filled by power/bulk ratio rules. Either way it is a guess and is not treated as confirmed in battle"
   },
   "battle": {
     "titleSingle": "Single Battle",
@@ -267,8 +281,6 @@
     "useMega": "Mega Evolve",
     "dealtPct": "Damage dealt (%)",
     "takenDmg": "Damage taken",
-    "inflictMine": "Status inflicted on my Pokémon",
-    "inflictOpp": "Status inflicted on opponent",
     "apply": "Apply turn",
     "undo": "Undo turn",
     "errDealt": "Damage dealt must be between 0 and 100%",
@@ -279,6 +291,21 @@
     "observeOrder": "Turn order",
     "iMovedFirst": "I moved first",
     "oppMovedFirst": "Opponent moved first",
+    "orderSwitchFixed": "Switching always goes before moves — unrelated to Speed",
+    "orderBothSwitch": "Both switched: pick who withdrew first to narrow the outgoing opponent's Speed range",
+    "entryOrder": "Switch-in ability order",
+    "entryOrderHint": "The order in which the abilities (weather, terrain, Intimidate, …) of Pokémon that entered at the same time were announced. The faster one activates first (reversed in Trick Room) and the later weather/terrain stays. Choosing re-applies weather/terrain and narrows the opponent's Speed range",
+    "entryMineFirst": "Mine first",
+    "entryOppFirst": "Opponent's first",
+    "entryAuto": "Confirmed by Speed: {name} activates first",
+    "entryTie": "Speed tie — random order",
+    "entryUnknown": "Can't tell from Speed — pick the message that appeared first (applied by the estimated set for now)",
+    "replaceTitle": "Replace fainted Pokémon",
+    "replaceHint": "The Pokémon chosen by both sides enter together. Switch-in abilities activate in Speed order (you can correct the order in the action panel).",
+    "replaceMine": "You",
+    "replaceOpp": "Opponent",
+    "replaceGo": "Send out",
+    "errReplace": "Choose replacements for fainted Pokémon first",
     "statusForecast": "End of turn, {name}: {dmg} from {status} ({frac})",
     "flow": {
       "switchTurn": "Switches happen first, so turn order isn't forecast for this turn.",
@@ -300,7 +327,15 @@
       "oppSpeed": "opponent Speed {n}",
       "mineLabel": "my {name}",
       "oppLabel": "opposing {name}",
-      "cant": "{name} can't move ({reason})"
+      "cant": "{name} can't move ({reason})",
+      "subSure": "→ {name}'s substitute (HP {hp}) breaks. The Pokémon itself takes no damage.",
+      "subMaybe": "→ {name}'s substitute (HP {hp}) may break depending on the roll. The Pokémon itself takes no damage.",
+      "subNo": "→ {name}'s substitute (HP {hp}) takes the hit and stays.",
+      "orderGuess": "※ If the opponent holds {item} (a guess, not confirmed), the move order flips.",
+      "orderSure": "※ Order confirmed by Speed (opponent {span}, you {my} · from observed move order and confirmed item).",
+      "orderSureTie": "※ Opponent Speed {span}, you {my} — a Speed tie is possible, in which case the order is random.",
+      "orderEstimate": "※ Opponent Speed range {span} overlaps your {my}, so this is a guess based on the estimated set.",
+      "orderRandom": "※ Quick Claw (also possible while the opponent's item is unconfirmed) or Quick Draw can change the order."
     },
     "multiHit": {
       "fixed": "{n} hits",
@@ -379,7 +414,7 @@
       "specIndex": "Spec. bulk",
       "effective": "with item",
       "noItem": "No damage item",
-      "itemFixed": "Using the entered item",
+      "itemFixed": "Calculated with the confirmed item",
       "scarfRuledOut": "A damage-boosting item is confirmed → no Choice Scarf",
       "note": "Narrows each time a turn is applied. Allows ±1 pt on damage dealt and ±1 HP on damage taken; multi-hit, fixed-damage moves and turns with a hit-triggered item are skipped. Uses the entered ability."
     },
@@ -411,32 +446,57 @@
       "boost": "{name}'s {move}: {target} {stat} {delta} {p}%",
       "flinch": "flinch",
       "fickle": "{name}'s {move}: 30% chance of double power",
-      "moody": "{name}: Moody — at the end of the turn a random stat +2 and another −1 (enter the result in the stages)"
+      "moody": "{name}: Moody — at the end of the turn a random stat +2 and another −1 (enter the result in the stages)",
+      "wake": "{name}: {status} turn {n} — {p}% chance to recover this turn",
+      "fullPara": "{name}: 12.5% chance to be fully paralyzed",
+      "confusion": "{name}: 33% chance to hurt itself in confusion",
+      "attract": "{name}: 50% chance to be immobilized by love"
     },
     "pending": {
       "title": "End of turn",
       "yawn": "{name}: falls asleep at the end of this turn unless switched out (Yawn)",
       "yawnUsed": "{name} uses Yawn → {target}: falls asleep at the end of next turn (switching out clears it)",
       "residual": "{name}: {delta} at end of turn ({src})",
-      "itemUnknown": "{name}: heals at end of turn if it holds {item} (not confirmed — pick it in \"Confirm opponent's item\" below the actions when you see it)"
+      "itemUnknown": "{name}: heals at end of turn if it holds {item} (not confirmed — pick it in \"Confirm opponent's item\" below the actions when you see it)",
+      "perish": "{name}: Perish count → {n}",
+      "perishFaint": "{name}: Perish count reaches 0 → faints at the end of this turn"
     },
     "cant": "Can't move",
-    "cantHint": "Choose when the Pokémon could not use a move (asleep, frozen, fully paralyzed, etc.; no damage). Asleep/frozen keeps this as the default next turn; choose \"Use move\" when it wakes up or thaws and the status is cleared",
+    "cantHint": "Choose when the Pokémon could not use a move (asleep, frozen, fully paralyzed, etc.; no damage). Asleep/frozen keeps this as the default next turn; choose \"Use move\" when it wakes up or thaws and the status is cleared. For confusion self-hits or other, enter the HP lost (yours in HP, the opponent in %)",
     "cantReason": {
       "slp": "Asleep",
       "frz": "Frozen",
       "par": "Paralyzed",
       "flinch": "Flinched",
-      "other": "Other"
+      "other": "Other",
+      "confusion": "Confusion self-hit"
     },
     "hpMode": "HP before/after",
     "hpModeHint": "When on, enter HP before → after the hit instead of the damage (the difference is the damage). Leave \"before\" empty to use the current HP. Opponent in %, yours in HP",
     "hpBefore": "HP before the hit (empty = current HP)",
     "hpAfter": "After",
     "pctRangeHint": "Opponent HP is shown only as a whole %, so the actual damage is somewhere in this range. Stat estimation also checks within ±1%p",
+    "abilityConfirm": "Confirm opponent's ability",
+    "abilityConfirmHint": "Pick the opponent's ability once it is revealed (switch-in message, ability activation). It is saved as confirmed for this battle only (the opponent's team on the team preview screen stays the same). If the Pokémon just came in, its switch-in effect (Intimidate, weather, terrain) is applied now. An Intimidate already applied from a wrong guess is not undone — fix the stat stages by hand. Clear to unconfirm",
+    "abilityUnknown": "Unknown (guess: {name})",
+    "abilityGuessHint": "Calculated with the ability from the team preview screen (auto-fill etc.) — a guess",
     "itemConfirm": "Confirm opponent's item",
-    "itemConfirmHint": "Pick it when the opponent's item was revealed this turn (Leftovers recovery, White Herb, resist berry, Terrain Extender, etc.). The opponent's item is set and marked confirmed, and is used for calculations and end-of-turn effects from this turn on. Clear to unconfirm",
-    "itemKnown": "Confirmed"
+    "itemConfirmHint": "Pick the opponent's item if it was revealed this turn (Leftovers recovery, White Herb, resist berry, extended terrain from Terrain Extender, etc.). It is saved as confirmed for this battle only (the opponent's team preview stays unchanged) and is used in calculations and end-of-turn effects from this turn. Before confirmation, the team preview item is shown only as a guess. Clear it to cancel",
+    "itemKnown": "Confirmed",
+    "selfDamage": "HP lost",
+    "confusionRange": "Expected self-hit {min}–{max}",
+    "subTarget": "Hits the substitute (sub HP {hp}) — the Pokémon’s HP is unchanged",
+    "errSelf": "HP lost while unable to move is out of range (mine: 0–max HP, opponent: 0–100%)",
+    "switchBlocked": "Cannot switch (trapped, Shadow Tag or Fairy Lock). Pivot moves like U-turn still work",
+    "subCell": "Sub {hp}",
+    "subHint": "The substitute takes the hit first (sub HP {hp}). KO hits include breaking the substitute; damage beyond the sub's HP is lost",
+    "guessCell": "With {item}: {pmin}–{pmax}%",
+    "guessHint": "The opponent's item from the team preview (auto-fill, usage stats or manual) is a guess and is not used in the main result. This is the result if it holds that item. Once revealed, pick it under \"Confirm opponent item\"",
+    "itemGuess": "guess",
+    "itemGuessHint": "Item from the team preview (a guess). Battle calculations only use items confirmed via \"Confirm opponent item\"",
+    "inflictOnTarget": "Inflicted on {name}",
+    "contactInflict": "Contact → inflicted on the attacker by {ability}",
+    "contactInflictMine": "Contact → inflicted on your Pokémon by the opponent's {ability}"
   },
   "help": {
     "title": "Help",
@@ -460,7 +520,13 @@
   "about": {
     "title": "About",
     "body1": "Pokémon Champions Helper is an unofficial fan tool for quick damage calculations and opponent analysis during ranked battles.",
-    "body2": "It is non-commercial. Pokémon images and names belong to Nintendo, Creatures, GAME FREAK and The Pokémon Company."
+    "body2": "It is non-commercial. Pokémon images and names belong to Nintendo, Creatures, GAME FREAK and The Pokémon Company.",
+    "sourcesTitle": "Data sources",
+    "srcGame": "Game data (base stats, moves, abilities, items, learnsets): Pokémon Showdown (smogon/pokemon-showdown) Champions mod",
+    "srcNames": "Korean/Japanese names and descriptions: PokeAPI",
+    "srcSprites": "Icons: Bulbagarden Archives",
+    "srcUsage": "Usage stats (opponent auto-fill, stats suggestion): Smogon monthly stats — Pokémon Showdown simulator Champions singles, weighted for rating 1500+. Not in-game ranked stats",
+    "usageRow": "{reg}: \"{format}\", {month} data ({battles} battles)"
   },
   "contact": {
     "title": "Contact",
@@ -587,5 +653,48 @@
       "rainy": "Rainy",
       "snowy": "Snowy"
     }
+  },
+  "usage": {
+    "single": "Singles",
+    "double": "Doubles",
+    "kind": "Stats",
+    "kindHint": "Usage stats type (Singles: Battle Stadium Singles / Doubles: VGC). Shared by the home page, Pokédex and team suggestions; the team preview screen uses its own battle mode",
+    "source": "Usage stats ({kind}): Smogon monthly stats · Pokémon Showdown simulator \"{format}\", {month} data (weighted for rating 1500+, {battles} battles). Not in-game ranked stats; auto-fill is a guess ·",
+    "none": "No usage stats for the current regulation, so everything is auto-filled by rules (power/bulk ratio) — a guess",
+    "basisStats": "Stats {month}",
+    "basisRules": "Rule-based",
+    "basisStatsHint": "Auto-filled with the most used moves, spread, ability and item from usage stats ({month} data, used {count} times) — a guess",
+    "basisRulesHint": "Not in the usage stats, so auto-filled by power/bulk ratio rules — a guess that may differ a lot from real sets"
+  },
+  "gender": {
+    "M": "Male",
+    "F": "Female",
+    "fixed": "This Pokémon has a fixed gender",
+    "hint": "Gender (for Attract / Cute Charm). Click again for unknown"
+  },
+  "dex": {
+    "title": "Pokédex",
+    "sub": "{n} Pokémon allowed in {reg} (incl. Mega Evolutions) · Level 50",
+    "usage": "{kind} usage {pct} ({reg} · {month} stats)",
+    "noUsage": "No usage stats",
+    "settings": "Spread · item · stages",
+    "applyUsage": "Usage spread",
+    "resetCfg": "Reset",
+    "abilityFixed": "Mega Evolutions have a fixed ability",
+    "stats": "Stats",
+    "ranked": "With stages",
+    "total": "Total",
+    "scarfNote": "Speed includes Choice Scarf ×1.5",
+    "bulk": "Bulk",
+    "typeBulk": "Effective bulk by type",
+    "typeBulkHint": "Bulk ÷ damage multiplier taken (ability immunities and modifiers included). A resist berry doubles it for its type. Neutral types are omitted",
+    "mult": "Mult.",
+    "immune": "Immune",
+    "allMoves": "All",
+    "moves": "Moves",
+    "onlyUsed": "Only moves in usage stats",
+    "usageCol": "Usage",
+    "neverMiss": "Never misses",
+    "movesNote": "Accuracy: accuracy stage, Compound Eyes, Hustle and Wide Lens applied (no target evasion). Attack index: power × Atk (SpA) × STAB × ability × item (Atk/SpA stages applied, multi-hit moves use the expected value, status moves —). Usage: share of teams using this Pokémon that ran the move (0.5%+)"
   }
 }

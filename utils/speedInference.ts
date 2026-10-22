@@ -26,6 +26,7 @@ export const SPEED_BANDS: SpeedBand[] = [
   { key: 'plusScarf', plus: true, scarf: true },
 ]
 const PLUS_SPE: Nature = { id: 'timid', plus: 'spe', minus: 'atk' }
+const MINUS_SPE: Nature = { id: 'brave', plus: 'atk', minus: 'spe' }
 export const SP_MAX = 32
 
 export const fullRanges = (): SpeedRanges => ({
@@ -51,7 +52,10 @@ export interface SpeedEnv {
 // 구간 band 에서 SP 가 sp 일 때의 실전 스피드
 export function bandSpeed(base: number, band: SpeedBand, sp: number, env: SpeedEnv): number {
   const stat = env.fixedStat ?? calcStat('spe', base, sp, band.plus ? PLUS_SPE : null)
-  const scarfOn = band.scarf && !env.itemLost && !env.magicRoom
+  return speedFromStat(stat, band.scarf, env)
+}
+function speedFromStat(stat: number, scarf: boolean, env: SpeedEnv): number {
+  const scarfOn = scarf && !env.itemLost && !env.magicRoom
   return effectiveSpeed(stat, {
     boost: env.boost,
     status: env.status,
@@ -118,4 +122,44 @@ export function speedVerdict(ranges: SpeedRanges): SpeedVerdict {
 export const minSpeedSp = (ranges: SpeedRanges) => {
   const lows = SPEED_BANDS.map((b) => ranges[b.key]?.[0]).filter((v): v is number => v != null)
   return lows.length ? Math.min(...lows) : 0
+}
+
+// ── 선후공 판정 ─────────────
+// 상대 실전 스피드가 될 수 있는 범위 [최소, 최대] (남은 구간 × 가능한 특성). 남은 구간이 없으면 null
+//   abilities: 상대가 가질 수 있는 특성 (모르면 그 종의 특성 전부 — 쓱쓱·엽록소 등은 날씨에 따라 2배)
+//   withMinus: 스피드 하락 성격 SP 0 도 최소값에 넣는다 (구간은 하락 성격을 다루지 않으므로, 관찰 전에는 넣어야 안전)
+export function oppSpeedSpan(
+  base: number,
+  ranges: SpeedRanges,
+  env: SpeedEnv,
+  abilities: readonly string[],
+  withMinus: boolean,
+): [number, number] | null {
+  let lo = Infinity
+  let hi = -Infinity
+  for (const ability of abilities.length ? abilities : [env.ability ?? '']) {
+    const e = { ...env, ability }
+    for (const band of SPEED_BANDS) {
+      const r = bandSpeedRange(base, band, ranges[band.key], e)
+      if (!r) continue
+      lo = Math.min(lo, r[0])
+      hi = Math.max(hi, r[1])
+      if (withMinus && !band.plus && env.fixedStat == null)
+        lo = Math.min(lo, speedFromStat(calcStat('spe', base, 0, MINUS_SPE), band.scarf, e))
+    }
+  }
+  return lo === Infinity ? null : [lo, hi]
+}
+
+// 내 스피드와 상대 스피드 범위 비교: faster = 'mine' | 'opp' (확정, 같을 수도 있으면 tiePossible),
+// 'tie' (반드시 동속), null (범위가 내 스피드를 사이에 둠 → 모름)
+export function compareSpeed(
+  mySpeed: number,
+  span: [number, number],
+): { faster: 'mine' | 'opp' | 'tie' | null; tiePossible: boolean } {
+  const [lo, hi] = span
+  if (lo === mySpeed && hi === mySpeed) return { faster: 'tie', tiePossible: true }
+  if (hi <= mySpeed) return { faster: 'mine', tiePossible: hi === mySpeed }
+  if (lo >= mySpeed) return { faster: 'opp', tiePossible: lo === mySpeed }
+  return { faster: null, tiePossible: true }
 }

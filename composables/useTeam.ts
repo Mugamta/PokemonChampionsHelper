@@ -61,11 +61,28 @@ export function useTeam(side: Side) {
     altOn.value = Array(6).fill(null)
   }
 
-  // 6마리 모두 정하고 각자 기술이 1개 이상
-  const isComplete = computed(() => slots.value.every((s) => s.species && s.moves.some(Boolean)))
+  // 성별을 골라야 하는데 안 고른 슬롯 (내 파티만 — 상대 성별은 모를 수 있음).
+  // 성별이 정해진 종(수컷만/암컷만)·무성은 고를 필요 없음
+  const gd = useGameData()
+  const missingGender = computed(() =>
+    side === 'mine'
+      ? slots.value
+          .map((s, i) => ({ s, i }))
+          .filter(({ s }) => {
+            const p = s.species ? gd.pokemon(s.species) : null
+            return !!p && !p.gender && !s.gender
+          })
+          .map(({ i }) => i)
+      : [],
+  )
+  // 6마리 모두 정하고 각자 기술이 1개 이상, 성별이 있는 포켓몬은 성별까지
+  const isComplete = computed(
+    () =>
+      slots.value.every((s) => s.species && s.moves.some(Boolean)) && !missingGender.value.length,
+  )
   const filled = computed(() => slots.value.filter((s) => s.species).length)
 
-  return { slots, megaOn, altOn, reset, isComplete, filled }
+  return { slots, megaOn, altOn, reset, isComplete, filled, missingGender }
 }
 
 // 예전 한글 이름 저장분 → 새 형식. 내 파티가 비어 있을 때만 1회 실행.

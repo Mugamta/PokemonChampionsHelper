@@ -12,7 +12,8 @@
     "help": "도움말",
     "about": "소개",
     "contact": "문의",
-    "stats": "성능표"
+    "stats": "성능표",
+    "dex": "도감"
   },
   "regulation": {
     "label": "레귤레이션",
@@ -63,7 +64,8 @@
     "psn": "독",
     "tox": "맹독",
     "slp": "잠듦",
-    "frz": "얼음"
+    "frz": "얼음",
+    "turns": "{status} {n}턴째"
   },
   "volatile": {
     "groupMental": "멘탈허브 해제",
@@ -90,7 +92,13 @@
     "stockpile": "비축",
     "yawn": "졸음",
     "yawnSoon": "졸음 (이번 턴 끝 잠듦)",
-    "aquaring": "아쿠아링"
+    "aquaring": "아쿠아링",
+    "substitute": "대타",
+    "perishsong": "멸망의노래",
+    "magnetrise": "전자부유",
+    "uproar": "소란",
+    "destinybond": "길동무",
+    "truant": "게으름"
   },
   "weather": {
     "label": "날씨",
@@ -170,14 +178,19 @@
     "helpTitle": "사용법",
     "helpDesc": "계산 방식과 각 화면 사용법을 확인합니다.",
     "start": "시작하기",
-    "partyIncomplete": "먼저 파티 6마리를 완성하세요",
+    "partyIncomplete": "먼저 파티 6마리를 완성하세요 (기술·성별)",
     "regulationNow": "현재 레귤레이션",
     "perfTitle": "포켓몬 성능표",
-    "perfDesc": "출전 가능한 모든 포켓몬의 내구 · 타입별 결정력 · 스피드 순위를 검색해서 비교합니다."
+    "perfDesc": "출전 가능한 모든 포켓몬의 내구 · 타입별 결정력 · 스피드 순위를 검색해서 비교합니다.",
+    "usageTitle": "사용률 TOP {n}",
+    "usageMeta": "{reg} 룰 · {month} 집계 ({battles}배틀, Pokémon Showdown 레이팅 1500 이상 가중)",
+    "usageItem": "가장 많이 쓴 도구",
+    "usageSpread": "가장 많은 배분 (성격 · 능력 포인트)",
+    "usageMove": "가장 많이 쓴 기술"
   },
   "party": {
     "title": "파티 관리",
-    "subtitle": "6마리 모두 정하고 각자 기술을 1개 이상 넣으면 선출 화면으로 갈 수 있습니다.",
+    "subtitle": "6마리 모두 정하고 각자 기술을 1개 이상 넣고, 성별이 있는 포켓몬은 성별을 고르면 선출 화면으로 갈 수 있습니다.",
     "resetConfirm": "파티를 초기화할까요? 저장된 내용이 모두 사라집니다.",
     "saved": "자동 저장됨",
     "toSingle": "싱글 선출로",
@@ -206,8 +219,9 @@
     "previewRank": "랭크",
     "hitsPowerHint": "결정력은 전체 타수 기준 (타수 기댓값): {dist}",
     "usageApply": "통계 추천",
-    "usageHint": "Smogon 싱글 사용률 통계({month}, 사용 {count}회)에서 가장 많이 쓴 기술·배분·특성·도구로 채웁니다 (지금 입력은 덮어씀)",
-    "usageConfirm": "지금 입력한 특성·도구·성격·능력 포인트·기술을 통계 추천 배치로 바꿀까요?"
+    "usageHint": "Smogon 월별 사용률 통계(Pokémon Showdown 「{format}」 {month} 자료, 사용 {count}회)에서 가장 많이 쓴 기술·배분·특성·도구로 채웁니다 (지금 입력은 덮어씀)",
+    "usageConfirm": "지금 입력한 특성·도구·성격·능력 포인트·기술을 통계 추천 배치로 바꿀까요?",
+    "genderMissing": "성별을 골라 주세요: {names}"
   },
   "entry": {
     "titleSingle": "싱글 선출",
@@ -224,7 +238,7 @@
     "needOpponent": "상대 6마리를 모두 입력하세요",
     "needPick": "내 포켓몬 {n}마리를 선출하세요",
     "autoSet": "자동 배치",
-    "autoSetHint": "상대 포켓몬의 특성·도구·성격·능력 포인트·기술을 다시 채웁니다 (직접 고친 내용은 덮어씀). 포켓몬을 고를 때도 자동으로 채워집니다. 현재 레귤레이션의 사용률 통계(Smogon 싱글, 월별)에 있는 포켓몬은 가장 많이 쓴 기술·배분·특성·도구, 없으면 결정력·내구 비율 규칙으로 배치"
+    "autoSetHint": "상대 포켓몬의 특성·도구·성격·능력 포인트·기술을 다시 채웁니다 (직접 고친 내용은 덮어씀). 포켓몬을 고를 때도 자동으로 채워집니다. 현재 레귤레이션의 사용률 통계(아래 출처)에 있는 포켓몬은 가장 많이 쓴 기술·배분·특성·도구, 없으면 결정력·내구 비율 규칙으로 배치. 어느 쪽이든 추측이라 배틀에서는 확정 정보로 쓰지 않습니다"
   },
   "battle": {
     "titleSingle": "싱글 배틀",
@@ -267,8 +281,6 @@
     "useMega": "메가진화 사용",
     "dealtPct": "입힌 데미지(%)",
     "takenDmg": "받은 데미지",
-    "inflictMine": "내 포켓몬에게 상태이상 발생",
-    "inflictOpp": "상대 포켓몬에게 상태이상 발생",
     "apply": "이번 턴 적용",
     "undo": "이전 턴으로",
     "errDealt": "입힌 데미지(%)는 0~100 사이여야 합니다",
@@ -279,6 +291,21 @@
     "observeOrder": "선후공",
     "iMovedFirst": "내가 먼저",
     "oppMovedFirst": "상대가 먼저",
+    "orderSwitchFixed": "교체는 기술보다 항상 먼저 — 스피드와 무관",
+    "orderBothSwitch": "둘 다 교체: 먼저 돌려보낸 쪽을 고르면 나가는 상대 포켓몬의 스피드 범위를 좁힙니다",
+    "entryOrder": "등장 특성 발동 순서",
+    "entryOrderHint": "동시에 등장한 양쪽 포켓몬의 특성 문구(날씨·필드·위협 등)가 나온 순서. 빠른 쪽이 먼저 발동하고(트릭룸이면 반대) 나중에 발동한 날씨·필드가 남습니다. 고르면 날씨·필드를 다시 적용하고 상대 스피드 범위를 좁힙니다",
+    "entryMineFirst": "내 특성이 먼저",
+    "entryOppFirst": "상대 특성이 먼저",
+    "entryAuto": "스피드로 확정: {name}이(가) 먼저 발동",
+    "entryTie": "동속 — 발동 순서는 무작위",
+    "entryUnknown": "스피드로는 알 수 없음 — 게임에서 먼저 나온 문구를 고르세요 (추측 배치로 임시 적용)",
+    "replaceTitle": "쓰러진 포켓몬 교체",
+    "replaceHint": "양쪽이 고른 포켓몬이 함께 등장합니다. 등장 특성은 스피드 순으로 발동합니다 (행동 패널에서 순서를 고칠 수 있음).",
+    "replaceMine": "내 쪽",
+    "replaceOpp": "상대",
+    "replaceGo": "등장",
+    "errReplace": "쓰러진 포켓몬의 교체를 먼저 입력하세요",
     "statusForecast": "턴 종료 시 {name}: {status}로 {dmg} 데미지 ({frac})",
     "flow": {
       "switchTurn": "교체가 포함된 턴은 교체가 먼저 처리되므로 행동 순서를 예측하지 않습니다.",
@@ -300,7 +327,15 @@
       "oppSpeed": "상대 스피드 {n}",
       "mineLabel": "내 {name}",
       "oppLabel": "상대 {name}",
-      "cant": "{name}은(는) {reason}(으)로 행동하지 못합니다"
+      "cant": "{name}은(는) {reason}(으)로 행동하지 못합니다",
+      "subSure": "→ {name}의 대타(HP {hp})가 사라집니다. 본체는 다치지 않습니다.",
+      "subMaybe": "→ {name}의 대타(HP {hp})는 난수에 따라 사라질 수 있습니다. 본체는 다치지 않습니다.",
+      "subNo": "→ {name}의 대타(HP {hp})가 받아 내고 남습니다.",
+      "orderGuess": "※ 상대 도구가 {item}이라면(추측, 미확정) 선후공이 바뀝니다.",
+      "orderSure": "※ 스피드로 확정된 순서입니다 (상대 {span}, 내 {my} · 선후공 관찰·확정 도구 반영).",
+      "orderSureTie": "※ 상대 스피드 {span}, 내 {my} — 동속일 수 있고, 그때는 무작위입니다.",
+      "orderEstimate": "※ 상대 스피드 범위 {span}가 내 {my}에 걸쳐 있어 추측 배치 기준 예상입니다.",
+      "orderRandom": "※ 선제공격손톱(상대 도구 미확정 포함)·퀵드로가 발동하면 순서가 바뀔 수 있습니다."
     },
     "multiHit": {
       "fixed": "{n}회",
@@ -379,7 +414,7 @@
       "specIndex": "특수 내구",
       "effective": "도구 포함",
       "noItem": "데미지 도구 없음",
-      "itemFixed": "입력한 도구로 계산",
+      "itemFixed": "확정한 도구로 계산",
       "scarfRuledOut": "데미지를 올리는 도구가 확정 → 스카프 아님",
       "note": "턴을 적용할 때마다 쌓여서 좁혀집니다. 준 데미지는 ±1%p, 받은 데미지는 ±1 HP 허용, 연속기·고정 데미지 기술·피격 도구 발동 턴은 제외. 상대 특성은 입력값 기준."
     },
@@ -411,32 +446,57 @@
       "boost": "{name}의 {move}: {target} {stat} {delta} {p}%",
       "flinch": "풀죽음",
       "fickle": "{name}의 {move}: 30% 확률로 위력 2배",
-      "moody": "{name}: 변덕쟁이 — 턴이 끝나면 무작위 능력 +2, 다른 능력 −1 (결과를 랭크에 직접 입력)"
+      "moody": "{name}: 변덕쟁이 — 턴이 끝나면 무작위 능력 +2, 다른 능력 −1 (결과를 랭크에 직접 입력)",
+      "wake": "{name}: {status} {n}턴째 — 이번 턴 풀릴 확률 {p}%",
+      "fullPara": "{name}: 마비로 몸이 저려 움직이지 못할 확률 12.5%",
+      "confusion": "{name}: 혼란으로 자해할 확률 33%",
+      "attract": "{name}: 헤롱헤롱으로 움직이지 못할 확률 50%"
     },
     "pending": {
       "title": "턴 끝 예정",
       "yawn": "{name}: 교체하지 않으면 이번 턴 끝에 잠듦 (하품)",
       "yawnUsed": "{name}의 하품 → {target}: 다음 턴 끝에 잠듦 (그 전에 교체하면 풀림)",
       "residual": "{name}: 턴 끝 {delta} ({src})",
-      "itemUnknown": "{name}: {item}이면 턴 끝 회복 (아직 확정 안 됨 — 회복을 보면 행동 칸 아래 \"상대 도구 확정\"에서 고르기)"
+      "itemUnknown": "{name}: {item}이면 턴 끝 회복 (아직 확정 안 됨 — 회복을 보면 행동 칸 아래 \"상대 도구 확정\"에서 고르기)",
+      "perish": "{name}: 멸망의노래 카운트 → {n}",
+      "perishFaint": "{name}: 멸망의노래 카운트 0 → 이번 턴 끝에 쓰러짐"
     },
     "cant": "행동 불가",
-    "cantHint": "잠듦·얼음·마비 등으로 기술이 나가지 않았으면 선택 (데미지 없음). 잠듦·얼음이면 다음 턴도 기본으로 선택되고, 깨어나거나 녹아서 기술을 썼으면 \"기술 사용\"으로 고르면 상태이상이 풀립니다",
+    "cantHint": "잠듦·얼음·마비 등으로 기술이 나가지 않았으면 선택 (데미지 없음). 잠듦·얼음이면 다음 턴도 기본으로 선택되고, 깨어나거나 녹아서 기술을 썼으면 \"기술 사용\"으로 고르면 상태이상이 풀립니다. 혼란 자해·기타는 스스로 잃은 HP 를 입력하면 반영됩니다 (내 쪽 실수치, 상대 %)",
     "cantReason": {
       "slp": "잠듦",
       "frz": "얼음",
       "par": "마비",
       "flinch": "풀죽음",
-      "other": "기타"
+      "other": "기타",
+      "confusion": "혼란 자해"
     },
     "hpMode": "체력 전후",
     "hpModeHint": "켜면 데미지 대신 맞기 전 HP → 맞은 뒤 HP로 입력합니다 (차이가 데미지). 전은 비우면 지금 HP. 상대는 %, 내 포켓몬은 실수치",
     "hpBefore": "맞기 전 HP (비우면 지금 HP)",
     "hpAfter": "맞은 뒤",
     "pctRangeHint": "상대 HP는 화면에 정수 %로만 보여서, 실제로 깎인 양은 이 범위 안 어딘가입니다. 배분 추정도 ±1%p 범위로 확인합니다",
+    "abilityConfirm": "상대 특성 확정",
+    "abilityConfirmHint": "등장 문구나 특성 발동으로 상대 특성이 드러났으면 고르세요. 이 배틀에만 확정으로 저장되고(선출 화면의 상대 파티는 그대로), 방금 나온 포켓몬이면 등장 효과(위협·날씨·필드)를 지금 적용합니다. 잘못 추측해 이미 적용된 위협은 되돌리지 않으니 랭크를 직접 고치세요. 비우면 확정 취소",
+    "abilityUnknown": "모름 (추측: {name})",
+    "abilityGuessHint": "선출 화면의 특성(자동 배치 등)으로 계산 중 — 추측",
     "itemConfirm": "상대 도구 확정",
-    "itemConfirmHint": "이번 턴에 상대 도구가 드러났으면 고르세요 (먹다남은음식 회복, 하양허브, 반감열매, 그라운드코트로 늘어난 필드 등). 상대 파티의 도구가 그 도구로 바뀌고 확정 표시되어, 이번 턴 처리부터 계산과 턴 끝 효과에 반영됩니다. 지우면 확정 취소",
-    "itemKnown": "확정"
+    "itemConfirmHint": "이번 턴에 상대 도구가 드러났으면 고르세요 (먹다남은음식 회복, 하양허브, 반감열매, 그라운드코트로 늘어난 필드 등). 이 배틀에만 확정으로 저장되고(선출 화면의 상대 파티는 그대로), 이번 턴 처리부터 계산과 턴 끝 효과에 반영됩니다. 확정 전에는 선출 화면의 도구를 추측으로만 보여 줍니다. 지우면 확정 취소",
+    "itemKnown": "확정",
+    "selfDamage": "스스로 잃은 HP",
+    "confusionRange": "혼란 자해 예상 {min}~{max}",
+    "subTarget": "대타가 받음 (대타 HP {hp}) — 본체 HP 는 그대로",
+    "errSelf": "행동 불가로 잃은 HP 가 범위를 벗어났습니다 (내 쪽: 0~최대 HP, 상대: 0~100%)",
+    "switchBlocked": "교체할 수 없음 (교체 불가 상태·그림자밟기·요정의자물쇠). 유턴·볼트체인지 같은 교체기는 쓸 수 있음",
+    "subCell": "대타 {hp}",
+    "subHint": "대타가 먼저 받음 (대타 HP {hp}). KO 타수는 대타를 깨는 타수 포함, 대타 HP 를 넘긴 데미지는 버려짐",
+    "guessCell": "{item}이면 {pmin}~{pmax}%",
+    "guessHint": "선출 화면의 상대 도구(자동 배치·통계·직접 입력)는 추측이라 위 계산에는 넣지 않았습니다. 이 도구를 지녔다면의 결과입니다. 도구가 드러나면 \"상대 도구 확정\"에서 고르세요",
+    "itemGuess": "추측",
+    "itemGuessHint": "선출 화면에 입력된 도구 (추측). 배틀 계산에는 \"상대 도구 확정\"으로 확정한 도구만 씁니다",
+    "inflictOnTarget": "{name}에게 생김",
+    "contactInflict": "접촉 → {ability}로 상대에게 생김",
+    "contactInflictMine": "접촉 → 상대 {ability}로 내 포켓몬에게 생김"
   },
   "help": {
     "title": "도움말",
@@ -460,7 +520,13 @@
   "about": {
     "title": "소개",
     "body1": "포켓몬 챔피언스 헬퍼는 랭크배틀 중 데미지 계산과 상대 분석을 빠르게 하기 위한 비공식 팬 도구입니다.",
-    "body2": "수익을 목적으로 하지 않으며, 포켓몬 관련 이미지와 명칭의 권리는 Nintendo · Creatures · GAME FREAK · The Pokémon Company에 있습니다."
+    "body2": "수익을 목적으로 하지 않으며, 포켓몬 관련 이미지와 명칭의 권리는 Nintendo · Creatures · GAME FREAK · The Pokémon Company에 있습니다.",
+    "sourcesTitle": "데이터 출처",
+    "srcGame": "게임 데이터(종족값·기술·특성·도구·습득 기술): Pokémon Showdown (smogon/pokemon-showdown) 챔피언스 모드",
+    "srcNames": "한국어·일본어 이름과 설명: PokeAPI",
+    "srcSprites": "아이콘 이미지: Bulbagarden Archives",
+    "srcUsage": "사용률 통계(상대 자동 배치·통계 추천): Smogon 월별 통계 — Pokémon Showdown 시뮬레이터 챔피언스 싱글, 레이팅 1500 이상 가중. 게임 내 랭크배틀 통계가 아님",
+    "usageRow": "{reg}: 「{format}」 {month} 자료 ({battles}배틀)"
   },
   "contact": {
     "title": "문의",
@@ -587,5 +653,48 @@
       "rainy": "빗방울",
       "snowy": "설운"
     }
+  },
+  "usage": {
+    "single": "싱글",
+    "double": "더블",
+    "kind": "통계",
+    "kindHint": "사용률 통계 종류 (싱글: 배틀스타디움 싱글 / 더블: VGC). 첫 화면·도감·파티 화면 통계 추천에 같이 쓰고, 선출 화면은 그 배틀 모드의 통계를 씁니다",
+    "source": "사용률 통계({kind}): Smogon 월별 통계 · Pokémon Showdown 시뮬레이터 「{format}」 {month} 자료 (레이팅 1500 이상 가중, {battles}배틀). 게임 내 랭크배틀 통계가 아니며 자동 배치는 추측입니다 ·",
+    "none": "현재 레귤레이션은 사용률 통계가 없어 전부 규칙(결정력·내구 비율)으로 자동 배치합니다 (추측)",
+    "basisStats": "통계 {month}",
+    "basisRules": "규칙 배치",
+    "basisStatsHint": "사용률 통계({month} 자료, 사용 {count}회)에서 가장 많이 쓴 기술·배분·특성·도구로 자동 배치 (추측)",
+    "basisRulesHint": "사용률 통계에 없는 포켓몬이라 결정력·내구 비율 규칙으로 자동 배치 (추측, 실사용과 차이가 클 수 있음)"
+  },
+  "gender": {
+    "M": "수컷",
+    "F": "암컷",
+    "fixed": "이 포켓몬은 성별이 정해져 있음",
+    "hint": "성별 (헤롱헤롱·헤롱헤롱바디 판정). 다시 누르면 모름"
+  },
+  "dex": {
+    "title": "포켓몬 도감",
+    "sub": "{reg} 출전 가능 포켓몬 {n}종 (메가진화 포함) · 레벨 50 기준",
+    "usage": "{kind} 사용률 {pct} ({reg} · {month} 통계)",
+    "noUsage": "사용률 통계 없음",
+    "settings": "배분 · 도구 · 랭크",
+    "applyUsage": "통계 배분",
+    "resetCfg": "초기화",
+    "abilityFixed": "메가진화 폼은 특성이 정해져 있음",
+    "stats": "능력치",
+    "ranked": "랭크 반영",
+    "total": "합계",
+    "scarfNote": "스피드는 구애스카프 1.5배 반영",
+    "bulk": "내구",
+    "typeBulk": "타입별 실질 내구",
+    "typeBulkHint": "내구 ÷ 받는 배율 (특성 무효·배율 포함). 반감열매를 지니면 그 타입에 2배. 1배인 타입은 생략",
+    "mult": "배율",
+    "immune": "무효",
+    "allMoves": "전체",
+    "moves": "기술",
+    "onlyUsed": "통계에 있는 기술만",
+    "usageCol": "사용률",
+    "neverMiss": "필중",
+    "movesNote": "명중: 명중 랭크·복안·의욕·광각렌즈 반영 (상대 회피 보정 없음). 결정력: 위력 × 공격(특공) × 자속 × 특성 × 도구 (공격·특공 랭크 반영, 연속기는 기댓값, 변화기는 —). 사용률: 이 포켓몬을 쓴 팀 중 그 기술을 넣은 비율 (0.5% 이상)"
   }
 }

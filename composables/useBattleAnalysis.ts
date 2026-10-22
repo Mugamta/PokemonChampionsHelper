@@ -8,7 +8,7 @@
 // 문구는 { key, params } 로 반환하고 화면에서 t() 로 번역한다.
 
 import type { useBattle, BattleSide } from '~/composables/useBattle'
-import { useTeamCalc, type Cell } from '~/composables/useTeamCalc'
+import { useTeamCalc, type Cell, type CellGuess } from '~/composables/useTeamCalc'
 import { hitInfo, isSpreadMove, perHitDamage, type DamageOptions } from '~/utils/damage'
 import { CONTACT_PUNISH, simulateMultiHit, statusDamage, type TrajectoryOutcome } from '~/utils/ko'
 import { applyBoost, BOOSTING_NATURE, calcStat } from '~/utils/stats'
@@ -69,6 +69,27 @@ export function useBattleAnalysis(b: Battle) {
       attacker: b.combatantOf(side, idx, undefined, true),
       field: b.fieldFor(defSide),
     })
+
+  // ── 추측 도구 ─────────────
+  // 확정 전 상대 도구의 추측 (잃었으면 없음). 계산은 확정한 사실만으로 하고, 추측 도구면의 결과는 cell.guess 로 따로
+  const guessOf = (oi: number) => (S().sides.opp.mons[oi]?.itemGone ? '' : b.guessedItem(oi))
+  const withGuess = (base: Cell | null, item: string, alt: () => Cell | null): Cell | null => {
+    if (!base || !item) return base
+    const g = alt()
+    if (!g || (g.min === base.min && g.max === base.max && g.ko?.hits === base.ko?.hits))
+      return base
+    const guess: CellGuess = {
+      item,
+      min: g.min,
+      max: g.max,
+      pctMin: g.pctMin,
+      pctMax: g.pctMax,
+      lethal: g.lethal,
+      ko: g.ko,
+      koHit: g.koHit,
+    }
+    return { ...base, guess }
+  }
 
   // ── 상대 스피드 구간 ─────────────
   // 4개 구간(무보정 / 보정 / 무보정+스카프 / 보정+스카프)의 실전 스피드 범위 (지금 랭크·순풍·마비·특성 기준)
@@ -146,12 +167,18 @@ export function useBattleAnalysis(b: Battle) {
       stats,
       boosts: oppActive ? S().sides.opp.mons[oi]!.boosts : undefined,
       status: S().sides.opp.mons[oi]!.status,
+      item: S().sides.opp.mons[oi]!.itemGone ? '' : undefined,
     })
-    return calc.cell(moveId, atk, def, b.fieldFor('opp', oi), {
+    const opts = {
       crit,
       spread: spreadFor('mine', mi, move, 'opp'),
       ...optsFor('mine', mi, moveId),
-    })
+    }
+    const field = b.fieldFor('opp', oi)
+    const g = guessOf(oi)
+    return withGuess(calc.cell(moveId, atk, def, field, opts), g, () =>
+      calc.cell(moveId, atk, { ...def, item: g }, field, opts),
+    )
   }
 
   // 상대 포켓몬 oi → 내 포켓몬 mi (상대 입력값 기준). megaPreview: 내 쪽 메가 상태를 강제
@@ -170,11 +197,16 @@ export function useBattleAnalysis(b: Battle) {
     const alt = turn ? b.formAtHit('mine', mi, 'opp', oi, order.value) : undefined
     const def = b.combatantOf('mine', mi, megaPreview, false, alt)
     if (!atk || !def) return null
-    return calc.cell(moveId, atk, def, b.fieldFor('mine', mi), {
+    const opts = {
       crit,
       spread: spreadFor('opp', oi, move, 'mine'),
       ...optsFor('opp', oi, moveId, turn),
-    })
+    }
+    const field = b.fieldFor('mine', mi)
+    const g = guessOf(oi)
+    return withGuess(calc.cell(moveId, atk, def, field, opts), g, () =>
+      calc.cell(moveId, { ...atk, item: g }, def, field, opts),
+    )
   }
 
   // ── 행동 순서 판단 ─────────────
@@ -190,16 +222,26 @@ export function useBattleAnalysis(b: Battle) {
     return ms > oppSpeed !== trickRoom.value
   }
 
-  // 상대 HP % 를 실수치 범위로 (표시가 반올림된 % 라서 ±0.5% 오차)
+  // 상대 HP % 를 실수치 범위로. 게임의 % 표시 규칙(올림/반올림/버림)을 몰라서 셋을 모두 덮는다:
+  //   p% 표시 = 실제 (p−1)% 초과 ~ (p+1)% 미만 (올림 (p−1, p] ∪ 반올림 [p−0.5, p+0.5) ∪ 버림 [p, p+1))
   const oppHpRange = (oi: number) => {
     const max = b.maxHp('opp', oi)
     const p = S().sides.opp.mons[oi]!.hp
-    const lo = Math.max(0, Math.ceil(((p - 0.5) / 100) * max))
-    const hi = Math.min(max, Math.floor(((p + 0.5) / 100) * max))
+    if (p <= 0) return { min: 0, max: 0 }
+    const lo = Math.max(1, Math.floor(((p - 1) / 100) * max) + 1)
+    const hi = Math.min(max, Math.ceil(((p + 1) / 100) * max) - 1)
     return { min: lo, max: Math.max(lo, hi) }
   }
+  // 추측 도구면 판정이 달라지면 확정하지 않고 '난수'(maybe)
   const assessKo = (c: Cell | null, hpMin: number, hpMax: number) => {
+    const k = assessOne(c, hpMin, hpMax)
+    if (!c?.guess) return k
+    return assessOne({ ...c, ...c.guess }, hpMin, hpMax) === k ? k : 'maybe'
+  }
+  const assessOne = (c: Cell | null, hpMin: number, hpMax: number) => {
     if (!c) return 'none'
+    // 대타 뒤: 단타는 본체가 다치지 않음, 연속기는 대타를 깬 뒤 남은 타수로 쓰러질 수 있음
+    if (c.sub) return c.lethal ? 'maybe' : 'none'
     if (hpMax <= 0 || c.min >= hpMax) return 'sure'
     if (c.max < hpMin) return 'none'
     return 'maybe'
@@ -217,17 +259,63 @@ export function useBattleAnalysis(b: Battle) {
     const oppLabel = { key: 'battle.flow.oppLabel', name: nameOf('opp', oi) }
     const mineCell = ma.move ? mineVsActual(mi, ma.move, oi, ma.useMega) : null
     const oppCell = oa.move ? oppVsMine(oi, oa.move, mi, false, undefined, true) : null
-    // 선후공을 관찰해 입력했으면 그대로, 아니면 우선도·스피드로 예상 (이번 턴 메가진화 반영)
-    const first =
-      S().observedOrder !== 'unknown'
-        ? S().observedOrder === 'mine'
-        : mineFirst(
-            ma.move,
-            oa.move,
-            speedOf('opp', oi, megaThisTurn('opp', oi)),
-            speedOf('mine', mi, megaThisTurn('mine', mi)),
-          )
+    // 선후공을 관찰해 입력했으면 그대로. 아니면 우선도 → 같으면 상대 스피드 범위(관찰·확정 도구로 좁힌 것)로 판정,
+    // 범위가 내 스피드에 걸치면 추측 배치의 스피드로 예상 (이번 턴 메가진화 반영)
+    const observed = S().observedOrder !== 'unknown'
+    const samePri =
+      !!ma.move &&
+      !!oa.move &&
+      b.movePriority('mine', mi, ma.move) === b.movePriority('opp', oi, oa.move)
+    const so =
+      !observed && samePri
+        ? b.speedOrder(mi, oi, megaThisTurn('mine', mi), megaThisTurn('opp', oi))
+        : null
+    const sure = so?.first === 'mine' || so?.first === 'opp'
+    const first = observed
+      ? S().observedOrder === 'mine'
+      : sure
+        ? so!.first === 'mine'
+        : so?.first === 'tie'
+          ? null
+          : mineFirst(
+              ma.move,
+              oa.move,
+              speedOf('opp', oi, megaThisTurn('opp', oi)),
+              speedOf('mine', mi, megaThisTurn('mine', mi)),
+            )
+    // 선후공 근거 한 줄: 스피드 범위로 확정 / 동속 가능 / 추측 배치 기준. 선제공격손톱·퀵드로 가능성
+    const span = so ? `${so.span[0]}–${so.span[1]}` : ''
+    // (반드시 동속이면 동속 줄만, 추측 줄은 생략)
+    const orderBasis: Line[] =
+      observed || !samePri || !so
+        ? []
+        : so.first === 'tie'
+          ? []
+          : [
+              sure
+                ? {
+                    key: so.tiePossible ? 'battle.flow.orderSureTie' : 'battle.flow.orderSure',
+                    params: { span, my: so.mySpeed },
+                  }
+                : { key: 'battle.flow.orderEstimate', params: { span, my: so.mySpeed } },
+              ...(so.random && so.first !== null ? [{ key: 'battle.flow.orderRandom' }] : []),
+            ]
     const L = (l: { key: string; name: string }) => `@${l.key}|${l.name}`
+    // 상대 추측 도구가 구애스카프면 선후공이 바뀌는지 (관찰한 선후공이 없을 때만)
+    const g = guessOf(oi)
+    const orderGuess: Line[] =
+      !observed &&
+      !sure &&
+      g === 'choicescarf' &&
+      first !==
+        mineFirst(
+          ma.move,
+          oa.move,
+          b.speedOf('opp', oi, megaThisTurn('opp', oi), g),
+          speedOf('mine', mi, megaThisTurn('mine', mi)),
+        )
+        ? [{ key: 'battle.flow.orderGuess', params: { item: gd.name('items', g) } }]
+        : []
     const attackLine = (label: typeof mineLabel, move: string, c: Cell | null): Line =>
       c
         ? {
@@ -245,30 +333,47 @@ export function useBattleAnalysis(b: Battle) {
             key: 'battle.flow.attackNoDmg',
             params: { name: L(label), move: move ? gd.name('moves', move) : '—' },
           }
+    // 대타 뒤면 대타가 받는 결과 (사라짐 / 난수 / 남음)
+    const subLine = (target: typeof mineLabel, c: Cell | null): Line[] =>
+      c?.sub
+        ? [
+            {
+              key: `battle.flow.sub${c.sub.breaks === 'sure' ? 'Sure' : c.sub.breaks === 'maybe' ? 'Maybe' : 'No'}`,
+              params: { name: L(target), hp: c.sub.hp },
+            },
+          ]
+        : []
     // 행동 불가가 있는 턴: 행동하지 못하는 쪽은 이유만, 나머지는 공격 줄
     if (ma.kind === 'cant' || oa.kind === 'cant') {
       const lines: Line[] = []
-      for (const [a, label, cell] of [
-        [ma, mineLabel, mineCell],
-        [oa, oppLabel, oppCell],
+      for (const [a, label, cell, target] of [
+        [ma, mineLabel, mineCell, oppLabel],
+        [oa, oppLabel, oppCell, mineLabel],
       ] as const) {
         if (a.kind === 'cant')
           lines.push({
             key: 'battle.flow.cant',
             params: { name: L(label), reason: `@battle.cantReason.${a.cantReason}` },
           })
-        else if (a.move) lines.push(attackLine(label, a.move, cell))
+        else if (a.move) lines.push(attackLine(label, a.move, cell), ...subLine(target, cell))
       }
       return lines
     }
     if (first === null)
-      return [{ key: 'battle.flow.speedTie', params: { a: L(mineLabel), b: L(oppLabel) } }]
+      return [
+        { key: 'battle.flow.speedTie', params: { a: L(mineLabel), b: L(oppLabel) } },
+        ...orderBasis,
+      ]
     const [fL, sL] = first ? [mineLabel, oppLabel] : [oppLabel, mineLabel]
     const [fMove, sMove] = first ? [ma.move, oa.move] : [oa.move, ma.move]
     const [fCell, sCell] = first ? [mineCell, oppCell] : [oppCell, mineCell]
-    const lines: Line[] = [{ key: 'battle.flow.first', params: { name: L(fL) } }]
+    const lines: Line[] = [
+      { key: 'battle.flow.first', params: { name: L(fL) } },
+      ...orderBasis,
+      ...orderGuess,
+    ]
     // 기술을 아직 안 정한 쪽은 공격 줄을 생략
-    if (fMove) lines.push(attackLine(fL, fMove, fCell))
+    if (fMove) lines.push(attackLine(fL, fMove, fCell), ...subLine(sL, fCell))
     const hp = first
       ? oppHpRange(oi)
       : { min: S().sides.mine.mons[mi]!.hp, max: S().sides.mine.mons[mi]!.hp }
@@ -280,7 +385,7 @@ export function useBattleAnalysis(b: Battle) {
           key: ko === 'maybe' ? 'battle.flow.koMaybe' : 'battle.flow.koNo',
           params: { name: L(sL) },
         })
-      if (sMove) lines.push(attackLine(sL, sMove, sCell))
+      if (sMove) lines.push(attackLine(sL, sMove, sCell), ...subLine(fL, sCell))
     }
     return lines
   })
@@ -301,10 +406,15 @@ export function useBattleAnalysis(b: Battle) {
     const alt = switchedIn ? undefined : b.formAtHit('opp', oi, 'mine', mi, order.value)
     const def = b.combatantOf('opp', oi, megaThisTurn('opp', oi), false, alt)
     if (!atk || !def) return null
-    return calc.cell(moveId, atk, def, b.fieldFor('opp', oi), {
+    const opts = {
       spread: spreadFor('mine', mi, move, 'opp'),
       ...optsFor('mine', mi, moveId, true),
-    })
+    }
+    const field = b.fieldFor('opp', oi)
+    const g = guessOf(oi)
+    return withGuess(calc.cell(moveId, atk, def, field, opts), g, () =>
+      calc.cell(moveId, atk, { ...def, item: g }, field, opts),
+    )
   }
   const mineActionPreview = computed(() => {
     const mi = activeIdx('mine')
@@ -393,19 +503,28 @@ export function useBattleAnalysis(b: Battle) {
         kind === 'bulky'
           ? calcStat(defKey, r.species.stats[defKey], 32, natures[BOOSTING_NATURE[defKey]])
           : calcStat(defKey, r.species.stats[defKey], 0, null)
-      const def = calc.combatant(r, { stats, boosts: m.boosts })
-      const atk = b.combatantOf('mine', mi, ma.useMega ? true : undefined, true)!
-      const c = calc.cell(ma.move, atk, def, b.fieldFor('opp', oi), {
-        spread: spreadFor('mine', mi, move, 'opp'),
-        ...optsFor('mine', mi, ma.move),
+      const def = calc.combatant(r, {
+        stats,
+        boosts: m.boosts,
+        item: m.itemGone ? '' : undefined,
       })
+      const atk = b.combatantOf('mine', mi, ma.useMega ? true : undefined, true)!
+      const opts = { spread: spreadFor('mine', mi, move, 'opp'), ...optsFor('mine', mi, ma.move) }
+      const field = b.fieldFor('opp', oi)
+      const g = guessOf(oi)
+      const c = withGuess(calc.cell(ma.move, atk, def, field, opts), g, () =>
+        calc.cell(ma.move, atk, { ...def, item: g }, field, opts),
+      )
       const params = {
         move: gd.name('moves', ma.move),
-        pmin: pct(c?.pctMin || 0),
-        pmax: pct(c?.pctMax || 0),
+        pmin: pct(Math.min(c?.pctMin || 0, c?.guess?.pctMin ?? Infinity)),
+        pmax: pct(Math.max(c?.pctMax || 0, c?.guess?.pctMax ?? 0)),
       }
-      if (c && c.min >= stats.hp) lines.push({ key: 'battle.flow.scenarioKoSure', params })
-      else if (c && c.max >= stats.hp) lines.push({ key: 'battle.flow.scenarioKoMaybe', params })
+      // 추측 도구면 결과가 다르면 확정하지 않음
+      const lo = Math.min(c?.min ?? 0, c?.guess?.min ?? Infinity)
+      const hi = Math.max(c?.max ?? 0, c?.guess?.max ?? 0)
+      if (c && lo >= stats.hp) lines.push({ key: 'battle.flow.scenarioKoSure', params })
+      else if (c && hi >= stats.hp) lines.push({ key: 'battle.flow.scenarioKoMaybe', params })
       else lines.push({ key: 'battle.flow.scenarioKoNo', params })
       return { title: `battle.flow.${kind}`, lines }
     })
@@ -503,7 +622,15 @@ export function useBattleAnalysis(b: Battle) {
       ? '@terrain.grassy'
       : key === 'sand'
         ? '@weather.sand'
-        : ['leechseed', 'aquaring', 'ingrain'].includes(key)
+        : [
+              'leechseed',
+              'aquaring',
+              'ingrain',
+              'curse',
+              'nightmare',
+              'saltcure',
+              'partiallytrapped',
+            ].includes(key)
           ? `@volatile.${key}`
           : key === 'leftovers' || key === 'blacksludge'
             ? gd.name('items', key)
@@ -522,6 +649,14 @@ export function useBattleAnalysis(b: Battle) {
         const m = S().sides[side].mons[idx]!
         if (m.volatiles.yawn && !m.status && m.hp > 0)
           out.push({ key: 'battle.pending.yawn', params: { name: label(side, idx) } })
+        // 멸망의노래: 이번 턴 끝 카운트 (0 이면 쓰러짐)
+        const perish = m.volatiles.perishsong
+        if (perish && m.hp > 0)
+          out.push(
+            perish <= 1
+              ? { key: 'battle.pending.perishFaint', params: { name: label(side, idx) } }
+              : { key: 'battle.pending.perish', params: { name: label(side, idx), n: perish - 1 } },
+          )
         // 턴 끝 회복·데미지 (먹다남은음식·그래스필드·씨뿌리기 등)
         for (const x of b.residualPlan(side, idx))
           out.push({
@@ -533,8 +668,7 @@ export function useBattleAnalysis(b: Battle) {
             },
           })
         // 상대 도구가 확인 전이면 가능성만
-        const r = b.resolveAt(side, idx)
-        const item = r?.slot.item ?? ''
+        const item = side === 'opp' ? b.guessedItem(idx) : ''
         if (
           side === 'opp' &&
           m.hp > 0 &&
@@ -566,6 +700,28 @@ export function useBattleAnalysis(b: Battle) {
     const out: Line[] = []
     for (const side of ['mine', 'opp'] as const) {
       const foe = side === 'mine' ? 'opp' : 'mine'
+      // 행동 전 확률 (챔피언스): 잠듦·얼음 풀림 / 마비 몸저림 12.5% / 혼란 자해 33% / 헤롱헤롱 50%
+      S().actions[side].forEach((a, slot) => {
+        const ui = S().sides[side].active[slot]
+        if (a.kind === 'switch' || ui == null) return
+        const m = S().sides[side].mons[ui]!
+        if (m.hp <= 0) return
+        const name = `@battle.flow.${side === 'mine' ? 'mineLabel' : 'oppLabel'}|${nameOf(side, ui)}`
+        if (m.status === 'slp' || m.status === 'frz')
+          out.push({
+            key: 'battle.chance.wake',
+            params: {
+              name,
+              status: `@status.${m.status}`,
+              n: m.toxicTurn + 1,
+              p: b.wakeChance(side, ui) ?? 100,
+            },
+          })
+        if (a.kind !== 'move') return
+        if (m.status === 'par') out.push({ key: 'battle.chance.fullPara', params: { name } })
+        if (m.volatiles.confusion) out.push({ key: 'battle.chance.confusion', params: { name } })
+        if (m.volatiles.attract) out.push({ key: 'battle.chance.attract', params: { name } })
+      })
       S().actions[side].forEach((a, slot) => {
         const ui = S().sides[side].active[slot]
         if (a.kind !== 'move' || !a.move || ui == null) return
@@ -648,7 +804,7 @@ export function useBattleAnalysis(b: Battle) {
               ? r?.ability === 'heatproof'
                 ? '1/32'
                 : '1/16'
-              : `${nextTox}/16`
+              : `${Math.min(15, nextTox)}/16`
         out.push({
           key: 'battle.statusForecast',
           params: {

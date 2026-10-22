@@ -16,6 +16,8 @@
 import { useEntry, type BattleMode } from '~/composables/useEntry'
 import { useTeamCalc, type ResolvedSlot } from '~/composables/useTeamCalc'
 import {
+  confusionDamage,
+  hasSecondary,
   hitInfo,
   isGrounded,
   isSpreadMove,
@@ -25,8 +27,16 @@ import {
   type FieldState,
 } from '~/utils/damage'
 import { statusDamage } from '~/utils/ko'
-import { clampBoost, effectiveSpeed, highestStat } from '~/utils/stats'
-import { fullRanges, narrowRanges, type SpeedEnv, type SpeedRanges } from '~/utils/speedInference'
+import { applyBoost, clampBoost, effectiveSpeed, highestStat } from '~/utils/stats'
+import {
+  compareSpeed,
+  fullRanges,
+  narrowRanges,
+  oppSpeedSpan,
+  SPEED_BANDS,
+  type SpeedEnv,
+  type SpeedRanges,
+} from '~/utils/speedInference'
 import type { BoostTable, MoveEffect, RankKey, Status, Terrain, Weather } from '~/utils/types'
 
 export type BattleSide = 'mine' | 'opp'
@@ -37,11 +47,17 @@ export interface MonState {
   megaUsed: boolean // 실제로 메가진화함 → 되돌릴 수 없음
   alt: boolean // 배틀 폼 (팔라피 마이티폼 / 킬가르도 블레이드폼)
   itemGone: boolean // 도구를 잃음 (소모 / 탁쳐서떨구기 등) → 계산에서 도구 없음
-  // (상대만) 도구 확인됨: 턴 끝 회복 메시지 등으로 본 도구. 확인된 도구만 턴 끝 효과(먹다남은음식 등)를 자동 반영
+  // (상대만) 도구 확정: 턴 끝 회복 메시지 등으로 본 도구 (item). 배틀 상태에만 저장하고 선출 화면 파티는 바꾸지 않는다.
+  // 배틀 계산은 확정한 도구만 쓰고, 선출 화면의 도구는 추측(guessedItem)으로 범위 안내에만 쓴다
   itemKnown?: boolean
+  item?: string
+  // (상대만) 특성 확정: 등장 문구·특성 발동으로 본 특성. 확정 전에는 선출 화면의 특성(추측)으로 계산
+  abilityKnown?: boolean
+  ability?: string
   seedFrom?: number | null // 씨뿌리기를 심은 상대의 칸 (턴 끝 흡수를 받는 쪽)
   status: Status
-  toxicTurn: number
+  toxicTurn: number // 맹독 경과 턴 / 잠듦·얼음이면 행동하지 못한 턴 수
+  restSleep?: boolean // 잠자기로 잠듦 (정확히 2턴 자고 3번째 턴에 깸)
   volatiles: Record<string, number> // 특수 상태 → 경과 턴 (1부터)
   boosts: BoostTable
   lastMove: string // 마지막으로 쓴 기술 (메트로놈 도구 연속 횟수용)
@@ -108,11 +124,15 @@ export interface SideState {
   revealed: number[] // (opp) 등장이 확인된 포켓몬
   hazards: Record<string, number>
   screens: Record<string, Counter> // 리플렉터/빛의장막/오로라베일/순풍/신비의부적 등
+  wishes?: Record<number, { turn: number; hp: number }> // 희망사항: 필드 칸 → 쓴 턴, 회복량(쓴 포켓몬 최대 HP 1/2, 실수치)
+  healingWish?: number[] // 치유소원: 다음에 이 칸으로 나오는 포켓몬이 HP·상태이상 모두 회복
 }
 
-// 행동 불가 이유: 잠듦 / 얼음 / 마비(몸이 저림) / 풀죽음 / 기타(혼란 자해·반동 등)
-export type CantReason = 'slp' | 'frz' | 'par' | 'flinch' | 'other'
-export const CANT_REASONS: CantReason[] = ['slp', 'frz', 'par', 'flinch', 'other']
+// 행동 불가 이유: 잠듦 / 얼음 / 마비(몸이 저림) / 풀죽음 / 혼란 자해 / 기타(반동 등)
+export type CantReason = 'slp' | 'frz' | 'par' | 'flinch' | 'confusion' | 'other'
+export const CANT_REASONS: CantReason[] = ['slp', 'frz', 'par', 'flinch', 'confusion', 'other']
+// 행동 불가인데 HP 가 깎일 수 있는 이유 (혼란 자해 / 기타) → amount 에 잃은 HP 입력 (mine: 실수치, opp: %)
+export const CANT_DAMAGE_REASONS = new Set<CantReason>(['confusion', 'other'])
 
 export interface ActionState {
   // move: 기술 사용 / switch: 교체 / cant: 행동 불가 (잠듦·얼음 등으로 기술이 나가지 않음)
@@ -122,13 +142,37 @@ export interface ActionState {
   target: number // 상대 필드 칸
   switchTo: number | null
   useMega: boolean
-  amount: number | null // mine: 입힌 데미지(%), opp: 받은 데미지(실수치)
+  amount: number | null // mine: 입힌 데미지(%), opp: 받은 데미지(실수치). 행동 불가(혼란 자해·기타)면 자기가 잃은 HP (mine: 실수치, opp: %)
   allyAmount: number | null // 더블에서 아군도 맞히는 광역기의 아군 피해 (mine: 실수치, opp: %)
   crit: boolean // 입력한 데미지가 급소였음 (추정에 반영)
   missed: boolean // 빗나감·실패 (데미지 없음, 무릎차기류 반동, 다음 턴 분함의발구르기·열불내기 2배)
   amount2: number | null // 더블: 광역기가 맞힌 다른 상대 칸의 피해 (mine: %, opp: 실수치)
   selfSwitch: number | null // 공격 후 자기가 교체 (유턴·볼트체인지 등 / 상대 레드카드) → 나오는 로스터 인덱스
   foeSwitch: number | null // 공격 후 상대가 교체 (드래곤테일·울부짖기 등 / 탈출버튼·위기회피) → 나오는 로스터 인덱스
+  // 이번 턴 확률로 생긴 효과 (체크, possibleInflicts 중에서): 맞은 상대(대상 / 광역기의 다른 칸)에게 상태이상·풀죽음·혼란
+  inflicts?: string[]
+  inflicts2?: string[]
+  // 접촉해서 맞은 쪽 특성으로 공격한 쪽에게 생긴 효과 (정전기·불꽃몸·독가시·포자·헤롱헤롱바디, possibleContactInflicts 중에서)
+  contactInflicts?: string[]
+}
+
+// 동시 등장(선두 / 쓰러진 뒤 교체 / 같은 턴 교체)에서 내 쪽 × 상대 쪽 짝: 둘 다 등장 문구가 나오는 특성일 때.
+// 등장 직전 상태의 스피드로 발동 순서를 판정해 두고, 사용자가 본 순서를 입력하면 상대 스피드 구간을 좁힌다
+export interface EntryPair {
+  mi: number
+  oi: number
+  auto: 'mine' | 'opp' | 'tie' | null // 스피드로 정해진 먼저 발동하는 쪽 (null = 모름)
+  base: number // 상대 스피드 종족값 (그때의 폼)
+  env: SpeedEnv // 그때의 상대 스피드 조건
+  mySpeed: number
+}
+// 선두·쓰러진 뒤 교체로 함께 등장한 묶음. 다음 턴 적용 전까지 발동 순서를 고칠 수 있게 남겨 둔다
+export interface EntryBatch {
+  entrants: [BattleSide, number][]
+  before: { weather: BattleState['weather']; terrain: BattleState['terrain'] } // 등장 직전 날씨·필드
+  oppBefore: Record<number, SpeedRanges | null> // 등장 직전 상대 스피드 구간 (관찰을 바꾸면 여기서 다시 좁힘)
+  tr: boolean // 트릭룸 (느린 쪽이 먼저 발동)
+  pairs: EntryPair[]
 }
 
 export interface BattleState {
@@ -140,14 +184,16 @@ export interface BattleState {
     total: number
     permanent: boolean
     source: [BattleSide, number] | null
+    by?: [BattleSide, number] | null // 깐 포켓몬 (모르면 null — 직접 켬·이전 저장분)
   }
-  terrain: { key: Terrain; cur: number; total: number }
+  terrain: { key: Terrain; cur: number; total: number; by?: [BattleSide, number] | null }
   rooms: Record<string, Counter>
   fairyLock: number
   sides: Record<BattleSide, SideState>
   actions: Record<BattleSide, ActionState[]>
-  inflict: Record<BattleSide, string> // 이번 턴 새로 생긴 상태이상/특수상태
   observedOrder: 'unknown' | 'mine' | 'opp'
+  entry?: EntryBatch | null // 고칠 수 있는 동시 등장 (선두 / 쓰러진 뒤 교체)
+  entryObs?: Record<string, 'mine' | 'opp'> // 관찰한 등장 특성 발동 순서 (`${mi}:${oi}` → 먼저 발동한 쪽)
   focus: { mine: number; opp: number } // 분석 대상 필드 칸
   preview: number | null // 예상 데미지 표의 공격자 (내 로스터 인덱스)
   history: string[]
@@ -165,6 +211,7 @@ export const VOLATILE_GROUPS: { label: string; items: string[] }[] = [
       'mustrecharge',
       'saltcure',
       'leechseed',
+      'destinybond',
       'nightmare',
       'curse',
       'charge',
@@ -172,13 +219,18 @@ export const VOLATILE_GROUPS: { label: string; items: string[] }[] = [
       'stockpile',
       'yawn',
       'aquaring',
+      'substitute',
+      'perishsong',
+      'magnetrise',
+      'uproar',
     ],
   },
   { label: 'groupTrap', items: ['octolock', 'jawlock', 'ingrain', 'partiallytrapped'] },
 ]
 export const VOLATILE_DURATION: Record<string, number | null> = {
   confusion: 4,
-  mustrecharge: 1,
+  mustrecharge: null, // 반동: 1 = 이번 턴에 씀, 2 = 다음 턴 행동 불가 (턴 끝 처리에서 따로 진행)
+  truant: null, // 게으름: 반동과 같은 방식 (기술을 쓴 다음 턴 행동 불가)
   taunt: 3,
   disable: 4,
   encore: 3,
@@ -186,6 +238,7 @@ export const VOLATILE_DURATION: Record<string, number | null> = {
   attract: null,
   healblock: 5,
   saltcure: null,
+  destinybond: null, // 길동무: 다음에 기술을 쓸 때까지
   leechseed: null,
   nightmare: null,
   curse: null,
@@ -194,6 +247,10 @@ export const VOLATILE_DURATION: Record<string, number | null> = {
   stockpile: null, // 비축: 값 = 횟수 (1~3)
   aquaring: null,
   yawn: null, // 하품(졸음): 1 = 이번 턴에 걸림, 2 = 이번 턴 끝에 잠듦 (턴 끝 처리에서 따로 진행, 교체하면 풀림)
+  substitute: null, // 대타: 값 = 대타 HP (mine: 실수치, opp: 그 포켓몬 최대 HP 의 %)
+  perishsong: null, // 멸망의노래: 값 = 남은 카운트 (턴 끝마다 1 줄고 0 이면 쓰러짐)
+  magnetrise: 5,
+  uproar: 3,
   octolock: null,
   jawlock: null,
   ingrain: null,
@@ -235,6 +292,33 @@ const TERRAIN_ABILITY: Record<string, Terrain> = {
   mistysurge: 'misty',
   psychicsurge: 'psychic',
 }
+// 등장할 때 문구가 나오는 특성 (양쪽 다 나오면 문구 순서 = 발동 순서 = 스피드 순)
+const ENTRY_MESSAGE = new Set([
+  ...['drought', 'drizzle', 'sandstream', 'snowwarning'],
+  ...['deltastream', 'desolateland', 'primordialsea'],
+  ...['electricsurge', 'grassysurge', 'mistysurge', 'psychicsurge'],
+  'intimidate',
+  'pressure',
+  'moldbreaker',
+  'teravolt',
+  'turboblaze',
+  'unnerve',
+  'frisk',
+  'download',
+  'trace',
+  'anticipation',
+  'forewarn',
+  'airlock',
+  'cloudnine',
+  'screencleaner',
+  'supremeoverlord',
+  'comatose',
+  'neutralizinggas',
+  'hospitality',
+  'curiousmedicine',
+  'dauntlessshield',
+  'intrepidsword',
+])
 const WEATHER_ROCK: Partial<Record<Weather, string>> = {
   sun: 'heatrock',
   rain: 'damprock',
@@ -303,6 +387,9 @@ const newAction = (): ActionState => ({
   amount2: null,
   selfSwitch: null,
   foeSwitch: null,
+  inflicts: [],
+  inflicts2: [],
+  contactInflicts: [],
 })
 // 바톤터치로 넘어가는 특수 상태
 const BATON_VOLATILES = new Set([
@@ -313,7 +400,33 @@ const BATON_VOLATILES = new Set([
   'ingrain',
   'aquaring',
   'healblock',
+  'substitute',
+  'perishsong',
+  'magnetrise',
 ])
+// 잠듦·얼음: 행동하려 할 때 풀릴 확률 (n 번째 시도, 챔피언스 규칙). 잠듦 0% → 33% → 반드시, 얼음 25% → 25% → 반드시
+export const WAKE_CHANCE: Record<'slp' | 'frz' | 'rest', number[]> = {
+  slp: [0, 33, 100],
+  frz: [25, 25, 100],
+  rest: [0, 0, 100], // 잠자기
+}
+// 맞히면 무작위 상태이상 하나를 거는 기술 (데이터에 확률 효과로 들어 있지 않음)
+const RANDOM_STATUS_MOVES: Record<string, Exclude<Status, ''>[]> = {
+  triattack: ['brn', 'par', 'frz'],
+  direclaw: ['psn', 'par', 'slp'],
+}
+// 접촉한 상대에게 상태를 거는 특성 (맞는 쪽)
+const CONTACT_STATUS_ABILITY: Record<string, string[]> = {
+  static: ['par'],
+  flamebody: ['brn'],
+  poisonpoint: ['psn'],
+  effectspore: ['psn', 'par', 'slp'],
+  cutecharm: ['attract'],
+}
+// 쓴 다음 턴 행동 불가인 특수 상태: 반동(파괴광선류) / 게으름(특성). 1 = 이번 턴에 씀, 2 = 이번 턴 행동 불가
+const LOAF_VOLATILES = ['mustrecharge', 'truant']
+// 교체를 막는 특수 상태 (고스트 타입은 뿌리박기 말고는 무시)
+const TRAP_VOLATILES = ['octolock', 'jawlock', 'partiallytrapped']
 // 잠든 채로 쓰는 기술 (써도 깨지 않음)
 const SLEEP_MOVES = new Set(['sleeptalk', 'snore'])
 // 맞은 얼음 상태 포켓몬을 녹이는 기술: 불꽃 타입 공격기 + 열탕·스팀버스트·열사의대지
@@ -353,6 +466,37 @@ export function useBattle(mode: BattleMode) {
   )
 
   const slotsOf = (side: BattleSide) => (side === 'mine' ? mineSlots.value : oppSlots.value)
+
+  // ── 상대 도구 ─────────────
+  // 배틀 계산에 쓰는 상대 도구는 "상대 도구 확정"으로 확정한 것만 (메가스톤은 메가진화 판정에 필요하므로 그대로).
+  // 선출 화면의 도구(자동 배치·통계·직접 입력)는 추측 → guessedItem 으로 범위 안내(데미지 칸 "추측 도구면", 선후공)에만 쓰고
+  // 소모·턴 끝 회복·날씨 연장 같은 확정 처리에는 쓰지 않는다
+  const isMegaStone = (id: string) => !!id && !!gd.data.value?.items[id]?.megaStone
+  const oppItemOf = (idx: number) => {
+    const m = state.value?.sides.opp.mons[idx]
+    const entered = oppSlots.value[idx]?.item || ''
+    if (m?.itemKnown) return m.item ?? entered // 예전 저장분은 파티에 확정 도구가 들어가 있음
+    return isMegaStone(entered) ? entered : ''
+  }
+  // 확정 전 상대 도구의 추측 (없거나 확정했거나 메가스톤이면 '')
+  const guessedItem = (idx: number) => {
+    const m = state.value?.sides.opp.mons[idx]
+    const entered = oppSlots.value[idx]?.item || ''
+    return !m || m.itemKnown || isMegaStone(entered) ? '' : entered
+  }
+  // 확정한 상대 특성 (없으면 '' → 선출 화면의 특성을 추측으로 씀)
+  const oppAbilityOf = (idx: number) => {
+    const m = state.value?.sides.opp.mons[idx]
+    return m?.abilityKnown ? m.ability || '' : ''
+  }
+  // 배틀 계산에 쓰는 슬롯 (상대는 도구·특성을 위 규칙으로 바꾼 사본)
+  const battleSlot = (side: BattleSide, idx: number) => {
+    const slot = slotsOf(side)[idx]
+    if (side === 'mine' || !slot) return slot
+    const item = oppItemOf(idx)
+    const ability = oppAbilityOf(idx) || slot.ability
+    return slot.item === item && slot.ability === ability ? slot : { ...slot, item, ability }
+  }
   // altOverride: 배틀 폼을 지정 (예: 이번 턴 먼저 공격해 블레이드폼이 된 킬가르도가 맞는 경우)
   const resolveAt = (
     side: BattleSide,
@@ -380,15 +524,15 @@ export function useBattle(mode: BattleMode) {
   ): ResolvedSlot | null => {
     const tf = snap.transform
     if (tf) {
-      const self = calc.resolve(slotsOf(side)[idx], false, false)
-      const target = calc.resolve(slotsOf(tf.side)[tf.idx], tf.megaOn, tf.alt)
+      const self = calc.resolve(battleSlot(side, idx), false, false)
+      const target = calc.resolve(battleSlot(tf.side, tf.idx), tf.megaOn, tf.alt)
       if (self && target) return calc.transformed(self, target)
     }
-    return calc.resolve(slotsOf(side)[idx], snap.megaOn, snap.alt)
+    return calc.resolve(battleSlot(side, idx), snap.megaOn, snap.alt)
   }
   // 메타몽 자신의 특성 (변신 전 원래 특성: 괴짜 판정용)
   const ownAbility = (side: BattleSide, idx: number) =>
-    calc.resolve(slotsOf(side)[idx], false, false)?.ability || ''
+    calc.resolve(battleSlot(side, idx), false, false)?.ability || ''
   const maxHp = (side: BattleSide, idx: number) => resolveAt(side, idx)?.stats.hp || 0
 
   // ── 초기화 ─────────────
@@ -400,8 +544,8 @@ export function useBattle(mode: BattleMode) {
     state.value = {
       signature: signature.value,
       turn: 1,
-      weather: { key: '', cur: 0, total: BASE_TURNS, permanent: false, source: null },
-      terrain: { key: '', cur: 0, total: BASE_TURNS },
+      weather: { key: '', cur: 0, total: BASE_TURNS, permanent: false, source: null, by: null },
+      terrain: { key: '', cur: 0, total: BASE_TURNS, by: null },
       rooms: {},
       fairyLock: 0,
       sides: {
@@ -424,8 +568,9 @@ export function useBattle(mode: BattleMode) {
         mine: Array.from({ length: N }, newAction),
         opp: Array.from({ length: N }, newAction),
       },
-      inflict: { mine: '', opp: '' },
       observedOrder: 'unknown',
+      entry: null,
+      entryObs: {},
       focus: { mine: 0, opp: 0 },
       preview: null,
       history: [],
@@ -463,11 +608,13 @@ export function useBattle(mode: BattleMode) {
   const foeOf = (side: BattleSide): BattleSide => (side === 'mine' ? 'opp' : 'mine')
 
   // how: 'switch' = 실제 교체 (물러남·등장 효과, 설치기), 'correct' = 정정 (필드에 있는 포켓몬만 바꾸고 효과 없음)
+  // defer: 등장 특성을 바로 발동하지 않음 (함께 등장하는 포켓몬과 스피드 순으로 따로 발동)
   function sendOut(
     side: BattleSide,
     slot: number,
     idx: number,
     how: 'switch' | 'correct' = 'switch',
+    defer = false,
   ) {
     const s = state.value!
     const sd = s.sides[side]
@@ -497,6 +644,9 @@ export function useBattle(mode: BattleMode) {
       // 배틀 폼: 팔라피는 한 번 물러나면 마이티폼으로 고정, 킬가르도는 물러나면 실드폼, 모르페코는 배부른모양
       const outAbility = resolveAt(side, prev)?.ability
       if (outAbility === 'zerotohero') out.alt = true
+      // 재생력: 물러나면 최대 HP 1/3 회복 (선두 고르기 제외)
+      if (outAbility === 'regenerator' && !lead && out.hp > 0)
+        healHp(side, prev, Math.floor(maxHp(side, prev) / 3))
       if (outAbility === 'stancechange' || outAbility === 'hungerswitch') out.alt = false
       if (s.weather.source && s.weather.source[0] === side && s.weather.source[1] === prev)
         clearWeather()
@@ -504,10 +654,22 @@ export function useBattle(mode: BattleMode) {
     }
     sd.active[slot] = idx
     sd.mons[idx]!.enteredTurn = lead ? 0 : s.turn
+    // 치유소원: 이 칸에 나온 포켓몬이 HP·상태이상 모두 회복
+    const hw = sd.healingWish?.indexOf(slot) ?? -1
+    if (hw >= 0 && !lead) {
+      sd.healingWish!.splice(hw, 1)
+      Object.assign(sd.mons[idx]!, {
+        hp: side === 'mine' ? maxHp(side, idx) : 100,
+        status: '',
+        toxicTurn: 0,
+      })
+    }
     // 설치기: 실제로 교체해 들어올 때 (선두 고르기·정정은 제외)
     if (!lead) entryHazards(side, idx)
     if (side === 'opp' && !sd.revealed.includes(idx)) sd.revealed.push(idx)
-    onEnter(side, idx, true)
+    // 선두는 양쪽이 동시에 등장 → 필드의 모든 포켓몬을 스피드 순으로 다시 발동
+    if (lead) leadEntry(side, idx)
+    else if (!defer) onEnter(side, idx, true)
     // 괴짜: 맞은편 상대로 변신
     if (ownAbility(side, idx) === 'imposter') imposter(side, slot)
     // 선두는 동시에 등장 → 이미 나와 있는 상대의 위협도 이 포켓몬에게 적용,
@@ -617,7 +779,7 @@ export function useBattle(mode: BattleMode) {
         statChange(foe, fi, 'atk', 1)
         continue
       }
-      if (INTIMIDATE_IMMUNE.has(ab)) continue
+      if (INTIMIDATE_IMMUNE.has(ab) || mon(foe, fi).volatiles.substitute) continue
       statChange(foe, fi, 'atk', -1, [side, idx])
       if (ab === 'rattled') statChange(foe, fi, 'spe', 1)
     }
@@ -663,6 +825,19 @@ export function useBattle(mode: BattleMode) {
   // 등장 시 특성 발동 (날씨/필드/위협). 원시 날씨는 다른 날씨로 덮이지 않는다.
   // entering = 실제 등장/메가진화 (메가 미리보기 토글에서는 위협을 발동하지 않음)
   function onEnter(side: BattleSide, idx: number, entering = false) {
+    onEnterField(side, idx)
+    const ab = resolveAt(side, idx)?.ability
+    if (entering && ab === 'intimidate') intimidate(side, idx)
+    // 대접: 등장하면 아군 최대 HP 1/4 회복
+    if (entering && ab === 'hospitality') {
+      const slot = state.value!.sides[side].active.indexOf(idx)
+      const ally = slot >= 0 ? allyOf(side, slot) : null
+      if (ally != null && !isFainted(side, ally) && !mon(side, ally).volatiles.healblock)
+        healHp(side, ally, Math.floor(maxHp(side, ally) / 4))
+    }
+  }
+  // 날씨·필드 특성 (동시 등장 순서를 고치면 이 부분만 다시 발동)
+  function onEnterField(side: BattleSide, idx: number) {
     const s = state.value!
     const r = resolveAt(side, idx)
     if (!r) return
@@ -670,15 +845,199 @@ export function useBattle(mode: BattleMode) {
     if (PRIMAL_ABILITY[ab])
       setWeather(PRIMAL_ABILITY[ab]!, { permanent: true, source: [side, idx] })
     else if (WEATHER_ABILITY[ab] && !s.weather.permanent)
-      setWeather(WEATHER_ABILITY[ab]!, { item: r.slot.item })
-    if (TERRAIN_ABILITY[ab]) setTerrain(TERRAIN_ABILITY[ab]!, r.slot.item)
-    if (entering && ab === 'intimidate') intimidate(side, idx)
+      setWeather(WEATHER_ABILITY[ab]!, { item: r.slot.item, by: [side, idx] })
+    if (TERRAIN_ABILITY[ab]) setTerrain(TERRAIN_ABILITY[ab]!, r.slot.item, [side, idx])
   }
+
+  // ── 동시 등장 ─────────────
+  // 함께 등장한 포켓몬의 특성은 스피드 순으로 발동 (트릭룸이면 느린 쪽부터) → 나중에 발동한 날씨·필드가 남는다.
+  // 내 쪽 × 상대 쪽은 관찰한 순서(entryObs) → speedOrder(상대 스피드 구간)로 정해지면 그 순서 → 추측 배치의 스피드
+  const entryKey = (mi: number, oi: number) => `${mi}:${oi}`
+  const announces = (side: BattleSide, idx: number) => {
+    const r = resolveAt(side, idx)
+    if (!r) return false
+    if (side === 'mine' || r.isMega || r.transformedFrom || mon(side, idx).abilityKnown)
+      return ENTRY_MESSAGE.has(r.ability)
+    return r.base.abilities.some((a) => ENTRY_MESSAGE.has(a))
+  }
+  // 등장 직전 상태 기준 (날씨·필드가 아직 안 바뀐 때 부른다)
+  const entryPairs = (entrants: readonly [BattleSide, number][]): EntryPair[] => {
+    const pairs: EntryPair[] = []
+    for (const [ms, mi] of entrants)
+      for (const [os, oi] of entrants) {
+        if (ms !== 'mine' || os !== 'opp' || !announces('mine', mi) || !announces('opp', oi))
+          continue
+        const se = speedEnvOf(oi)
+        if (!se) continue
+        pairs.push({
+          mi,
+          oi,
+          auto: speedOrder(mi, oi)?.first ?? null,
+          base: se.base,
+          env: se.env,
+          mySpeed: speedOf('mine', mi),
+        })
+      }
+    return pairs
+  }
+  // 짝의 먼저 발동한 쪽: 관찰 → 스피드 판정 (동속·모름이면 null)
+  const entryFirst = (p: EntryPair): BattleSide | null => {
+    const o = state.value!.entryObs?.[entryKey(p.mi, p.oi)]
+    return o ?? (p.auto === 'mine' || p.auto === 'opp' ? p.auto : null)
+  }
+  const orderEntrants = (entrants: readonly [BattleSide, number][], pairs: EntryPair[]) => {
+    const tr = !!state.value!.rooms.trickroom
+    return [...entrants].sort((x, y) => {
+      if (x[0] !== y[0]) {
+        const [m, o] = x[0] === 'mine' ? [x, y] : [y, x]
+        const p = pairs.find((q) => q.mi === m[1] && q.oi === o[1])
+        const f = p && entryFirst(p)
+        if (f) return f === x[0] ? -1 : 1
+      }
+      const d = speedOf(x[0], x[1]) - speedOf(y[0], y[1])
+      return (tr ? d : -d) || (x[0] === 'mine' ? -1 : 1)
+    })
+  }
+  const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v))
+  const copyField = () => ({
+    weather: clone(state.value!.weather),
+    terrain: clone(state.value!.terrain),
+  })
+  // 등장 직전 날씨·필드로 되돌리고 순서대로 발동. fresh: 처음 발동하는 포켓몬 (위협 포함), 나머지는 날씨·필드만 다시
+  function runEntry(batch: EntryBatch, fresh: (side: BattleSide, idx: number) => boolean) {
+    const s = state.value!
+    s.weather = clone(batch.before.weather)
+    s.terrain = clone(batch.before.terrain)
+    for (const [side, idx] of orderEntrants(batch.entrants, batch.pairs))
+      if (fresh(side, idx)) onEnter(side, idx, true)
+      else onEnterField(side, idx)
+  }
+  // 관찰한 발동 순서로 상대 스피드 구간 좁히기 (등장 직전 구간에서 다시 계산 → 관찰을 바꿔도 됨)
+  function applyEntryNarrowing(batch: EntryBatch) {
+    const obs = state.value!.entryObs ?? {}
+    for (const oi of new Set(batch.pairs.map((p) => p.oi))) {
+      let r = batch.oppBefore[oi] ?? null
+      for (const p of batch.pairs) {
+        const o = obs[entryKey(p.mi, p.oi)]
+        if (p.oi !== oi || !o || p.env.fixedStat != null) continue
+        r = narrowRanges(r ?? fullRanges(), p.base, p.env, p.mySpeed, (o === 'opp') !== batch.tr)
+      }
+      mon('opp', oi).speedSp = r
+    }
+  }
+  const newBatch = (entrants: [BattleSide, number][], before: EntryBatch['before']): EntryBatch => {
+    const pairs = entryPairs(entrants)
+    const oppBefore: Record<number, SpeedRanges | null> = {}
+    for (const p of pairs) oppBefore[p.oi] = mon('opp', p.oi).speedSp
+    return { entrants, before, oppBefore, tr: !!state.value!.rooms.trickroom, pairs }
+  }
+  // 고칠 수 있는 묶음을 버림. 관찰로 좁혔던 상대 스피드 구간은 되돌림 (선두를 다시 고를 때)
+  const dropEntry = () => {
+    const s = state.value!
+    if (s.entry)
+      for (const [oi, r] of Object.entries(s.entry.oppBefore)) mon('opp', +oi).speedSp = r
+    s.entry = null
+    s.entryObs = {}
+  }
+  // 선두: 지금 필드에 있는 양쪽 포켓몬 전부가 동시에 등장 (날씨·필드 없음에서 시작). 방금 나온 포켓몬만 위협 발동
+  function leadEntry(side: BattleSide, idx: number) {
+    const s = state.value!
+    dropEntry()
+    const before: EntryBatch['before'] = {
+      weather: { key: '', cur: 0, total: BASE_TURNS, permanent: false, source: null, by: null },
+      terrain: { key: '', cur: 0, total: BASE_TURNS, by: null },
+    }
+    s.weather = clone(before.weather)
+    s.terrain = clone(before.terrain)
+    const entrants: [BattleSide, number][] = []
+    for (const sd of ['mine', 'opp'] as const)
+      for (const i of s.sides[sd].active) if (i != null) entrants.push([sd, i])
+    const batch = newBatch(entrants, before)
+    runEntry(batch, (sd, i) => sd === side && i === idx)
+    s.entry = batch.pairs.length ? batch : null
+  }
+  // 쓰러진 뒤 교체: 고른 포켓몬을 한 번에 내보냄 (양쪽이면 스피드 순 발동, 순서는 다음 턴 적용 전까지 고칠 수 있음)
+  function replaceFainted(choices: { side: BattleSide; slot: number; idx: number }[]) {
+    const s = state.value!
+    if (!choices.length) return
+    s.history.push(snapshot())
+    if (s.history.length > MAX_HISTORY) s.history.shift()
+    dropEntry()
+    const entrants: [BattleSide, number][] = []
+    for (const c of choices) {
+      if (isFainted(c.side, c.idx) || s.sides[c.side].active.includes(c.idx)) continue
+      sendOut(c.side, c.slot, c.idx, 'switch', true)
+      entrants.push([c.side, c.idx])
+    }
+    const batch = newBatch(entrants, copyField())
+    runEntry(batch, () => true)
+    s.entry = batch.pairs.length ? batch : null
+  }
+  // 등장 특성 발동 순서 관찰 입력 (unknown = 지움). 고칠 수 있는 묶음이면 날씨·필드를 다시 발동하고 구간을 다시 좁힘.
+  // 이번 턴 교체(예정)끼리는 저장만 해 두고 턴 적용 때 반영
+  function setEntryOrder(mi: number, oi: number, v: 'mine' | 'opp' | 'unknown') {
+    const s = state.value!
+    const obs = (s.entryObs ??= {})
+    if (v === 'unknown') delete obs[entryKey(mi, oi)]
+    else obs[entryKey(mi, oi)] = v
+    const batch = s.entry
+    if (batch?.pairs.some((p) => p.mi === mi && p.oi === oi)) {
+      runEntry(batch, () => false)
+      applyEntryNarrowing(batch)
+    }
+  }
+  // 지금 보여 줄 짝: 고칠 수 있는 묶음, 없으면 이번 턴 교체 예정끼리 (기술을 쓰기 전 양쪽 다 교체)
+  const entryPairsNow = computed(() => {
+    const s = state.value
+    if (!s) return []
+    if (s.entry?.pairs.length) return s.entry.pairs
+    const planned: [BattleSide, number][] = []
+    for (const side of ['mine', 'opp'] as const)
+      s.actions[side].forEach((a) => {
+        if (a.kind === 'switch' && a.switchTo != null) planned.push([side, a.switchTo])
+      })
+    return planned.some((e) => e[0] === 'mine') && planned.some((e) => e[0] === 'opp')
+      ? entryPairs(planned)
+      : []
+  })
+  const entryObsOf = (mi: number, oi: number) =>
+    state.value?.entryObs?.[entryKey(mi, oi)] ?? 'unknown'
+
+  // ── 쓰러진 뒤 교체 ─────────────
+  // 교체할 수 있는 포켓몬: 내 쪽 = 남은 선출, 상대 = 공개된 포켓몬 + (공개 수가 선출 수보다 적으면) 아직 안 나온 파티
+  const replaceOptions = (side: BattleSide) => {
+    const s = state.value!
+    if (side === 'mine') return benchOf('mine')
+    const sd = s.sides.opp
+    const pick = N === 1 ? 3 : 4
+    return benchOf('opp').filter((i) => sd.revealed.includes(i) || sd.revealed.length < pick)
+  }
+  // 쓰러진 칸 (교체할 포켓몬이 있고, 예전 방식대로 교체 행동을 넣지 않은 칸)
+  const pendingReplace = computed(() => {
+    const s = state.value
+    if (!s) return []
+    const out: { side: BattleSide; slot: number }[] = []
+    for (const side of ['mine', 'opp'] as const) {
+      const opts = replaceOptions(side)
+      s.sides[side].active.forEach((i, slot) => {
+        const a = s.actions[side][slot]
+        if (i == null || !isFainted(side, i) || !opts.length) return
+        if (a?.kind === 'switch' && a.switchTo != null) return
+        out.push({ side, slot })
+      })
+    }
+    return out
+  })
 
   // ── 날씨 / 필드 / 공간 ─────────────
   function setWeather(
     key: Weather,
-    opts: { permanent?: boolean; source?: [BattleSide, number]; item?: string } = {},
+    opts: {
+      permanent?: boolean
+      source?: [BattleSide, number]
+      item?: string
+      by?: [BattleSide, number]
+    } = {},
   ) {
     const w = state.value!.weather
     w.key = key
@@ -686,6 +1045,7 @@ export function useBattle(mode: BattleMode) {
     w.total = opts.item && WEATHER_ROCK[key] === opts.item ? EXTENDED_TURNS : BASE_TURNS
     w.permanent = !!opts.permanent
     w.source = opts.source || null
+    w.by = opts.by ?? opts.source ?? null
   }
   function clearWeather() {
     Object.assign(state.value!.weather, {
@@ -694,13 +1054,15 @@ export function useBattle(mode: BattleMode) {
       total: BASE_TURNS,
       permanent: false,
       source: null,
+      by: null,
     })
   }
-  function setTerrain(key: Terrain, item?: string) {
+  function setTerrain(key: Terrain, item?: string, by?: [BattleSide, number]) {
     Object.assign(state.value!.terrain, {
       key,
       cur: 0,
       total: item === 'terrainextender' ? EXTENDED_TURNS : BASE_TURNS,
+      by: by ?? null,
     })
   }
   const toggleWeather = (key: Weather) =>
@@ -739,15 +1101,44 @@ export function useBattle(mode: BattleMode) {
     m.status = m.status === st ? '' : st
     m.toxicTurn = 0
   }
+  // 대타 HP = 최대 HP 1/4 (mine: 실수치, opp: %)
+  const quarterHp = (side: BattleSide, idx: number) =>
+    side === 'mine' ? Math.floor(maxHp(side, idx) / 4) : 25
+  // 특수 상태를 새로 붙일 때의 값. betweenTurns = 턴 사이에 직접 켬
+  //   (하품·반동은 "이번 턴 끝에 잠듦" / "이번 턴 행동 불가" 단계, 멸망의노래는 이미 턴 끝을 한 번 지난 카운트 3)
+  const volatileStart = (side: BattleSide, idx: number, key: string, betweenTurns: boolean) => {
+    if (key === 'substitute') return quarterHp(side, idx)
+    if (key === 'perishsong') return betweenTurns ? 3 : 4
+    if (key === 'yawn' || LOAF_VOLATILES.includes(key)) return betweenTurns ? 2 : 1
+    return 1
+  }
   const toggleVolatile = (side: BattleSide, idx: number, key: string) => {
     const m = mon(side, idx)
     // 비축은 누를 때마다 1 → 2 → 3 → 없음
     if (key === 'stockpile' && (m.volatiles[key] || 0) < 3)
       m.volatiles[key] = (m.volatiles[key] || 0) + 1
     else if (m.volatiles[key]) delete m.volatiles[key]
-    // 하품은 턴 사이에 켜므로 "이번 턴 끝에 잠듦" 상태로
-    else m.volatiles[key] = key === 'yawn' ? 2 : 1
+    else m.volatiles[key] = volatileStart(side, idx, key, true)
   }
+  // 대타에 막히는가: 대상에게 대타가 있고, 자기 자신이 아니고, 대타를 무시하는 기술(소리 기술 등)·틈새포착이 아님
+  const behindSub = (
+    side: BattleSide,
+    userIdx: number,
+    tSide: BattleSide,
+    tIdx: number,
+    moveId: string,
+  ) =>
+    !!mon(tSide, tIdx).volatiles.substitute &&
+    !(tSide === side && tIdx === userIdx) &&
+    !gd.move(moveId)?.flags.includes('bypasssub') &&
+    resolveAt(side, userIdx)?.ability !== 'infiltrator'
+  // 필드에 소란 중인 포켓몬이 있는가 (그동안 잠들지 않음)
+  const uproarOn = () =>
+    (['mine', 'opp'] as const).some((sd) =>
+      state.value!.sides[sd].active.some(
+        (i) => i != null && !isFainted(sd, i) && !!mon(sd, i).volatiles.uproar,
+      ),
+    )
   const changeBoost = (side: BattleSide, idx: number, key: RankKey, delta: number) => {
     const m = mon(side, idx)
     m.boosts[key] = clampBoost((m.boosts[key] ?? 0) + delta)
@@ -780,7 +1171,7 @@ export function useBattle(mode: BattleMode) {
     brn: ['waterveil', 'waterbubble', 'thermalexchange'],
     psn: ['immunity'],
     tox: ['immunity'],
-    slp: ['insomnia', 'vitalspirit', 'sweetveil'],
+    slp: ['insomnia', 'vitalspirit'],
     frz: ['magmaarmor'],
   }
   // ── 턴 끝 회복·데미지 ─────────────
@@ -789,6 +1180,7 @@ export function useBattle(mode: BattleMode) {
   //   그래스필드(땅에 있음 +1/16) / 도구: 먹다남은음식 +1/16, 검은진흙(독 타입 +1/16, 아니면 −1/8)
   //     — 상대는 도구가 확인됐을 때만 (itemKnown), 도구를 잃었거나 매직룸·서투름이면 없음
   //   아쿠아링·뿌리박기 +1/16 / 씨뿌리기 −1/8 (심은 상대가 그만큼 회복, 해감액이면 그쪽이 데미지)
+  //   저주 −1/4 / 악몽(잠듦) −1/4 / 소금절이 −1/16 (물·강철 −1/8)
   //   모래바람 −1/16 (바위·땅·강철, 모래 특성·방진, 방진고글 제외) / 날씨부정·에어록이 필드에 있으면 날씨 효과 없음
   //   회복봉인이면 회복 없음, 매직가드면 데미지 없음
   type Residual = { key: string; frac: number }
@@ -842,6 +1234,16 @@ export function useBattle(mode: BattleMode) {
     if (m.volatiles.aquaring) out.push({ key: 'aquaring', frac: 1 / 16 })
     if (m.volatiles.ingrain) out.push({ key: 'ingrain', frac: 1 / 16 })
     if (m.volatiles.leechseed) out.push({ key: 'leechseed', frac: -1 / 8 })
+    // 조이기류(김밥말이·회오리불꽃 등) 1/8
+    if (m.volatiles.partiallytrapped) out.push({ key: 'partiallytrapped', frac: -1 / 8 })
+    // 저주(고스트) 1/4, 악몽(잠듦) 1/4, 소금절이 1/16 (물·강철 1/8) — 챔피언스 수치
+    if (m.volatiles.curse) out.push({ key: 'curse', frac: -1 / 4 })
+    if (m.volatiles.nightmare && m.status === 'slp') out.push({ key: 'nightmare', frac: -1 / 4 })
+    if (m.volatiles.saltcure)
+      out.push({
+        key: 'saltcure',
+        frac: r.species.types.some((t) => t === 'water' || t === 'steel') ? -1 / 8 : -1 / 16,
+      })
     return out.filter(
       (x) => (x.frac > 0 ? !m.volatiles.healblock : ab !== 'magicguard') && x.frac !== 0,
     )
@@ -866,6 +1268,66 @@ export function useBattle(mode: BattleMode) {
     if (side === 'mine') m.hp = Math.min(max, m.hp + Math.round(hp))
     else m.hp = Math.min(100, m.hp + (hp / max) * 100)
   }
+  // 실제 HP(hp) 만큼 잃음 (반동·접촉 데미지·HP 소모 등). 상대는 추정 최대 HP 기준 %. 절반 이하가 되면 회복 열매
+  function loseHp(side: BattleSide, idx: number, hp: number) {
+    const m = mon(side, idx)
+    const max = maxHp(side, idx)
+    if (!max || m.hp <= 0 || hp <= 0) return
+    if (side === 'mine') m.hp = Math.max(0, m.hp - Math.round(hp))
+    else m.hp = Math.max(0, m.hp - (hp / max) * 100)
+    checkBerry(side, idx)
+  }
+  // 실제 HP 로 (상대는 % → 추정 최대 HP 기준)
+  const realHp = (side: BattleSide, idx: number, units: number) =>
+    side === 'mine' ? units : Math.round((units / 100) * maxHp(side, idx))
+  // 효과를 내는 지닌 도구 (도구 잃음·매직룸·서투름이면 없음, 상대는 확정 도구만 — battleSlot)
+  const heldItem = (side: BattleSide, idx: number) => {
+    const r = resolveAt(side, idx)
+    if (!r || mon(side, idx).itemGone || state.value!.rooms.magicroom || r.ability === 'klutz')
+      return ''
+    return r.slot.item
+  }
+  // 회복 열매: HP 가 절반 이하가 되면 자뭉열매 최대 HP 1/4, 오랭열매 10 (숙성 2배, 볼주머니 +1/3).
+  // 상대 필드에 긴장감이 있거나 회복봉인이면 먹지 않음
+  const UNNERVE = new Set(['unnerve', 'asoneglastrier', 'asonespectrier'])
+  function checkBerry(side: BattleSide, idx: number) {
+    const m = mon(side, idx)
+    const r = resolveAt(side, idx)
+    const max = maxHp(side, idx)
+    if (!r || m.hp <= 0 || !max || m.volatiles.healblock) return
+    const item = heldItem(side, idx)
+    if (item !== 'sitrusberry' && item !== 'oranberry') return
+    if (side === 'mine' ? m.hp * 2 > max : m.hp > 50) return
+    const foe: BattleSide = side === 'mine' ? 'opp' : 'mine'
+    const unnerved = state.value!.sides[foe].active.some(
+      (i) => i != null && !isFainted(foe, i) && UNNERVE.has(resolveAt(foe, i)?.ability || ''),
+    )
+    if (unnerved) return
+    let amt = item === 'sitrusberry' ? Math.floor(max / 4) : 10
+    if (r.ability === 'ripen') amt *= 2
+    m.itemGone = true
+    healHp(side, idx, amt)
+    if (r.ability === 'cheekpouch') healHp(side, idx, Math.floor(max / 3))
+  }
+  // 빼앗아 회복 (흡수기·힘흡수): 큰뿌리 1.3배, 회복봉인이면 없음, 대상이 해감액이면 그만큼 데미지(매직가드면 없음)
+  function absorbHeal(
+    side: BattleSide,
+    userIdx: number,
+    foe: BattleSide,
+    tIdx: number,
+    hp: number,
+  ) {
+    const u = mon(side, userIdx)
+    if (hp <= 0 || u.hp <= 0) return
+    const ur = resolveAt(side, userIdx)
+    if (resolveAt(foe, tIdx)?.ability === 'liquidooze') {
+      if (ur?.ability !== 'magicguard') loseHp(side, userIdx, hp)
+      return
+    }
+    if (u.volatiles.healblock) return
+    const amt = heldItem(side, userIdx) === 'bigroot' ? Math.floor((hp * 5324 + 2047) / 4096) : hp
+    healHp(side, userIdx, amt)
+  }
   function applyResidual(side: BattleSide, idx: number) {
     const s = state.value!
     for (const x of residualPlan(side, idx)) {
@@ -884,26 +1346,285 @@ export function useBattle(mode: BattleMode) {
     }
   }
   // 상대 도구 확정 (이번 턴 행동 입력 중 도구가 드러났을 때: 먹다남은음식 회복·하양허브·그라운드코트 등).
-  // 파티의 도구를 그 도구로 바꾸고 확정 표시 → 이번 턴 처리부터 반영 (턴 끝 회복 등). item = '' 이면 확정 취소
-  // (지금 필드·날씨를 누가 깔았는지는 따로 기록하지 않으므로 그라운드코트·바위는 지금 것을 연장한다고 본다)
+  // 배틀 상태에만 저장 (선출 화면 파티의 도구는 그대로) → 이번 턴 처리부터 반영 (턴 끝 회복 등). item = '' 이면 확정 취소
+  // (그라운드코트·바위는 그 포켓몬이 깐 필드·날씨만 연장. 깐 포켓몬을 모르면(직접 켬) 연장한다고 본다)
   const confirmItem = (side: BattleSide, idx: number, item: string) => {
     const m = mon(side, idx)
-    const slot = slotsOf(side)[idx]
-    if (!slot) return
+    if (!slotsOf(side)[idx]) return
     if (!item) {
       m.itemKnown = false
+      delete m.item
       return
     }
-    slot.item = item
+    m.item = item
     m.itemGone = false
     m.itemKnown = true
-    // 그라운드코트·날씨 연장 바위: 지금 깔린 필드·날씨가 5턴이면 8턴으로 (안 끝나는 걸 보고 확정하는 경우)
+    // 그라운드코트·날씨 연장 바위: 이 포켓몬이 깐 필드·날씨가 5턴이면 8턴으로 (안 끝나는 걸 보고 확정하는 경우)
     const st = state.value!
-    if (item === 'terrainextender' && st.terrain.key && st.terrain.total === BASE_TURNS)
-      st.terrain.total = EXTENDED_TURNS
+    const mine = (by?: [BattleSide, number] | null) => !by || (by[0] === side && by[1] === idx)
+    const tr = st.terrain
+    if (item === 'terrainextender' && tr.key && tr.total === BASE_TURNS && mine(tr.by))
+      tr.total = EXTENDED_TURNS
     const w = st.weather
-    if (w.key && !w.permanent && WEATHER_ROCK[w.key] === item && w.total === BASE_TURNS)
+    if (
+      w.key &&
+      !w.permanent &&
+      WEATHER_ROCK[w.key] === item &&
+      w.total === BASE_TURNS &&
+      mine(w.by)
+    )
       w.total = EXTENDED_TURNS
+  }
+
+  // 기술 자체의 HP 효과 (회복기·HP 소모·자기 기절·아픔나누기·힘흡수·희망사항 등). hitTargets: 맞은 상대 칸,
+  // hit: 기술이 나갔는지 (빗나감·실패면 false), blocked: 대타에 막힌 상대
+  const WEATHER_HEAL = new Set(['synthesis', 'morningsun', 'moonlight'])
+  function hpMoveEffects(
+    moveId: string,
+    side: BattleSide,
+    userIdx: number,
+    hitTargets: number[],
+    hit: boolean,
+    blocked: (tIdx: number) => boolean,
+  ) {
+    const s = state.value!
+    const move = gd.move(moveId)
+    const r = resolveAt(side, userIdx)
+    if (!move || !r) return
+    const foe: BattleSide = side === 'mine' ? 'opp' : 'mine'
+    const um = mon(side, userIdx)
+    const max = maxHp(side, userIdx)
+    const cur = realHp(side, userIdx, um.hp)
+    const slot = s.sides[side].active.indexOf(userIdx)
+    const faint = () => (um.hp = 0)
+    // 쓰기만 하면 (빗나가도): 철제광선 최대 HP 1/2(반올림, 매직가드 제외), 대폭발·자폭은 쓰러짐
+    if (moveId === 'steelbeam' && r.ability !== 'magicguard')
+      loseHp(side, userIdx, Math.round(max / 2))
+    // 습기가 필드에 있으면 대폭발·자폭은 실패 (틀깨기면 무시)
+    const damp = (['mine', 'opp'] as const).some((sd) =>
+      s.sides[sd].active.some(
+        (i) => i != null && !isFainted(sd, i) && resolveAt(sd, i)?.ability === 'damp',
+      ),
+    )
+    if (
+      (moveId === 'explosion' || moveId === 'selfdestruct') &&
+      (!damp || r.ability === 'moldbreaker')
+    )
+      faint()
+    if (!hit) return
+    // 회복기: HP회복·날개쉬기 등 1/2, 생명의물방울 1/4 (아군도), 광합성·아침햇살·달의불빛은 날씨에 따라,
+    // 꿀꺽은 비축 수에 따라 (1 → 1/4, 2 → 1/2, 3 → 전부). 회복봉인이면 없음
+    const healEff = move.effects.find((e) => e.type === 'heal')
+    let ratio = healEff?.type === 'heal' ? healEff.ratio : 0
+    if (WEATHER_HEAL.has(moveId)) {
+      const w = fieldFor(side, userIdx).weather ?? ''
+      ratio = w === 'sun' || w === 'harshsun' ? 2 / 3 : w ? 1 / 4 : 1 / 2
+    }
+    if (moveId === 'swallow') ratio = [0, 1 / 4, 1 / 2, 1][um.volatiles.stockpile || 0] ?? 0
+    if (ratio) {
+      const ally = moveId === 'lifedew' ? allyOf(side, slot) : null
+      for (const i of [userIdx, ally]) {
+        if (i == null || isFainted(side, i) || mon(side, i).volatiles.healblock) continue
+        healHp(side, i, Math.round(maxHp(side, i) * ratio))
+      }
+    }
+    // 치유파동: 대상 1/2 (메가런처 3/4)
+    if (moveId === 'healpulse')
+      for (const tIdx of hitTargets)
+        if (!mon(foe, tIdx).volatiles.healblock)
+          healHp(
+            foe,
+            tIdx,
+            Math.round(maxHp(foe, tIdx) * (r.ability === 'megalauncher' ? 0.75 : 0.5)),
+          )
+    // HP 소모: 배수의진 1/2 → 공격 최대 (HP 가 1/2 이하이거나 이미 최대면 실패), 스케일노이즈 1/3 (1/3 이하면 실패),
+    // 저주(고스트 타입) 1/2 → 대상 저주. 고스트가 아니면 공격·방어 +1, 스피드 −1
+    if (moveId === 'bellydrum') {
+      const cost = Math.floor(max / 2)
+      if (cur > cost && um.boosts.atk < 6) {
+        loseHp(side, userIdx, cost)
+        statChange(side, userIdx, 'atk', 12)
+      }
+    }
+    if (moveId === 'clangoroussoul' && cur > Math.floor(max / 3))
+      loseHp(side, userIdx, Math.floor(max / 3))
+    if (moveId === 'curse') {
+      if (r.species.types.includes('ghost')) {
+        const tIdx = hitTargets[0]
+        if (tIdx != null && !mon(foe, tIdx).volatiles.curse) {
+          loseHp(side, userIdx, Math.floor(max / 2))
+          mon(foe, tIdx).volatiles.curse = 1
+        }
+      } else {
+        statChange(side, userIdx, 'atk', 1, undefined, true)
+        statChange(side, userIdx, 'def', 1, undefined, true)
+        statChange(side, userIdx, 'spe', -1)
+      }
+    }
+    // 아픔나누기: 둘의 HP 합의 절반으로 (대타면 실패). 상대 HP 는 추정 최대 HP 기준
+    if (moveId === 'painsplit')
+      for (const tIdx of hitTargets) {
+        if (blocked(tIdx)) continue
+        const t = mon(foe, tIdx)
+        const avg = Math.floor((cur + realHp(foe, tIdx, t.hp)) / 2)
+        const set = (sd: BattleSide, i: number) => {
+          const mx = maxHp(sd, i)
+          mon(sd, i).hp = sd === 'mine' ? Math.min(mx, avg) : Math.min(100, (avg / (mx || 1)) * 100)
+        }
+        set(side, userIdx)
+        set(foe, tIdx)
+        checkBerry(side, userIdx)
+        checkBerry(foe, tIdx)
+      }
+    // 힘흡수: 대상의 공격 실능치(랭크 반영)만큼 회복하고 대상 공격 −1 (이미 −6 이거나 대타면 실패)
+    if (moveId === 'strengthsap')
+      for (const tIdx of hitTargets) {
+        const t = mon(foe, tIdx)
+        if (blocked(tIdx) || (t.boosts.atk ?? 0) <= -6) continue
+        const atk = applyBoost(resolveAt(foe, tIdx)?.stats.atk ?? 0, t.boosts.atk ?? 0)
+        statChange(foe, tIdx, 'atk', -1, [side, userIdx])
+        absorbHeal(side, userIdx, foe, tIdx, atk)
+      }
+    // 희망사항: 다음 턴 끝에 이 칸의 포켓몬이 쓴 포켓몬 최대 HP 1/2 회복 (이미 걸려 있으면 실패)
+    if (moveId === 'wish' && slot >= 0) {
+      const w = (s.sides[side].wishes ??= {})
+      if (!w[slot]) w[slot] = { turn: s.turn, hp: Math.floor(max / 2) }
+    }
+    // 자기 기절: 추억의선물·목숨던지기 (맞혔을 때), 치유소원 (교체할 포켓몬이 있을 때 → 다음에 나오는 포켓몬 전부 회복)
+    if ((moveId === 'memento' || moveId === 'finalgambit') && hitTargets.length) faint()
+    if (moveId === 'healingwish' && replaceOptions(side).length && slot >= 0) {
+      faint()
+      const hw = (s.sides[side].healingWish ??= [])
+      if (!hw.includes(slot)) hw.push(slot)
+    }
+  }
+
+  // 상대 특성 확정 ('' = 확정 취소). 특성이 바뀌면: 이 포켓몬의 예전 특성이 깐 날씨·필드는 지우고,
+  // 방금 나온 포켓몬(이번 턴 또는 지난 턴에 등장)이면 새 특성의 등장 효과(날씨·필드·위협)를 지금 적용.
+  // 동시 등장 묶음에 들어 있으면 짝·발동 순서도 다시 계산. 잘못 추측해 이미 적용된 위협은 되돌리지 않음 (랭크를 직접 고침)
+  const confirmAbility = (idx: number, ability: string) => {
+    const s = state.value!
+    const m = mon('opp', idx)
+    if (!slotsOf('opp')[idx]) return
+    const before = resolveAt('opp', idx)?.ability ?? ''
+    if (ability) Object.assign(m, { ability, abilityKnown: true })
+    else {
+      m.abilityKnown = false
+      delete m.ability
+    }
+    const after = resolveAt('opp', idx)?.ability ?? ''
+    if (after === before) return
+    const own = (by?: [BattleSide, number] | null) => !!by && by[0] === 'opp' && by[1] === idx
+    if (WEATHER_ABILITY[before] === s.weather.key && own(s.weather.by) && !s.weather.permanent)
+      clearWeather()
+    if (TERRAIN_ABILITY[before] === s.terrain.key && own(s.terrain.by))
+      Object.assign(s.terrain, { key: '', cur: 0, total: BASE_TURNS, by: null })
+    const active = s.sides.opp.active.includes(idx) && !isFainted('opp', idx)
+    if (!active || m.enteredTurn < s.turn - 1) return
+    const batch = s.entry
+    if (batch?.entrants.some(([sd, i]) => sd === 'opp' && i === idx)) {
+      for (const [oi, r] of Object.entries(batch.oppBefore)) mon('opp', +oi).speedSp = r
+      s.weather = clone(batch.before.weather)
+      s.terrain = clone(batch.before.terrain)
+      batch.pairs = entryPairs(batch.entrants)
+      for (const p of batch.pairs)
+        if (!(p.oi in batch.oppBefore)) batch.oppBefore[p.oi] = mon('opp', p.oi).speedSp
+      runEntry(batch, (sd, i) => sd === 'opp' && i === idx)
+      applyEntryNarrowing(batch)
+    } else onEnter('opp', idx, true)
+  }
+
+  // 흡수기 (기가드레인·드레인펀치·드레인키스 등): 대상이 실제로 잃은 HP(쓰러뜨리면 남은 HP까지, 대타면 대타가 받은 만큼)의
+  // ratio 만큼 회복 (반올림, 최소 1). 큰뿌리 1.3배, 회복봉인이면 없음, 대상이 해감액이면 그만큼 데미지(매직가드면 없음).
+  // lost: 대상 단위 (상대 = %, 내 쪽 = 실수치). 상대 HP 실수치는 추정 최대 HP 기준
+  function drainHeal(
+    moveId: string,
+    side: BattleSide,
+    userIdx: number,
+    foe: BattleSide,
+    tIdx: number,
+    lost: number,
+  ) {
+    const eff = gd.move(moveId)?.effects.find((e) => e.type === 'drain')
+    const ratio = eff?.type === 'drain' ? eff.ratio : 0
+    if (!ratio || lost <= 0) return
+    const dealt = realHp(foe, tIdx, lost)
+    if (dealt > 0) absorbHeal(side, userIdx, foe, tIdx, Math.max(1, Math.round(dealt * ratio)))
+  }
+
+  // ── 공격한 쪽 HP 변화 ─────────────
+  // 기술을 쓴 뒤 (맞힌 데미지 합 dealt, 실수치): 반동(돌머리·매직가드 제외, 반올림 최소 1) → 생명의구슬(최대 HP 1/10,
+  // 매직가드·우격다짐으로 부가효과가 없어진 기술 제외) → 조개껍질방울(1/8 회복, 회복봉인 제외)
+  function afterAttack(moveId: string, side: BattleSide, userIdx: number, dealt: number) {
+    const move = gd.move(moveId)
+    const r = resolveAt(side, userIdx)
+    if (!move || !r || dealt <= 0 || isFainted(side, userIdx)) return
+    const ab = r.ability
+    const recoil = move.effects.find((e) => e.type === 'recoil')
+    if (recoil?.type === 'recoil' && ab !== 'rockhead' && ab !== 'magicguard')
+      loseHp(side, userIdx, Math.max(1, Math.round(dealt * recoil.ratio)))
+    const item = heldItem(side, userIdx)
+    const max = maxHp(side, userIdx)
+    if (
+      item === 'lifeorb' &&
+      ab !== 'magicguard' &&
+      !(ab === 'sheerforce' && hasSecondary(move)) &&
+      !isFainted(side, userIdx)
+    )
+      loseHp(side, userIdx, Math.max(1, Math.floor(max / 10)))
+    if (item === 'shellbell' && !mon(side, userIdx).volatiles.healblock)
+      healHp(side, userIdx, Math.max(1, Math.floor(dealt / 8)))
+  }
+  // 맞은 쪽 때문에 공격한 쪽이 잃는 HP: 접촉이면 까칠한피부 1/8·울퉁불퉁멧 1/6 (타수만큼, 가변 타수는 1타로),
+  // 쓰러뜨리면 유폭(접촉) 1/4·내용물분출(맞기 전 HP 만큼). 매직가드면 없음
+  function hitPunish(
+    moveId: string,
+    side: BattleSide,
+    userIdx: number,
+    foe: BattleSide,
+    tIdx: number,
+    hpBefore: number,
+  ) {
+    const move = gd.move(moveId)
+    const ur = resolveAt(side, userIdx)
+    const tr = resolveAt(foe, tIdx)
+    if (!move || !ur || !tr || isFainted(side, userIdx) || ur.ability === 'magicguard') return
+    const max = maxHp(side, userIdx)
+    const fainted = hpBefore > 0 && mon(foe, tIdx).hp <= 0
+    let lose = 0
+    if (move.flags.includes('contact')) {
+      const atkC = combatantOf(side, userIdx, undefined, true)
+      const info = atkC ? hitInfo(move, atkC, false) : null
+      const hits = info && info.min === info.max ? info.max : 1
+      if (tr.ability === 'roughskin' || tr.ability === 'ironbarbs')
+        lose += Math.floor(max / 8) * hits
+      if (heldItem(foe, tIdx) === 'rockyhelmet') lose += Math.floor(max / 6) * hits
+      if (tr.ability === 'aftermath' && fainted) lose += Math.floor(max / 4)
+    }
+    if (tr.ability === 'innardsout' && fainted) lose += realHp(foe, tIdx, hpBefore)
+    loseHp(side, userIdx, lose)
+  }
+  // 흡수 특성: 저수·건조피부(물), 축전(전기), 흙먹기(땅) 타입 기술을 맞으면 데미지 대신 최대 HP 1/4 회복
+  const ABSORB_TYPE: Record<string, string> = {
+    waterabsorb: 'water',
+    dryskin: 'water',
+    voltabsorb: 'electric',
+    eartheater: 'ground',
+  }
+  function absorbAbility(
+    moveId: string,
+    side: BattleSide,
+    userIdx: number,
+    foe: BattleSide,
+    tIdx: number,
+  ) {
+    const tr = resolveAt(foe, tIdx)
+    const want = tr ? ABSORB_TYPE[tr.ability] : undefined
+    if (!want || isFainted(foe, tIdx) || mon(foe, tIdx).volatiles.healblock) return
+    const atkC = combatantOf(side, userIdx, undefined, true)
+    const defC = combatantOf(foe, tIdx)
+    const c = atkC && defC ? calc.cell(moveId, atkC, defC, fieldFor(foe, tIdx)) : null
+    if (c?.immune && c.type === want) healHp(foe, tIdx, Math.floor(maxHp(foe, tIdx) / 4))
   }
 
   const THAWS_TARGET = (moveId: string) => {
@@ -919,6 +1640,16 @@ export function useBattle(mode: BattleMode) {
     if (STATUS_TYPE_IMMUNE[st]?.some((t) => r.species.types.includes(t as never))) return true
     if ([...(STATUS_ABILITY_IMMUNE[st] ?? []), 'comatose', 'purifyingsalt'].includes(r.ability))
       return true
+    const wk = state.value!.weather.key
+    if (r.ability === 'leafguard' && (wk === 'sun' || wk === 'harshsun')) return true
+    // 자신·아군의 특성: 스위트베일(잠듦) / 플라워베일(풀 타입)
+    const teamAbilities = state
+      .value!.sides[side].active.filter((i): i is number => i != null && !isFainted(side, i))
+      .map((i) => resolveAt(side, i)?.ability)
+    if (st === 'slp' && teamAbilities.includes('sweetveil')) return true
+    if (st === 'slp' && r.ability !== 'soundproof' && uproarOn()) return true
+    if (r.species.types.includes('grass' as never) && teamAbilities.includes('flowerveil'))
+      return true
     if (state.value!.sides[side].screens.safeguard) return true
     const c = combatantOf(side, idx)
     const terrain = state.value!.terrain.key
@@ -931,6 +1662,14 @@ export function useBattle(mode: BattleMode) {
     const m = mon(side, idx)
     m.status = st
     m.toxicTurn = 0
+    m.restSleep = false
+  }
+  // 잠듦·얼음: 다음에 행동하려 할 때 풀릴 확률 (%). 잠듦·얼음이 아니면 null
+  const wakeChance = (side: BattleSide, idx: number): number | null => {
+    const m = mon(side, idx)
+    if (m.status !== 'slp' && m.status !== 'frz') return null
+    const table = m.status === 'slp' && m.restSleep ? WAKE_CHANCE.rest : WAKE_CHANCE[m.status]
+    return table[m.toxicTurn] ?? 100
   }
   // 하품: 졸음 상태로 (이미 졸음이거나 잠들 수 없으면 실패). 다음 턴 끝에 잠듦
   function inflictYawn(side: BattleSide, idx: number) {
@@ -942,7 +1681,7 @@ export function useBattle(mode: BattleMode) {
   // 기술의 효과 자동 반영. targets: 맞은 상대 칸들 (광역기면 여럿), hit: 기술이 맞았는지 (빗나감·실패·데미지 0 이면 false)
   //   랭크 변화·상태이상·혼란: 확정 효과와 확률 100% 부가효과만 (나머지 확률 효과는 "이번 턴 확률 효과"로 보여 주고 직접 입력)
   //   공격기의 효과는 맞혔을 때만, 상성상 무효인 상대에게는 없음. 부가효과는 우격다짐이면 없음, 맞는 쪽 인분이면 막음
-  //   변화기는 황금몸이 막음
+  //   변화기는 황금몸이 막음. 반사 가능한 변화기는 매직미러가 쓴 쪽에게 되돌림 (틀깨기면 되돌리지 않음)
   function applyMoveEffects(
     moveId: string,
     side: BattleSide,
@@ -968,6 +1707,15 @@ export function useBattle(mode: BattleMode) {
           const c = atkC && defC ? calc.cell(moveId, atkC, defC, fieldFor(foe, tIdx)) : null
           return !c?.immune
         })
+    // 매직미러: 이 상대 칸이 되돌리는지 / 상대 필드에 거는 기술(스텔스록 등)을 되돌리는지
+    const reflectable =
+      !damaging && move.flags.includes('reflectable') && user?.ability !== 'moldbreaker'
+    const bounces = (tIdx: number) => reflectable && resolveAt(foe, tIdx)?.ability === 'magicbounce'
+    const sideBounced = s.sides[foe].active.some(
+      (i) => i != null && !isFainted(foe, i) && bounces(i),
+    )
+    // 대타: 상대에게 거는 효과(랭크 하락·상태이상·혼란·씨뿌리기·하품, 공격기 부가효과)를 막음 (매직미러로 되돌린 건 제외)
+    const blocked = (tIdx: number) => !bounces(tIdx) && behindSub(side, userIdx, foe, tIdx, moveId)
     for (const e of move.effects as MoveEffect[]) {
       if (e.type === 'boost' || e.type === 'status' || e.type === 'volatile') {
         const chance = 'chance' in e ? e.chance : undefined
@@ -977,36 +1725,42 @@ export function useBattle(mode: BattleMode) {
         // 공격기: 자기 효과(니트로차지 등)는 하나라도 맞혔을 때, 상대 효과는 맞은 상대에게
         if (damaging && !hitTargets.length) continue
         if (!damaging && !hit) continue
-        const list = onSelf ? [userIdx] : hitTargets
-        const tSide = onSelf ? side : foe
-        for (const tIdx of list) {
+        // [받는 쪽, 칸, 건 쪽(상대가 내린 랭크면)] — 매직미러면 쓴 쪽이 받고 건 쪽은 매직미러 포켓몬
+        const list: [BattleSide, number, [BattleSide, number] | undefined][] = onSelf
+          ? [[side, userIdx, undefined]]
+          : hitTargets
+              .filter((tIdx) => !blocked(tIdx))
+              .map((tIdx) =>
+                bounces(tIdx) ? [side, userIdx, [foe, tIdx]] : [foe, tIdx, [side, userIdx]],
+              )
+        for (const [tSide, tIdx, src] of list) {
           if (!onSelf && chance && resolveAt(foe, tIdx)?.ability === 'shielddust') continue
           if (e.type === 'boost') {
             for (const [k, v] of Object.entries(e.stats)) {
-              if (k in zeroBoosts())
-                statChange(
-                  tSide,
-                  tIdx,
-                  k as RankKey,
-                  v || 0,
-                  tSide === side ? undefined : [side, userIdx],
-                  true,
-                )
+              if (k in zeroBoosts()) statChange(tSide, tIdx, k as RankKey, v || 0, src, true)
             }
             whiteHerb(tSide, tIdx)
           } else if (e.type === 'status') inflictStatus(tSide, tIdx, e.status)
-          else if (e.type === 'volatile' && e.status === 'confusion') {
+          else if (e.type === 'volatile' && e.status !== 'flinch') {
+            // 혼란·도발·앙코르·트집·사슬묶기·헤롱헤롱·회복봉인·조이기류·문어굳히기·소금절이 (이미 걸렸으면 그대로)
+            // 마이페이스는 혼란, 둔감은 도발·헤롱헤롱 무효
             const tm = mon(tSide, tIdx)
-            if (!tm.volatiles.confusion && resolveAt(tSide, tIdx)?.ability !== 'owntempo')
-              tm.volatiles.confusion = 1
+            const ab = resolveAt(tSide, tIdx)?.ability
+            // 헤롱헤롱은 서로 다른 성별일 때만 (성별을 모르면 자동으로 걸지 않고 행동 아래 체크로)
+            const other = src ?? [side, userIdx]
+            const immune =
+              (e.status === 'confusion' && ab === 'owntempo') ||
+              ((e.status === 'taunt' || e.status === 'attract') && ab === 'oblivious') ||
+              (e.status === 'attract' && attractable(other[0], other[1], tSide, tIdx) !== 'yes')
+            if (!tm.volatiles[e.status] && !immune) tm.volatiles[e.status] = 1
           }
         }
       } else if (e.type === 'weather' && !s.weather.permanent)
-        setWeather(e.key, { item: user?.slot.item })
-      else if (e.type === 'terrain') setTerrain(e.key, user?.slot.item)
+        setWeather(e.key, { item: user?.slot.item, by: [side, userIdx] })
+      else if (e.type === 'terrain') setTerrain(e.key, user?.slot.item, [side, userIdx])
       else if (e.type === 'room') s.rooms[e.key] = { cur: 0, total: BASE_TURNS }
       else if (e.type === 'side') {
-        const sd = s.sides[e.side === 'self' ? side : foe]
+        const sd = s.sides[e.side === 'self' || (e.side === 'foe' && sideBounced) ? side : foe]
         if (SCREENS.has(e.key)) {
           const ext =
             (e.key === 'reflect' || e.key === 'lightscreen' || e.key === 'auroraveil') &&
@@ -1020,7 +1774,8 @@ export function useBattle(mode: BattleMode) {
             e.maxStack ?? HAZARD_MAX[e.key] ?? 1,
             (sd.hazards[e.key] || 0) + 1,
           )
-      } else if (e.type === 'recharge') {
+      } else if (e.type === 'recharge' && hitTargets.length) {
+        // 빗나가거나 무효면 반동 없음
         mon(side, userIdx).volatiles.mustrecharge = 1
       }
     }
@@ -1031,8 +1786,8 @@ export function useBattle(mode: BattleMode) {
     // 씨뿌리기: 맞은 상대에게 (풀 타입·이미 심어짐이면 실패, 매직미러면 쓴 쪽에게). 턴 끝에 1/8 흡수
     if (moveId === 'leechseed')
       for (const tIdx of hitTargets) {
-        const bounce =
-          resolveAt(foe, tIdx)?.ability === 'magicbounce' && user?.ability !== 'magicbounce'
+        if (blocked(tIdx)) continue
+        const bounce = bounces(tIdx)
         const [tSide, tI, fromSide] = bounce ? [side, userIdx, foe] : [foe, tIdx, side]
         const tm = mon(tSide, tI)
         if (tm.volatiles.leechseed || resolveAt(tSide, tI)?.species.types.includes('grass'))
@@ -1045,12 +1800,69 @@ export function useBattle(mode: BattleMode) {
     // 하품: 맞은 상대를 졸음으로 (매직미러면 쓴 쪽에게 되돌아감)
     if (moveId === 'yawn')
       for (const tIdx of hitTargets) {
-        const bounce =
-          resolveAt(foe, tIdx)?.ability === 'magicbounce' && user?.ability !== 'magicbounce'
-        if (bounce) inflictYawn(side, userIdx)
+        if (blocked(tIdx)) continue
+        if (bounces(tIdx)) inflictYawn(side, userIdx)
         else inflictYawn(foe, tIdx)
       }
-    if (moveId === 'chillyreception') setWeather('snow', { item: user?.slot.item })
+    if (moveId === 'chillyreception')
+      setWeather('snow', { item: user?.slot.item, by: [side, userIdx] })
+
+    const um = mon(side, userIdx)
+    hpMoveEffects(moveId, side, userIdx, hitTargets, hit, blocked)
+    // 잠자기: HP 를 모두 회복하고 2턴 잠듦 (다른 상태이상은 풀림). HP 가 가득이거나 이미 잠듦·잠들 수 없으면 실패
+    if (moveId === 'rest' && hit && um.status !== 'slp') {
+      const max = side === 'mine' ? maxHp(side, userIdx) : 100
+      const prev = um.status
+      um.status = ''
+      const blockedSleep = statusBlocked(side, userIdx, 'slp')
+      um.status = prev
+      if (um.hp < max && !blockedSleep)
+        Object.assign(um, { hp: max, status: 'slp', toxicTurn: 0, restSleep: true })
+    }
+    // 대타출동: 최대 HP 1/4 를 깎아 대타 (HP 가 1/4 이하이거나 이미 대타면 실패)
+    if (moveId === 'substitute' && hit && !um.volatiles.substitute) {
+      const q = quarterHp(side, userIdx)
+      if (um.hp > q) {
+        um.hp -= q
+        um.volatiles.substitute = q
+      }
+    }
+    // 꼬리자르기: 최대 HP 1/2(올림)를 깎아 대타를 만듦 → 교체로 나오는 포켓몬이 대타를 받음 (교체 처리에서)
+    if (moveId === 'shedtail' && hit && !um.volatiles.substitute) {
+      const cost = side === 'mine' ? Math.ceil(maxHp(side, userIdx) / 2) : 50
+      if (um.hp > cost) {
+        um.hp -= cost
+        um.volatiles.substitute = quarterHp(side, userIdx)
+      }
+    }
+    // 멸망의노래: 필드의 모든 포켓몬이 카운트 3 (턴 끝마다 줄고 0 이면 쓰러짐). 방음은 쓴 포켓몬이 아니면 무효
+    if (moveId === 'perishsong' && hit)
+      for (const sd of ['mine', 'opp'] as const)
+        for (const i of s.sides[sd].active) {
+          if (i == null || isFainted(sd, i) || mon(sd, i).volatiles.perishsong) continue
+          if (!(sd === side && i === userIdx) && resolveAt(sd, i)?.ability === 'soundproof')
+            continue
+          mon(sd, i).volatiles.perishsong = 4
+        }
+    // 전자부유: 5턴 동안 땅에 있지 않음 (뿌리박기·중력이면 실패)
+    if (
+      moveId === 'magnetrise' &&
+      hit &&
+      !um.volatiles.magnetrise &&
+      !um.volatiles.ingrain &&
+      !s.rooms.gravity
+    )
+      um.volatiles.magnetrise = 1
+    // 소란: 3턴. 그동안 아무도 잠들지 않고 잠든 포켓몬은 깨어남 (방음 제외)
+    if (moveId === 'uproar' && hitTargets.length && !um.volatiles.uproar) {
+      um.volatiles.uproar = 1
+      for (const sd of ['mine', 'opp'] as const)
+        for (const i of s.sides[sd].active) {
+          if (i == null || mon(sd, i).status !== 'slp') continue
+          if (resolveAt(sd, i)?.ability !== 'soundproof')
+            Object.assign(mon(sd, i), { status: '', toxicTurn: 0 })
+        }
+    }
   }
 
   // 데미지를 받은 직후 (입력한 데미지가 있을 때만). hpBefore 는 받기 전 HP (mine: 실수치, opp: %)
@@ -1098,8 +1910,9 @@ export function useBattle(mode: BattleMode) {
         statChange(tSide, targetIdx, 'spa', 1)
       if (ab === 'electromorphosis') t.volatiles.charge = 1
     }
-    if (ab === 'sandspit' && !state.value!.weather.permanent) setWeather('sand', { item })
-    if (ab === 'seedsower') setTerrain('grassy', item)
+    if (ab === 'sandspit' && !state.value!.weather.permanent)
+      setWeather('sand', { item, by: [tSide, targetIdx] })
+    if (ab === 'seedsower') setTerrain('grassy', item, [tSide, targetIdx])
     if (ab === 'toxicdebris' && physical && side !== tSide) {
       const hz = state.value!.sides[side].hazards
       hz.toxicspikes = Math.min(2, (hz.toxicspikes || 0) + 1)
@@ -1112,17 +1925,21 @@ export function useBattle(mode: BattleMode) {
     }
   }
 
+  // 변화기 (데미지 입력이 없는 기술)
+  const isStatusMove = (moveId: string) => gd.move(moveId)?.category === 'status'
+
   // ── 입력 검증 ─────────────
   const validationError = computed(() => {
     const s = state.value
     if (!s) return ''
     let err = ''
+    if (pendingReplace.value.length) return 'errReplace'
     for (const a of s.actions.mine) {
-      if (a.kind !== 'move') continue
+      if (a.kind !== 'move' || isStatusMove(a.move)) continue
       for (const v of [a.amount, a.amount2]) if (v != null && (v < 0 || v > 100)) return 'errDealt'
     }
     for (const a of s.actions.opp) {
-      if (a.kind !== 'move') continue
+      if (a.kind !== 'move' || isStatusMove(a.move)) continue
       const check = (v: number | null, slot: number) => {
         if (v == null) return false
         const target = s.sides.mine.active[slot]
@@ -1131,6 +1948,15 @@ export function useBattle(mode: BattleMode) {
       }
       if (check(a.amount, a.target) || check(a.amount2, 1 - a.target)) return 'errTaken'
     }
+    // 행동 불가(혼란 자해·기타)로 잃은 HP: mine 실수치 ≤ 최대 HP, opp % ≤ 100
+    for (const side of ['mine', 'opp'] as const)
+      s.actions[side].forEach((a, slot) => {
+        const ui = s.sides[side].active[slot]
+        if (a.kind !== 'cant' || a.amount == null || ui == null) return
+        if (!CANT_DAMAGE_REASONS.has(a.cantReason)) return
+        const max = side === 'mine' ? maxHp('mine', ui) : 100
+        if (a.amount < 0 || (!!max && a.amount > max)) err ||= 'errSelf'
+      })
     for (const side of ['mine', 'opp'] as const) {
       s.actions[side].forEach((a, slot) => {
         if (a.kind !== 'move' || a.allyAmount == null) return
@@ -1160,7 +1986,14 @@ export function useBattle(mode: BattleMode) {
     if (!s || validationError.value) return
     s.history.push(snapshot())
     if (s.history.length > MAX_HISTORY) s.history.shift()
+    // 변화기는 데미지가 없음: 남아 있는 데미지 입력은 비움 (화면에서는 입력칸을 숨김)
+    for (const side of ['mine', 'opp'] as const)
+      for (const a of s.actions[side])
+        if (a.kind === 'move' && isStatusMove(a.move))
+          Object.assign(a, { amount: null, amount2: null, allyAmount: null, crit: false })
     const sides: BattleSide[] = ['mine', 'opp']
+    // 선후공 관찰은 교체 전 필드 포켓몬 기준 (둘 다 교체하면 나가는 포켓몬끼리의 교체 순서)
+    const speedObs = pendingSpeedObservation()
 
     // 1. 교체
     // 0. 이번 턴 기록 초기화
@@ -1171,11 +2004,22 @@ export function useBattle(mode: BattleMode) {
           turnLowered: false,
           turnTaken: { physical: 0, special: 0, last: 0 },
         })
+    // 고칠 수 있던 동시 등장(선두·쓰러진 뒤 교체)은 이제 확정
+    s.entry = null
+    // 양쪽이 같이 교체하면 들어온 포켓몬의 특성은 스피드 순 (관찰한 순서가 있으면 그대로 + 상대 스피드 구간 좁힘)
+    const switching: [BattleSide, number][] = []
     for (const side of sides) {
       s.actions[side].forEach((a, slot) => {
-        if (a.kind === 'switch' && a.switchTo != null && !s.fairyLock)
-          sendOut(side, slot, a.switchTo)
+        if (a.kind === 'switch' && a.switchTo != null && !s.fairyLock) {
+          sendOut(side, slot, a.switchTo, 'switch', true)
+          switching.push([side, a.switchTo])
+        }
       })
+    }
+    if (switching.length) {
+      const batch = newBatch(switching, copyField())
+      runEntry(batch, () => true)
+      applyEntryNarrowing(batch)
     }
 
     // 기술 단계 시작 때 필드에 있던 포켓몬 (도중에 유턴·드래곤테일 등으로 바뀐 칸은 행동 입력을 비움)
@@ -1188,11 +2032,17 @@ export function useBattle(mode: BattleMode) {
         const ui = s.sides[side].active[slot]
         if (a.kind !== 'cant' || ui == null || isFainted(side, ui)) return
         const m = mon(side, ui)
-        if (
-          !m.status &&
-          (a.cantReason === 'slp' || a.cantReason === 'frz' || a.cantReason === 'par')
-        )
-          Object.assign(m, { status: a.cantReason, toxicTurn: 0 })
+        // 잠듦·얼음: 행동하지 못한 턴 수를 셈 (상태이상이 없었으면 이번 턴부터)
+        if (a.cantReason === 'slp' || a.cantReason === 'frz') {
+          if (m.status === a.cantReason) m.toxicTurn += 1
+          else if (!m.status) Object.assign(m, { status: a.cantReason, toxicTurn: 1 })
+        } else if (!m.status && a.cantReason === 'par')
+          Object.assign(m, { status: 'par', toxicTurn: 0 })
+        // 혼란 자해: 혼란이 안 붙어 있었으면 붙임 (관찰한 사실)
+        if (a.cantReason === 'confusion' && !m.volatiles.confusion) m.volatiles.confusion = 1
+        // 혼란 자해·기타로 잃은 HP
+        if (CANT_DAMAGE_REASONS.has(a.cantReason) && a.amount && a.amount > 0)
+          m.hp = Math.max(0, m.hp - a.amount)
         m.lastFailed = false
       })
 
@@ -1212,15 +2062,14 @@ export function useBattle(mode: BattleMode) {
 
     // 2b. 행동 순서 + 선후공 관찰로 상대 스피드 구간 좁히기 (변신한 상대는 복사한 스피드라 저장 안 함)
     const order = turnOrder()
-    const sp = pendingSpeedObservation()
-    if (sp && sp.env.fixedStat == null) {
-      const om = mon('opp', sp.oi)
+    if (speedObs && speedObs.env.fixedStat == null) {
+      const om = mon('opp', speedObs.oi)
       om.speedSp = narrowRanges(
         om.speedSp ?? fullRanges(),
-        sp.base,
-        sp.env,
-        sp.mySpeed,
-        sp.oppAtLeast,
+        speedObs.base,
+        speedObs.env,
+        speedObs.mySpeed,
+        speedObs.oppAtLeast,
       )
     }
 
@@ -1236,7 +2085,14 @@ export function useBattle(mode: BattleMode) {
         const targetIdx = s.sides[foe].active[a.target] ?? null
         const user = mon(side, userIdx)
         // 이번 턴 데미지에 영향을 주는 그때의 보정 (행동 순서 포함) → 관측 기록
-        if (a.move && targetIdx != null && a.amount && a.amount > 0 && !a.missed)
+        if (
+          a.move &&
+          targetIdx != null &&
+          a.amount &&
+          a.amount > 0 &&
+          !a.missed &&
+          !behindSub(side, userIdx, foe, targetIdx, a.move)
+        )
           recordObservation(
             side,
             a,
@@ -1253,12 +2109,18 @@ export function useBattle(mode: BattleMode) {
           if (c && !c.immune)
             for (const k of ['reflect', 'lightscreen', 'auroraveil']) delete s.sides[foe].screens[k]
         }
-        // 잠듦·얼음인데 기술을 썼으면 깨어남·녹음 (잠꼬대·코골기는 잠든 채로 씀)
+        // 잠듦·얼음인데 기술을 썼으면 깨어남·녹음 (잠꼬대·코골기는 잠든 채로 씀 → 잠든 턴 수 +1)
+        if (a.move && user.status === 'slp' && SLEEP_MOVES.has(a.move)) user.toxicTurn += 1
         if (
           a.move &&
           (user.status === 'frz' || (user.status === 'slp' && !SLEEP_MOVES.has(a.move)))
         )
           user.status = ''
+        // 길동무: 다음에 기술을 쓰면 풀림 (이번에 또 쓰면 다시 붙음)
+        if (a.move) delete user.volatiles.destinybond
+        if (a.move === 'destinybond' && !a.missed) user.volatiles.destinybond = 1
+        // 게으름: 기술을 쓰면(빗나가도) 다음 턴은 게으름을 피워 행동 불가
+        if (a.move && resolveAt(side, userIdx)?.ability === 'truant') user.volatiles.truant = 1
         if (a.move) {
           // 메트로놈(도구) 연속 횟수
           if (user.lastMove === a.move) user.moveStreak += 1
@@ -1303,12 +2165,25 @@ export function useBattle(mode: BattleMode) {
           if (a.move === 'kingsshield') holder.alt = false
           else if (mv && mv.category !== 'status') holder.alt = true
         }
-        // 입력한 데미지 (광역기면 다른 상대 칸도)
+        // 입력한 데미지 (광역기면 다른 상대 칸도). dealt: 맞힌 데미지 합 (실수치, 반동·조개껍질방울)
+        let dealt = 0
         const hitTarget = (tIdx: number, amount: number) => {
           const t = mon(foe, tIdx)
+          // 대타가 받음: 대타 HP 만 줄고(0 이하면 사라짐) 본체 HP·맞았을 때 효과는 없음
+          if (amount > 0 && behindSub(side, userIdx, foe, tIdx, a.move)) {
+            const subHp = t.volatiles.substitute!
+            const left = subHp - amount
+            if (left > 0) t.volatiles.substitute = left
+            else delete t.volatiles.substitute
+            drainHeal(a.move, side, userIdx, foe, tIdx, Math.min(amount, subHp))
+            dealt += realHp(foe, tIdx, Math.min(amount, subHp))
+            return
+          }
           const hpBefore = t.hp
           if (side === 'mine') t.hp = Math.max(0, t.hp - Math.max(0, Math.min(100, amount)))
           else t.hp = Math.max(0, t.hp - Math.max(0, amount))
+          drainHeal(a.move, side, userIdx, foe, tIdx, hpBefore - t.hp)
+          dealt += realHp(foe, tIdx, hpBefore - t.hp)
           // 얼음 상태에서 불꽃 기술(열탕·열사의대지 등 포함)에 맞으면 녹음
           if (amount > 0 && t.status === 'frz' && THAWS_TARGET(a.move)) t.status = ''
           if (amount > 0) {
@@ -1322,20 +2197,85 @@ export function useBattle(mode: BattleMode) {
             taken.last = hp
           }
           if (a.move) onHit(a.move, side, userIdx, foe, tIdx, hpBefore)
+          if (a.move && amount > 0) hitPunish(a.move, side, userIdx, foe, tIdx, hpBefore)
+          checkBerry(foe, tIdx)
+          // 길동무: 공격을 받아 쓰러지면 공격한 포켓몬도 쓰러짐
+          if (hpBefore > 0 && t.hp <= 0 && t.volatiles.destinybond) {
+            delete t.volatiles.destinybond
+            user.hp = 0
+          }
         }
-        if (targetIdx != null && a.amount && !a.missed) hitTarget(targetIdx, a.amount)
+        // 이번 턴 확률 효과 (체크한 것 중 지금 가능한 것만, 맞기 전 기준 — 대타가 맞으면 없음).
+        // 속이다처럼 확정 풀죽음(100%)은 체크 없이 (우격다짐·인분·대타·정신력·이미 행동한 상대면 없음)
         const otherIdx = N > 1 ? (s.sides[foe].active[1 - a.target] ?? null) : null
-        if (otherIdx != null && a.amount2 && !a.missed && isSpreadMove(gd.move(a.move))) {
-          recordObservation(
-            side,
-            { ...a, amount: a.amount2 },
-            userIdx,
-            foe,
-            otherIdx,
-            actionOpts(side, slot, userIdx, a.move, order),
+        const spread = isSpreadMove(gd.move(a.move))
+        const sureFlinch = (tIdx: number) => {
+          const mv = gd.move(a.move)
+          const ur = resolveAt(side, userIdx)
+          const tr = resolveAt(foe, tIdx)
+          return (
+            !!mv?.effects.some(
+              (e) => e.type === 'volatile' && e.status === 'flinch' && e.chance === 100,
+            ) &&
+            ur?.ability !== 'sheerforce' &&
+            tr?.ability !== 'shielddust' &&
+            tr?.ability !== 'innerfocus' &&
+            !behindSub(side, userIdx, foe, tIdx, a.move) &&
+            actsBefore(side, slot, foe, tIdx)
           )
+        }
+        const chosen = (tIdx: number | null, list: string[] | undefined) => {
+          if (tIdx == null) return []
+          const ok = possibleInflicts(side, slot, tIdx)
+          const out = (list ?? []).filter((k) => ok.includes(k))
+          if (sureFlinch(tIdx) && !out.includes('flinch')) out.push('flinch')
+          return out
+        }
+        const inflictMain = targetIdx != null && a.amount !== 0 ? chosen(targetIdx, a.inflicts) : []
+        const inflictOther =
+          otherIdx != null && spread && a.amount2 !== 0 ? chosen(otherIdx, a.inflicts2) : []
+        const contactOk = possibleContactInflicts(side, slot, targetIdx)
+        const contactFx = (a.contactInflicts ?? []).filter((k) => contactOk.includes(k))
+        if (targetIdx != null && a.amount && !a.missed) hitTarget(targetIdx, a.amount)
+        if (otherIdx != null && a.amount2 && !a.missed && isSpreadMove(gd.move(a.move))) {
+          if (!behindSub(side, userIdx, foe, otherIdx, a.move))
+            recordObservation(
+              side,
+              { ...a, amount: a.amount2 },
+              userIdx,
+              foe,
+              otherIdx,
+              actionOpts(side, slot, userIdx, a.move, order),
+            )
           hitTarget(otherIdx, a.amount2)
         }
+        if (a.move && !a.missed) {
+          afterAttack(a.move, side, userIdx, dealt)
+          for (const tIdx of [targetIdx, spread ? otherIdx : null])
+            if (tIdx != null) absorbAbility(a.move, side, userIdx, foe, tIdx)
+        }
+        // 확률 효과 적용 (빗나가면 없음, 쓰러진 상대는 제외). 풀죽음은 그 상대의 이번 턴 행동을 "행동 불가(풀죽음)"로
+        const applyInflicts = (tSlot: number, tIdx: number | null, list: string[]) => {
+          if (tIdx == null || a.missed) return
+          for (const k of list) {
+            if (isFainted(foe, tIdx)) return
+            const tm = mon(foe, tIdx)
+            if (k === 'flinch') {
+              const ta = s.actions[foe][tSlot]
+              if (ta?.kind === 'move' && s.sides[foe].active[tSlot] === tIdx)
+                Object.assign(ta, { kind: 'cant', cantReason: 'flinch' })
+            } else if (k === 'confusion' || k === 'attract') tm.volatiles[k] ??= 1
+            else inflictStatus(foe, tIdx, k as Exclude<Status, ''>)
+          }
+        }
+        applyInflicts(a.target, targetIdx, inflictMain)
+        applyInflicts(1 - a.target, otherIdx, inflictOther)
+        // 접촉 특성으로 공격한 쪽에게 (빗나가면 없음)
+        if (!a.missed && a.amount !== 0 && !isFainted(side, userIdx))
+          for (const k of contactFx) {
+            if (k === 'attract') user.volatiles.attract ??= 1
+            else inflictStatus(side, userIdx, k as Exclude<Status, ''>)
+          }
         // 아군 피해 (mine: 내 아군 실수치, opp: 상대 아군 %)
         const allyIdx = allyOf(side, slot)
         if (allyIdx != null && a.allyAmount && a.move && hitsAlly(a.move)) {
@@ -1344,6 +2284,7 @@ export function useBattle(mode: BattleMode) {
           ally.hp = Math.max(0, ally.hp - Math.max(0, a.allyAmount))
           if (a.allyAmount > 0) ally.timesHit = (ally.timesHit || 0) + 1
           onHit(a.move, side, userIdx, side, allyIdx, hpBefore)
+          checkBerry(side, allyIdx)
         }
         // 공격 후 교체: 상대(드래곤테일·울부짖기 / 탈출버튼·위기회피) → 자기(유턴 등 / 상대 레드카드)
         if (targetIdx != null && a.foeSwitch != null && !a.missed && !isFainted(foe, targetIdx)) {
@@ -1357,7 +2298,8 @@ export function useBattle(mode: BattleMode) {
             const t = mon(foe, targetIdx)
             if (resolveAt(foe, targetIdx)?.slot.item === 'redcard' && !t.itemGone) t.itemGone = true
           }
-          // 바톤터치: 랭크 변화와 일부 특수 상태를 나오는 포켓몬에게 넘김 (교체로 초기화되기 전에 복사)
+          // 바톤터치: 랭크 변화와 일부 특수 상태(대타·멸망의노래 카운트 등)를 나오는 포켓몬에게 넘김
+          // (교체로 초기화되기 전에 복사). 꼬리자르기: 대타만 넘김
           const passed =
             a.move === 'batonpass'
               ? {
@@ -1367,7 +2309,13 @@ export function useBattle(mode: BattleMode) {
                   ),
                   seedFrom: user.seedFrom,
                 }
-              : null
+              : a.move === 'shedtail' && user.volatiles.substitute
+                ? {
+                    boosts: zeroBoosts(),
+                    vols: { substitute: user.volatiles.substitute },
+                    seedFrom: null,
+                  }
+                : null
           sendOut(side, slot, a.selfSwitch)
           if (passed) {
             const inc = mon(side, a.selfSwitch)
@@ -1375,6 +2323,11 @@ export function useBattle(mode: BattleMode) {
               inc.boosts[k as RankKey] = clampBoost((inc.boosts[k as RankKey] ?? 0) + (v ?? 0))
             Object.assign(inc.volatiles, passed.vols)
             if (passed.vols.leechseed) inc.seedFrom = passed.seedFrom
+            // 상대 대타 HP 는 % 라서 나오는 포켓몬의 최대 HP 기준으로 바꿈
+            const from = maxHp(side, userIdx)
+            const to = maxHp(side, a.selfSwitch)
+            if (side === 'opp' && passed.vols.substitute && from && to)
+              inc.volatiles.substitute = Math.round((passed.vols.substitute * from * 10) / to) / 10
           }
         }
         if (a.move === 'spitup' || a.move === 'swallow') delete user.volatiles.stockpile
@@ -1384,17 +2337,7 @@ export function useBattle(mode: BattleMode) {
     // 3. 원시 날씨의 원인이 쓰러지면 날씨 해제
     if (s.weather.source && isFainted(s.weather.source[0], s.weather.source[1])) clearWeather()
 
-    // 4. 이번 턴 생긴 상태이상 / 특수상태 (분석 대상 칸에 적용)
-    for (const side of sides) {
-      const v = s.inflict[side]
-      const idx = s.sides[side].active[s.focus[side]]
-      if (v && idx != null) {
-        if ((STATUSES as string[]).includes(v))
-          Object.assign(mon(side, idx), { status: v, toxicTurn: 0 })
-        else mon(side, idx).volatiles[v] = 1
-      }
-      s.inflict[side] = ''
-    }
+    // 4. (예전의 "상태이상 발생" 선택 칸은 없앰 — 확정 효과는 기술 효과로 자동, 확률 효과는 행동 아래 체크)
 
     // 5. 턴 종료: 상태이상 데미지, 특수상태 경과
     for (const side of sides) {
@@ -1415,6 +2358,7 @@ export function useBattle(mode: BattleMode) {
         if (r?.ability === 'hungerswitch' && m.hp > 0 && !m.transform) m.alt = !m.alt
         // 턴 끝 회복·데미지 (먹다남은음식·그래스필드·씨뿌리기 등)
         if (m.hp > 0) applyResidual(side, idx)
+        checkBerry(side, idx)
         // 하품: 걸린 다음 턴이 끝날 때까지 필드에 있으면 잠듦 (교체하면 졸음이 풀림)
         if (m.volatiles.yawn) {
           if (m.volatiles.yawn >= 2) {
@@ -1422,12 +2366,40 @@ export function useBattle(mode: BattleMode) {
             if (m.hp > 0) inflictStatus(side, idx, 'slp')
           } else m.volatiles.yawn = 2
         }
+        // 멸망의노래: 카운트가 1 줄고 0 이 되면 쓰러짐
+        if (m.volatiles.perishsong) {
+          const left = m.volatiles.perishsong - 1
+          if (left > 0) m.volatiles.perishsong = left
+          else {
+            delete m.volatiles.perishsong
+            m.hp = 0
+          }
+        }
+        // 반동·게으름: 쓴 턴 끝에 2 (다음 턴 행동 불가), 그 턴이 끝나면 풀림
+        for (const k of LOAF_VOLATILES) {
+          if (!m.volatiles[k]) continue
+          if (m.volatiles[k] >= 2) delete m.volatiles[k]
+          else m.volatiles[k] = 2
+        }
         for (const [k, turn] of Object.entries(m.volatiles)) {
           const total = VOLATILE_DURATION[k]
           if (total == null) continue
           if (turn + 1 > total) delete m.volatiles[k]
           else m.volatiles[k] = turn + 1
         }
+      }
+    }
+
+    // 5b. 희망사항: 쓴 다음 턴 끝에 그 칸의 포켓몬 회복 (회복봉인이면 없음)
+    for (const side of sides) {
+      const w = s.sides[side].wishes
+      if (!w) continue
+      for (const [k, v] of Object.entries(w)) {
+        if (v.turn >= s.turn) continue
+        delete w[+k]
+        const i = s.sides[side].active[+k]
+        if (i != null && !isFainted(side, i) && !mon(side, i).volatiles.healblock)
+          healHp(side, i, v.hp)
       }
     }
 
@@ -1456,29 +2428,47 @@ export function useBattle(mode: BattleMode) {
         a.missed = false
         a.selfSwitch = null
         a.foeSwitch = null
+        a.inflicts = []
+        a.inflicts2 = []
+        a.contactInflicts = []
         a.useMega = false
-        // 잠듦·얼음이면 다음 턴 기본값은 행동 불가 (깨어나서 기술을 쓰면 직접 "기술 사용"으로)
+        // 잠듦·얼음이면 다음 턴 기본값은 행동 불가 (깨어나서 기술을 쓰면 직접 "기술 사용"으로), 반동·게으름이면 행동 불가(기타)
         const ui = s.sides[side].active[slot]
         const st = ui != null ? mon(side, ui).status : ''
-        if (a.kind !== 'switch' && (st === 'slp' || st === 'frz'))
+        // 잠듦·얼음: 다음 시도에 반드시 풀리면(잠듦·얼음 3번째 턴) 기본값은 기술 사용
+        const sure = ui != null && (wakeChance(side, ui) ?? 0) >= 100
+        if (a.kind !== 'switch' && (st === 'slp' || st === 'frz') && !sure)
           Object.assign(a, { kind: 'cant', cantReason: st })
+        else if (
+          a.kind !== 'switch' &&
+          ui != null &&
+          LOAF_VOLATILES.some((k) => mon(side, ui).volatiles[k])
+        )
+          Object.assign(a, { kind: 'cant', cantReason: 'other' })
         else if (a.kind === 'cant') a.kind = 'move'
       })
     }
     s.observedOrder = 'unknown' // 선후공 관찰은 턴마다 새로
+    s.entryObs = {}
     s.turn += 1
   }
 
   // ── 행동 순서 ─────────────
   // 실전 스피드 (랭크 / 특성 / 스카프(매직룸·도구 잃음이면 무효) / 순풍 / 마비). megaOverride: 이번 턴 메가진화 반영
-  const speedOf = (side: BattleSide, idx: number, megaOverride?: boolean) => {
+  // itemOverride: 이 도구를 지녔다면 (상대 추측 도구로 선후공이 바뀌는지 볼 때)
+  const speedOf = (
+    side: BattleSide,
+    idx: number,
+    megaOverride?: boolean,
+    itemOverride?: string,
+  ) => {
     const s = state.value!
     const r = resolveAt(side, idx, megaOverride)
     const m = mon(side, idx)
     if (!r) return 0
     return effectiveSpeed(r.stats.spe, {
       boost: m.boosts.spe,
-      item: m.itemGone || s.rooms.magicroom ? '' : r.slot.item,
+      item: m.itemGone || s.rooms.magicroom ? '' : (itemOverride ?? r.slot.item),
       itemLost: m.itemGone,
       status: m.status,
       ability: r.ability,
@@ -1513,30 +2503,38 @@ export function useBattle(mode: BattleMode) {
       ? true
       : undefined
   }
-  // 이번 턴 기술을 쓰는 순서: 우선도 → 스피드(트릭룸이면 느린 쪽부터).
+  // 이번 턴 기술을 쓰는 순서: 우선도 → 스피드(트릭룸이면 느린 쪽부터, 내 쪽 vs 상대는 speedOrder 로 확정되면 그대로).
   // 분석 대상 칸끼리는 관찰한 선후공이 있으면 그대로 (우선도가 같을 때). 교체하는 칸은 기술을 안 씀
   const turnOrder = (): TurnEntry[] => {
     const s = state.value!
-    const list: (TurnEntry & { pri: number; spe: number })[] = []
+    const list: (TurnEntry & { pri: number; spe: number; mega?: true })[] = []
     for (const side of ['mine', 'opp'] as const) {
       s.actions[side].forEach((a, slot) => {
         const idx = s.sides[side].active[slot]
         if (a.kind !== 'move' || idx == null || isFainted(side, idx)) return
+        const mega = turnMega(side, slot, idx)
         list.push({
           side,
           slot,
           idx,
           move: a.move,
+          mega,
           pri: movePriority(side, idx, a.move),
-          spe: speedOf(side, idx, turnMega(side, slot, idx)),
+          spe: speedOf(side, idx, mega),
         })
       })
     }
     const tr = !!s.rooms.trickroom
-    list.sort(
-      (x, y) =>
-        y.pri - x.pri || (tr ? x.spe - y.spe : y.spe - x.spe) || (x.side === 'mine' ? -1 : 1),
-    )
+    // 내 쪽 vs 상대: 스피드 범위로 선후공이 정해지면 그대로, 아니면 추측 배치의 스피드로
+    const bySpeed = (x: (typeof list)[number], y: (typeof list)[number]) => {
+      if (x.side !== y.side) {
+        const [m, o] = x.side === 'mine' ? [x, y] : [y, x]
+        const v = speedOrder(m.idx, o.idx, m.mega, o.mega)?.first
+        if (v === 'mine' || v === 'opp') return v === x.side ? -1 : 1
+      }
+      return tr ? x.spe - y.spe : y.spe - x.spe
+    }
+    list.sort((x, y) => y.pri - x.pri || bySpeed(x, y) || (x.side === 'mine' ? -1 : 1))
     if (s.observedOrder !== 'unknown') {
       const a = list.findIndex((e) => e.side === 'mine' && e.slot === s.focus.mine)
       const b = list.findIndex((e) => e.side === 'opp' && e.slot === s.focus.opp)
@@ -1689,7 +2687,8 @@ export function useBattle(mode: BattleMode) {
       },
     }
   }
-  // 이번 턴 관찰한 선후공 (분석 대상 칸끼리, 둘 다 기술 + 우선도가 같을 때만 스피드 비교가 됨)
+  // 이번 턴 관찰한 선후공 (분석 대상 칸끼리, 둘 다 기술 + 우선도가 같거나 둘 다 교체일 때만 스피드 비교가 됨)
+  // 둘 다 교체하면 교체 순서도 스피드 순 → 나가는 포켓몬끼리 비교 (메가진화 안 함). 한쪽만 교체면 교체가 항상 먼저라 정보 없음
   const pendingSpeedObservation = () => {
     const s = state.value!
     if (s.observedOrder === 'unknown') return null
@@ -1699,26 +2698,85 @@ export function useBattle(mode: BattleMode) {
     const oa = s.actions.opp[os]
     const mi = s.sides.mine.active[ms]
     const oi = s.sides.opp.active[os]
-    if (ma?.kind !== 'move' || oa?.kind !== 'move' || mi == null || oi == null) return null
-    if (movePriority('mine', mi, ma.move) !== movePriority('opp', oi, oa.move)) return null
-    const se = speedEnvOf(oi, turnMega('opp', os, oi))
+    if (mi == null || oi == null || isFainted('mine', mi) || isFainted('opp', oi)) return null
+    const bothSwitch = ma?.kind === 'switch' && oa?.kind === 'switch'
+    if (!bothSwitch) {
+      if (ma?.kind !== 'move' || oa?.kind !== 'move') return null
+      if (movePriority('mine', mi, ma.move) !== movePriority('opp', oi, oa.move)) return null
+    }
+    const se = speedEnvOf(oi, bothSwitch ? undefined : turnMega('opp', os, oi))
     if (!se) return null
     return {
       oi,
       ...se,
-      mySpeed: speedOf('mine', mi, turnMega('mine', ms, mi)),
+      mySpeed: speedOf('mine', mi, bothSwitch ? undefined : turnMega('mine', ms, mi)),
       // 트릭룸에서는 느린 쪽이 먼저
       oppAtLeast: (s.observedOrder === 'opp') !== !!s.rooms.trickroom,
     }
   }
   // 상대 oi 의 스피드 구간: 저장된 관찰 + 이번 턴 관찰(미리보기). 변신 중이면 이번 턴 관찰만
+  // 도구를 확정했으면 구애스카프 여부도 확정 → 스카프로 확정이면 스카프 구간만, 다른 도구면 스카프 없는 구간만
   const speedRangesOf = (oi: number, withPending = true): SpeedRanges => {
     const m = mon('opp', oi)
     const transformed = !!m.transform
     const base = transformed ? fullRanges() : (m.speedSp ?? fullRanges())
     const p = withPending ? pendingSpeedObservation() : null
-    if (!p || p.oi !== oi) return base
-    return narrowRanges(base, p.base, p.env, p.mySpeed, p.oppAtLeast)
+    const ranges =
+      p && p.oi === oi ? narrowRanges(base, p.base, p.env, p.mySpeed, p.oppAtLeast) : base
+    if (!m.itemKnown) return ranges
+    const scarf = oppItemOf(oi) === 'choicescarf'
+    const out = { ...ranges }
+    for (const band of SPEED_BANDS) if (band.scarf !== scarf) out[band.key] = null
+    return out
+  }
+
+  // ── 선후공 판정 (스피드) ─────────────
+  // 내 mi 와 상대 oi 가 같은 우선도로 기술을 쓸 때, 상대 스피드 범위(선후공 관찰·확정 도구로 좁힌 것)를 지금 조건
+  // (랭크·마비·순풍·날씨·필드·이번 턴 메가진화)으로 환산해 내 스피드와 비교. 트릭룸이면 느린 쪽이 먼저.
+  //   first: 'mine' | 'opp' = 먼저 행동 확정, 'tie' = 반드시 동속(무작위), null = 범위가 겹쳐 모름 (추측 배치로 예상)
+  //   tiePossible: 동속일 수도 있음 (그러면 무작위)
+  //   random: 선제공격손톱(상대 도구 미확정이면 가능)·퀵드로로 순서가 바뀔 수 있음
+  //   선공하수(sableye 등)는 다루지 않음 → null
+  const speedOrder = (mi: number, oi: number, megaMine?: boolean, megaOpp?: boolean) => {
+    const s = state.value!
+    const se = speedEnvOf(oi, megaOpp)
+    const r = resolveAt('opp', oi, megaOpp)
+    const mr = resolveAt('mine', mi, megaMine)
+    if (!se || !r || !mr) return null
+    const om = mon('opp', oi)
+    const abilities =
+      r.isMega || r.transformedFrom || om.abilityKnown
+        ? [r.ability]
+        : [...new Set(r.base.abilities)]
+    if (abilities.includes('stall') || mr.ability === 'stall') return null
+    // 관찰이 한 번도 없으면 스피드 하락 성격도 가능하다고 본다
+    const span = oppSpeedSpan(
+      se.base,
+      speedRangesOf(oi, false),
+      se.env,
+      abilities,
+      !om.speedSp && se.env.fixedStat == null,
+    )
+    if (!span) return null
+    const my = speedOf('mine', mi, megaMine)
+    const c = compareSpeed(my, span)
+    const tr = !!s.rooms.trickroom
+    const first =
+      c.faster === 'mine' || c.faster === 'opp'
+        ? (c.faster === 'mine') !== tr
+          ? ('mine' as const)
+          : ('opp' as const)
+        : c.faster
+    const itemsOn = !s.rooms.magicroom
+    const mm = mon('mine', mi)
+    const random =
+      (itemsOn &&
+        ((!om.itemKnown && !om.itemGone) ||
+          (oppItemOf(oi) === 'quickclaw' && !om.itemGone) ||
+          (slotsOf('mine')[mi]?.item === 'quickclaw' && !mm.itemGone))) ||
+      abilities.includes('quickdraw') ||
+      mr.ability === 'quickdraw'
+    return { first, tiePossible: c.tiePossible, random, mySpeed: my, span }
   }
 
   // ── 상대 배분 추정용 관측 ─────────────
@@ -1756,7 +2814,6 @@ export function useBattle(mode: BattleMode) {
     targetIdx: number,
     opts: DamageOptions,
   ) {
-    const s = state.value!
     const move = gd.move(a.move)
     if (!move || move.category === 'status' || UNESTIMABLE.has(a.move) || !a.amount) return
     const oppIdx = side === 'mine' ? targetIdx : userIdx
@@ -1903,12 +2960,184 @@ export function useBattle(mode: BattleMode) {
     const m = mon(side, idx)
     const active = state.value!.sides[side].active.includes(idx)
     const hp = side === 'mine' ? m.hp : Math.round((r.stats.hp * m.hp) / 100)
-    return calc.combatant(r, {
-      status: m.status,
-      boosts: active ? m.boosts : undefined,
-      hp,
-      item: m.itemGone ? '' : undefined,
+    return {
+      ...calc.combatant(r, {
+        status: m.status,
+        boosts: active ? m.boosts : undefined,
+        hp,
+        item: m.itemGone ? '' : undefined,
+      }),
+      floating: active && !!m.volatiles.magnetrise,
+      // 대타 HP (실수치): 상대는 % 를 그 포켓몬 최대 HP 기준으로
+      sub:
+        active && m.volatiles.substitute
+          ? side === 'mine'
+            ? m.volatiles.substitute
+            : Math.floor((r.stats.hp * m.volatiles.substitute) / 100)
+          : undefined,
+    }
+  }
+  // 더블: 이번 턴 이 행동보다 먼저 같은 상대 칸(k)을 때리는 같은 편 행동의 데미지 합 (대타가 받은 건 제외)
+  const earlierDamage = (side: BattleSide, slot: number, k: number) => {
+    const order = turnOrder()
+    const me = order.findIndex((e) => e.side === side && e.slot === slot)
+    const foe = foeOf(side)
+    const ti = state.value!.sides[foe].active[k]
+    if (me < 0 || ti == null) return 0
+    let sum = 0
+    for (const e of order.slice(0, me)) {
+      if (e.side !== side) continue
+      const a = state.value!.actions[side][e.slot]!
+      if (a.kind !== 'move' || a.missed) continue
+      if (behindSub(side, e.idx, foe, ti, a.move)) continue
+      if (a.target === k) sum += a.amount || 0
+      else if (isSpreadMove(gd.move(a.move))) sum += a.amount2 || 0
+    }
+    return sum
+  }
+  // ── 성별 (헤롱헤롱) ─────────────
+  // 'M' | 'F' | 'N'(무성) | ''(모름). 성별이 정해진 종은 데이터, 아니면 슬롯에서 고른 값
+  const genderOf = (side: BattleSide, idx: number) => {
+    const slot = slotsOf(side)[idx]
+    return gd.pokemon(slot?.species)?.gender ?? slot?.gender ?? ''
+  }
+  // 헤롱헤롱이 걸리는가: 'yes' 서로 다른 성별 / 'no' 같은 성별·무성 / 'maybe' 한쪽이라도 모름
+  const attractable = (aSide: BattleSide, aIdx: number, tSide: BattleSide, tIdx: number) => {
+    const a = genderOf(aSide, aIdx)
+    const t = genderOf(tSide, tIdx)
+    if (a === 'N' || t === 'N') return 'no'
+    if (!a || !t) return 'maybe'
+    return a !== t ? 'yes' : 'no'
+  }
+
+  // ── 이번 턴 확률 효과 (체크 입력) ─────────────
+  // side 의 slot 행동이 이번 턴 기술 순서상 foe 의 tIdx 보다 먼저인가 (풀죽음은 아직 행동하지 않은 상대에게만)
+  const actsBefore = (side: BattleSide, slot: number, foe: BattleSide, tIdx: number) => {
+    const order = turnOrder()
+    const me = order.findIndex((e) => e.side === side && e.slot === slot)
+    const them = order.findIndex((e) => e.side === foe && e.idx === tIdx)
+    return me >= 0 && them > me
+  }
+  // side 의 slot 기술로 상대 tIdx 에게 확률로 생길 수 있는 효과 (걸릴 수 있는 것만):
+  //   기술 부가효과(확률 < 100) / 트라이어택·비몽사몽 / 왕의징표석·악취(풀죽음 10%, 풀죽음 확률이 있는 기술과는 중첩 안 됨)
+  //   / 독수(접촉 30% 독) / 사슬독(30% 맹독). 인분·대타면 없음, 우격다짐이면 기술 부가효과 없음
+  //   / 이미 걸렸거나 면역인 상태이상·혼란은 제외, 풀죽음은 상대가 이번 턴 아직 행동하지 않았을 때만 (정신력 제외)
+  const possibleInflicts = (side: BattleSide, slot: number, tIdx: number | null): string[] => {
+    const s = state.value!
+    const a = s.actions[side][slot]
+    const ui = s.sides[side].active[slot]
+    const foe = foeOf(side)
+    if (!a || a.kind !== 'move' || !a.move || ui == null || tIdx == null) return []
+    const move = gd.move(a.move)
+    const user = resolveAt(side, ui)
+    const target = resolveAt(foe, tIdx)
+    if (!move || !user || !target || isFainted(foe, tIdx)) return []
+    // 헤롱헤롱(기술): 성별을 몰라 자동으로 걸지 못할 때만 체크로 (같은 성별·무성·둔감·이미 걸림이면 없음)
+    if (move.category === 'status')
+      return a.move === 'attract' &&
+        target.ability !== 'oblivious' &&
+        !mon(foe, tIdx).volatiles.attract &&
+        attractable(side, ui, foe, tIdx) === 'maybe'
+        ? ['attract']
+        : []
+    if (target.ability === 'shielddust' || behindSub(side, ui, foe, tIdx, a.move)) return []
+    const out = new Set<string>()
+    const sheer = user.ability === 'sheerforce'
+    const chance = (move.effects as MoveEffect[]).filter(
+      (e) =>
+        (e.type === 'status' || e.type === 'volatile') &&
+        e.target === 'target' &&
+        !!e.chance &&
+        e.chance < 100,
+    )
+    const random = RANDOM_STATUS_MOVES[a.move] ?? []
+    if (!sheer) {
+      for (const e of chance) if (e.type === 'status' || e.type === 'volatile') out.add(e.status)
+      for (const st of random) out.add(st)
+    }
+    const hasFlinch = (move.effects as MoveEffect[]).some(
+      (e) => e.type === 'volatile' && e.status === 'flinch',
+    )
+    const um = mon(side, ui)
+    // 상대는 확정 전이면 추측 도구도 가능성에 넣음 (체크는 실제로 본 것)
+    const held = user.slot.item || (side === 'opp' ? guessedItem(ui) : '')
+    const item = um.itemGone || s.rooms.magicroom || user.ability === 'klutz' ? '' : held
+    const boosted = sheer && (chance.length > 0 || random.length > 0)
+    if (!hasFlinch && !boosted && (item === 'kingsrock' || user.ability === 'stench'))
+      out.add('flinch')
+    if (user.ability === 'poisontouch' && move.flags.includes('contact')) out.add('psn')
+    if (user.ability === 'toxicchain') out.add('tox')
+    const tm = mon(foe, tIdx)
+    return [...STATUSES, 'flinch', 'confusion'].filter((k) => {
+      if (!out.has(k)) return false
+      if (k === 'flinch')
+        return target.ability !== 'innerfocus' && actsBefore(side, slot, foe, tIdx)
+      if (k === 'confusion') return !tm.volatiles.confusion && target.ability !== 'owntempo'
+      return !statusBlocked(foe, tIdx, k as Exclude<Status, ''>)
     })
+  }
+  // side 의 slot 기술이 접촉해서, 맞는 상대 tIdx 의 특성으로 공격한 쪽에게 생길 수 있는 효과
+  //   (원격(긴 팔)이면 없음, 포자는 풀 타입·방진·방진고글 무효, 대타가 맞으면 없음)
+  const possibleContactInflicts = (side: BattleSide, slot: number, tIdx: number | null) => {
+    const s = state.value!
+    const a = s.actions[side][slot]
+    const ui = s.sides[side].active[slot]
+    const foe = foeOf(side)
+    if (!a || a.kind !== 'move' || !a.move || ui == null || tIdx == null) return []
+    const move = gd.move(a.move)
+    const user = resolveAt(side, ui)
+    const target = resolveAt(foe, tIdx)
+    if (!move || !move.flags.includes('contact') || !user || !target) return []
+    if (user.ability === 'longreach' || behindSub(side, ui, foe, tIdx, a.move)) return []
+    const list = CONTACT_STATUS_ABILITY[target.ability] ?? []
+    const um = mon(side, ui)
+    if (
+      target.ability === 'effectspore' &&
+      (user.species.types.includes('grass') ||
+        user.ability === 'overcoat' ||
+        (user.slot.item === 'safetygoggles' && !um.itemGone))
+    )
+      return []
+    return list.filter((k) =>
+      k === 'attract'
+        ? !um.volatiles.attract &&
+          user.ability !== 'oblivious' &&
+          attractable(foe, tIdx, side, ui) !== 'no'
+        : !statusBlocked(side, ui, k as Exclude<Status, ''>),
+    )
+  }
+
+  // 혼란 자해 예상 데미지 [최소, 최대] (mine: 실수치, opp: 최대 HP 의 %)
+  const confusionRange = (side: BattleSide, idx: number): [number, number] | null => {
+    const c = combatantOf(side, idx)
+    if (!c) return null
+    const rolls = confusionDamage(c, fieldFor(side, idx))
+    const conv = (v: number) =>
+      side === 'mine' ? v : Math.round((v / Math.max(1, c.stats.hp)) * 1000) / 10
+    return [conv(rolls[0]!), conv(rolls[15]!)]
+  }
+
+  // 교체할 수 없는가 (행동의 "교체"만. 유턴·볼트체인지 등 교체기는 됨)
+  //   요정의자물쇠 / 문어굳히기·물고버티기·조이기류(고스트 타입은 무시) / 뿌리박기 / 상대 그림자밟기(고스트·그림자밟기 제외).
+  //   도구 아름다운허물이면 모두 무시
+  const switchBlocked = (side: BattleSide, slot: number) => {
+    const s = state.value!
+    if (s.fairyLock > 0) return true
+    const idx = s.sides[side].active[slot]
+    if (idx == null || isFainted(side, idx)) return false
+    const m = mon(side, idx)
+    const r = resolveAt(side, idx)
+    if (!r || (r.slot.item === 'shedshell' && !m.itemGone)) return false
+    if (m.volatiles.ingrain) return true
+    if (r.species.types.includes('ghost')) return false
+    if (TRAP_VOLATILES.some((k) => m.volatiles[k])) return true
+    const foe = foeOf(side)
+    return (
+      r.ability !== 'shadowtag' &&
+      s.sides[foe].active.some(
+        (i) => i != null && !isFainted(foe, i) && resolveAt(foe, i)?.ability === 'shadowtag',
+      )
+    )
   }
 
   // 행동 패널: 공격 후 교체 입력이 필요한 경우
@@ -1984,6 +3213,8 @@ export function useBattle(mode: BattleMode) {
     setStatus,
     toggleVolatile,
     confirmItem,
+    confirmAbility,
+    oppAbilityOf,
     residualPlan,
     changeBoost,
     setMega,
@@ -2000,6 +3231,13 @@ export function useBattle(mode: BattleMode) {
     speedEnvOf,
     pendingSpeedObservation,
     speedRangesOf,
+    speedOrder,
+    entryPairsNow,
+    entryObsOf,
+    setEntryOrder,
+    pendingReplace,
+    replaceOptions,
+    replaceFainted,
     resetEstimate,
     helpingHandFor,
     allyOf,
@@ -2012,5 +3250,16 @@ export function useBattle(mode: BattleMode) {
     fieldFor,
     spreadActive,
     combatantOf,
+    isStatusMove,
+    confusionRange,
+    behindSub,
+    possibleInflicts,
+    possibleContactInflicts,
+    genderOf,
+    wakeChance,
+    oppItemOf,
+    guessedItem,
+    switchBlocked,
+    earlierDamage,
   }
 }

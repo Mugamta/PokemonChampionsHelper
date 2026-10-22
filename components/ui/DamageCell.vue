@@ -23,6 +23,13 @@
       <span v-if="cell.disguise" class="muted hits" :title="t('battle.disguiseHint')">{{
         t('battle.disguise')
       }}</span>
+      <!-- 확정 전 상대 도구의 추측을 지녔다면 (본 결과에는 넣지 않음) -->
+      <span v-if="guessText" class="muted hits" :title="t('battle.guessHint')">{{
+        guessText
+      }}</span>
+      <span v-if="cell.sub" class="muted hits" :title="t('battle.subHint', { hp: cell.sub.hp })">{{
+        t('battle.subCell', { hp: cell.sub.hp })
+      }}</span>
       <span
         v-if="showEff && cell.effectiveness !== 1"
         class="eff"
@@ -35,15 +42,15 @@
 </template>
 
 <script setup lang="ts">
-import type { Cell } from '~/composables/useTeamCalc'
+import type { Cell, CellGuess } from '~/composables/useTeamCalc'
 import { pct } from '~/composables/useTeamCalc'
 
 const props = defineProps<{ cell: Cell | null; compact?: boolean; showEff?: boolean }>()
 const { t } = useI18n()
+const gd = useGameData()
 
-const koText = computed(() => {
-  const c = props.cell
-  if (!c) return ''
+// 확정/난수 N타 (연속기는 KO 타수)
+const koLabel = (c: Pick<Cell, 'ko' | 'koHit'>) => {
   if (c.koHit) {
     if (c.koHit.worst === c.koHit.best) return t('battle.multiHit.koAt', { n: c.koHit.best })
     if (c.koHit.worst)
@@ -57,6 +64,19 @@ const koText = computed(() => {
         n: c.ko.hits,
         p: c.ko.percent < 0.1 ? '<0.1' : c.ko.percent.toFixed(1),
       })
+}
+const koText = computed(() => (props.cell ? koLabel(props.cell) : ''))
+const guessText = computed(() => {
+  const g: CellGuess | null | undefined = props.cell?.guess
+  if (!g) return ''
+  const ko = koLabel(g)
+  return (
+    t('battle.guessCell', {
+      item: gd.name('items', g.item),
+      pmin: pct(g.pctMin),
+      pmax: pct(g.pctMax),
+    }) + (ko ? ` · ${ko}` : '')
+  )
 })
 // 실전 KO: 명중이나 급소·무작위 위력 때문에 확률이 달라질 때만
 const pctInt = (v: number) => Number((v * 100).toFixed(v < 0.1 ? 1 : 0))

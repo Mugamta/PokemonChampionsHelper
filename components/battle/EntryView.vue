@@ -126,6 +126,8 @@
             {{ t('common.reset') }}
           </button>
         </h2>
+        <!-- 자동 배치에 쓰는 사용률 통계의 출처·시점 -->
+        <TeamUsageSource :kind="mode" />
         <TeamSlotEditor
           v-for="(_, i) in opp.slots.value"
           :key="i"
@@ -133,6 +135,7 @@
           v-model:mega-on="opp.megaOn.value[i]!"
           v-model:alt-on="opp.altOn.value[i]!"
           v-model:field-weather="field.weather"
+          :usage-kind="mode"
           :index="i"
           auto-set
           :species-ids="reg.selectableSpecies.value"
@@ -168,7 +171,7 @@ const calc = useTeamCalc()
 const mine = useTeam('mine')
 const opp = useTeam('opp')
 const entry = useEntry(props.mode)
-const auto = useAutoSet()
+const auto = useAutoSet(props.mode)
 // 상대 파티 전체를 자동 배치로 다시 채움 (포켓몬을 고를 때도 자동으로 채워진다)
 const autoSetAll = () => {
   opp.slots.value.forEach((s, i) => {

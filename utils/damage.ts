@@ -31,6 +31,8 @@ export interface Combatant {
   status?: Status
   boosts?: Partial<BoostTable>
   hp?: number // 현재 HP (없으면 최대)
+  floating?: boolean // 전자부유 중 (땅에 있지 않음)
+  sub?: number // 대타 HP (실수치, 맞는 쪽일 때만 의미 있음)
 }
 
 export interface FieldState {
@@ -174,7 +176,7 @@ const HALF_HP_MOVES = new Set(['superfang', 'ruination'])
 const UNBREAKABLE = new Set(['shadowshield', 'prismarmor', 'cloudnine', 'airlock', 'fairyaura'])
 const CRIT_IMMUNE = new Set(['battlearmor', 'shellarmor'])
 // 셰이크포스 대상: 부가효과가 있는 기술
-const hasSecondary = (move: Move) =>
+export const hasSecondary = (move: Move) =>
   move.effects.some((e) => 'chance' in e && e.chance !== undefined)
 
 // 부유 / 천정부지(메가저리더프, 챔피언스) = 땅에 있지 않음
@@ -184,7 +186,8 @@ export const isGrounded = (c: Combatant, field: FieldState) =>
   c.item === 'ironball' ||
   (!c.species.types.includes('flying') &&
     !NOT_GROUNDED_ABILITIES.has(c.ability) &&
-    c.item !== 'airballoon')
+    c.item !== 'airballoon' &&
+    !c.floating)
 
 // 헤비메탈 2배 / 라이트메탈 0.5배
 const weightOf = (c: Combatant) =>
@@ -273,7 +276,9 @@ export function typeEffectiveness(
           ? 'airballoon'
           : NOT_GROUNDED_ABILITIES.has(ab)
             ? ab
-            : 'type',
+            : defender.floating
+              ? 'magnetrise'
+              : 'type',
     }
   }
   if (ab === 'bulletproof' && move.flags.includes('bullet')) return { mult: 0, reason: ab }
@@ -462,6 +467,15 @@ export const withoutItems = (field: FieldState, ...cs: Combatant[]) =>
   field.magicRoom ? cs.map((c) => ({ ...c, item: '' })) : cs
 
 // 셸암즈: 랭크만 반영한(도구·특성 제외) 물리/특수 기본 데미지를 비교해 큰 쪽 (같으면 무작위 → 특수로 둠)
+// 혼란 자해 데미지 (Showdown getConfusionDamage): 위력 40, 타입 없음, 랭크만 반영한 자신의 공격·방어
+// (도구·특성 보정·화상·급소 없음), 난수 85~100%, 최소 1
+export function confusionDamage(c: Combatant, field: FieldState = {}, level = 50): number[] {
+  const st = (k: BoostKey) => applyBoost(rawStat(c, k, field), c.boosts?.[k] || 0)
+  const base =
+    tr(tr(tr(tr((2 * level) / 5 + 2) * 40 * st('atk')) / Math.max(1, st('def'))) / 50) + 2
+  return Array.from({ length: 16 }, (_, i) => Math.max(1, tr((base * (85 + i)) / 100)))
+}
+
 function shellSideArm(move: Move, a: Combatant, d: Combatant, field: FieldState): Move {
   const st = (c: Combatant, k: BoostKey) => applyBoost(rawStat(c, k, field), c.boosts?.[k] || 0)
   const base = (atk: number, def: number) =>

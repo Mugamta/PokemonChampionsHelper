@@ -95,8 +95,9 @@ export function useOppEstimate(b: Battle) {
 
   // 공격 관측과 맞춰 볼 도구 후보
   const itemCandidates = (oi: number, obs: StatObservation[], r: ResolvedSlot) => {
-    const entered = b.oppSlots.value[oi]?.item
-    if (entered) return { list: [entered], fixed: true }
+    // 확정한 도구만 고정 (선출 화면의 도구는 추측이라 후보로 계산)
+    const m = b.state.value?.sides.opp.mons[oi]
+    if (m?.itemKnown) return { list: [b.oppItemOf(oi)], fixed: true }
     const have = gd.data.value?.items || {}
     const types = new Set<TypeId>()
     const cats = new Set<string>()

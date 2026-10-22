@@ -439,12 +439,20 @@ export function autoSet(input: AutoSetInput): AutoSet {
 // public/data/usage.json (scripts/build-data.mjs 가 Smogon 월별 통계에서 생성). 레귤레이션별 싱글 포맷
 export interface UsageSet {
   count: number // 사용 수
+  usage?: number // 팀 채용률 (0~1, 레이팅 가중)
   moves: string[] // 많이 쓴 순 (최대 4개, 배우는 기술만)
+  moveShare?: number[] // moves 와 같은 순서, 각 기술 채용률 (0~1)
+  moveUsage?: Record<string, number> // 기술별 채용률 전체 (0.5% 이상, 0~1)
   nature?: string
   sp?: number[] // H A B C D S
+  spreadShare?: number // 이 배분(성격 + 능력 포인트)의 비율 (0~1)
   ability: string
   items: string[] // 많이 쓴 순 (최대 3개)
+  itemShare?: number[] // items 와 같은 순서, 각 도구 채용률 (0~1)
 }
+// 사용률 통계 종류: 싱글(배틀스타디움 싱글) / 더블(VGC)
+export type UsageKind = 'single' | 'double'
+export type UsageData = Record<UsageKind, Record<string, UsageTable>>
 export interface UsageTable {
   format: string
   month: string
@@ -493,4 +501,29 @@ export function usageSet(
     moves: [ids[0] ?? '', ids[1] ?? '', ids[2] ?? '', ids[3] ?? ''],
     source: 'usage',
   }
+}
+
+// ── 사용률 상위 (첫 화면) ─────────────
+// 보여 줄 통계 표: 지정한 레귤레이션(현재)의 표, 없으면 자료 월이 가장 최근인 표 (같으면 뒤에 있는 레귤레이션)
+export function pickUsageTable(
+  tables: Record<string, UsageTable> | undefined,
+  regId?: string | null,
+): { reg: string; table: UsageTable } | null {
+  const entries = Object.entries(tables ?? {})
+  const own = regId ? entries.find(([id]) => id === regId) : undefined
+  const pick =
+    own ??
+    entries.reduce<(typeof entries)[number] | undefined>(
+      (best, e) => (!best || e[1].month >= best[1].month ? e : best),
+      undefined,
+    )
+  return pick ? { reg: pick[0], table: pick[1] } : null
+}
+
+// 채용률 높은 순 n개 (폼별 — 메가 폼은 원종과 따로). 채용률이 없는 예전 자료는 사용 수 순
+export function topUsage(table: UsageTable, n: number): (UsageSet & { id: string })[] {
+  return Object.entries(table.pokemon)
+    .sort((a, b) => (b[1].usage ?? 0) - (a[1].usage ?? 0) || b[1].count - a[1].count)
+    .slice(0, n)
+    .map(([id, u]) => ({ id, ...u }))
 }
