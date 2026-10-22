@@ -182,6 +182,7 @@
     "regulationNow": "Current regulation",
     "perfTitle": "Pokémon Stats Table",
     "perfDesc": "Search and compare bulk, the best attack of each type, and speed tiers for every Pokémon in the regulation.",
+    "toDex": "Open in the Pokédex",
     "usageTitle": "Top {n} usage",
     "usageMeta": "{reg} rules · {month} stats ({battles} battles, Pokémon Showdown, weighted for rating 1500+)",
     "usageItem": "Most used item",

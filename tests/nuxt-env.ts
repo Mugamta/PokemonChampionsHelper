@@ -28,6 +28,7 @@ Object.assign(g, {
   },
   useI18n: () => ({ locale: ref('ko'), t: (k: string) => k }),
   usePublicAsset: () => ({ asset: (p: string) => p }),
+  useRuntimeConfig: () => ({ public: {}, app: { baseURL: '/' } }),
 })
 
 // 실제 composable 을 전역으로 (서로를 자동 import 로 부르므로)

@@ -24,9 +24,11 @@ export function useGameData() {
   const loading = useState('gd-loading', () => false)
   const { locale } = useI18n()
   const { asset } = usePublicAsset()
+  const buildId = useRuntimeConfig().public.buildId as string | undefined
 
+  // ?v=빌드 id: 배포가 바뀌면 다른 주소라 캐시된 예전 데이터를 쓰지 않음
   const fetchJson = async <T>(file: string): Promise<T> => {
-    const res = await fetch(asset(`data/${file}`))
+    const res = await fetch(asset(`data/${file}`) + (buildId ? `?v=${buildId}` : ''))
     if (!res.ok) throw new Error(`${file}: ${res.status}`)
     return res.json()
   }

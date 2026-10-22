@@ -182,6 +182,7 @@
     "regulationNow": "現在のレギュレーション",
     "perfTitle": "ポケモン性能表",
     "perfDesc": "出場可能な全ポケモンの耐久・タイプ別決定力・素早さ順を検索して比較します。",
+    "toDex": "タップで図鑑を見る",
     "usageTitle": "使用率 TOP {n}",
     "usageMeta": "{reg} ルール · {month} 集計 ({battles}バトル、Pokémon Showdown レート1500以上で重み付け)",
     "usageItem": "最も使われた道具",

@@ -1,6 +1,6 @@
-<!-- 성능표의 포켓몬 칸: 스프라이트 · 도감 번호 · 이름 · 신규 배지 · 타입 -->
+<!-- 성능표의 포켓몬 칸: 스프라이트 · 도감 번호 · 이름 · 신규 배지 · 타입. 누르면 그 포켓몬의 도감으로 -->
 <template>
-  <div class="mon-cell">
+  <NuxtLink :to="{ path: '/dex', query: { id: mon.id } }" class="mon-cell" :title="t('home.toDex')">
     <UiPokeSprite :id="mon.id" :size="36" />
     <div class="txt">
       <span class="top">
@@ -10,7 +10,7 @@
       </span>
       <UiTypeGroup :types="mon[form ?? 'form'].types" small />
     </div>
-  </div>
+  </NuxtLink>
 </template>
 
 <script setup lang="ts">
@@ -25,6 +25,8 @@ const shownId = computed(() => props.mon[props.form ?? 'form'].id)
 
 <style scoped>
 .mon-cell {
+  color: inherit;
+  text-decoration: none;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -49,6 +51,10 @@ const shownId = computed(() => props.mon[props.form ?? 'form'].id)
 .nm {
   font-weight: 700;
   font-size: 13px;
+}
+.mon-cell:hover .nm {
+  text-decoration: underline;
+  color: var(--accent-2);
 }
 .new {
   font-size: 9px;

@@ -5,6 +5,11 @@ export default defineNuxtConfig({
 
   css: ['~/assets/css/main.css'],
 
+  // 빌드마다 바뀌는 값: 게임 데이터 주소에 붙여서 배포 직후 브라우저가 예전 JSON(캐시 10분)을 쓰지 않게 함
+  runtimeConfig: {
+    public: { buildId: (process.env.GITHUB_SHA || String(Date.now())).slice(0, 12) },
+  },
+
   app: {
     head: {
       title: 'Pokémon Champions Helper',

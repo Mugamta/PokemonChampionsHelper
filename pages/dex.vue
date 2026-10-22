@@ -23,7 +23,7 @@
           :placeholder="t('perf.search')"
           :aria-label="t('perf.search')"
         />
-        <div class="list-scroll">
+        <div ref="listEl" class="list-scroll">
           <button
             v-for="m in shown"
             :key="m.id"
@@ -65,6 +65,22 @@ const id = computed<string>({
 })
 // 주소에 없거나 목록에 없으면 첫 포켓몬
 const selected = computed(() => mons.value.find((m) => m.id === id.value) ?? mons.value[0])
+
+// 다른 화면(성능표·첫 화면)에서 넘어오면 목록에서 고른 포켓몬이 보이게 (목록 안에서만 스크롤)
+const listEl = ref<HTMLElement | null>(null)
+watch(
+  () => selected.value?.id,
+  async () => {
+    await nextTick()
+    const box = listEl.value
+    const el = box?.querySelector<HTMLElement>('.dex-item.active')
+    if (!box || !el) return
+    const top = el.offsetTop - box.offsetTop
+    if (top < box.scrollTop || top + el.offsetHeight > box.scrollTop + box.clientHeight)
+      box.scrollTop = top - box.clientHeight / 2 + el.offsetHeight / 2
+  },
+  { immediate: true },
+)
 </script>
 
 <style scoped>

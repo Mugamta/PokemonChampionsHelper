@@ -17,10 +17,12 @@
       </span>
     </div>
     <div class="ut-grid">
-      <div
+      <NuxtLink
         v-for="(u, i) in top"
         :key="u.id"
+        :to="{ path: '/dex', query: { id: u.id } }"
         class="ut-mon float"
+        :title="t('home.toDex')"
         :style="{ animationDelay: `${i * 0.35}s` }"
       >
         <UiPokeSprite :id="u.id" :size="i % 3 === 0 ? 96 : 84" />
@@ -52,7 +54,7 @@
             · {{ t('common.decisive') }} <b class="num">{{ u.power.toLocaleString() }}</b>
           </template>
         </span>
-      </div>
+      </NuxtLink>
     </div>
   </div>
 </template>
@@ -161,12 +163,23 @@ const spText = (sp?: number[]) =>
 }
 /* 배경 없이 떠다니는 포켓몬 + 아래에 통계 */
 .ut-mon {
+  color: inherit;
+  text-decoration: none;
+  border-radius: 14px;
+  padding: 4px 2px;
+  transition: background 0.15s;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 1px;
   min-width: 0;
   text-align: center;
+}
+.ut-mon:hover {
+  background: var(--hover);
+}
+.ut-mon:hover .ut-name {
+  text-decoration: underline;
 }
 .float {
   animation: bob 3.2s ease-in-out infinite;
@@ -213,6 +226,12 @@ const spText = (sp?: number[]) =>
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .ut-mon:hover {
+    background: var(--hover);
+  }
+  .ut-mon:hover .ut-name {
+    text-decoration: underline;
+  }
   .float {
     animation: none;
   }
