@@ -1,7 +1,25 @@
 <!-- 성격 선택: 이름 | 올라가는 능력치 | 내려가는 능력치 를 칸으로 나눠 목록에서 줄이 맞게 -->
 <template>
+  <UiLazyField
+    v-if="!live"
+    kind="select"
+    :dirty="!!current"
+    class="nature-picker"
+    @activate="activate"
+  >
+    <template v-if="current" #selection>
+      <span class="nat">
+        <span class="nat-name">{{ current.title }}</span>
+        <span v-if="current.plus" class="nat-up">{{ current.plus }}↑</span>
+        <span v-if="current.minus" class="nat-down">{{ current.minus }}↓</span>
+      </span>
+    </template>
+  </UiLazyField>
   <v-select
+    v-else
+    ref="real"
     v-model="model"
+    v-model:menu="menu"
     :items="items"
     item-title="title"
     item-value="value"
@@ -72,6 +90,10 @@ const items = computed<NatureItem[]>(() => {
     }))
   return [{ value: 'serious', title: t('common.neutralNature'), plus: '', minus: '' }, ...boosted]
 })
+const current = computed(() => items.value.find((n) => n.value === model.value) ?? null)
+
+// 처음엔 가벼운 자리표시, 누르거나 포커스하면 진짜 입력칸 (화면 전환 속도, composables/useLazyField.ts)
+const { live, menu, real, activate } = useLazyField()
 </script>
 
 <style scoped>

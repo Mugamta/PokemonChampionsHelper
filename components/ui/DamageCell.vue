@@ -12,6 +12,7 @@
         v-if="koText"
         class="ko-tag"
         :class="{ sure: cell.ko?.guaranteed && cell.ko.hits === 1 }"
+        :title="koSpan ? t('battle.spreadKoHint') : undefined"
         >{{ koText }}</span
       >
       <span v-if="realText" class="real" :title="realHint">{{ realText }}</span>
@@ -65,7 +66,19 @@ const koLabel = (c: Pick<Cell, 'ko' | 'koHit'>) => {
         p: c.ko.percent < 0.1 ? '<0.1' : c.ko.percent.toFixed(1),
       })
 }
-const koText = computed(() => (props.cell ? koLabel(props.cell) : ''))
+// 상대 배분 범위의 양 끝에서 KO 판정이 다르면 "유리한 쪽 ~ 불리한 쪽"
+const koSpan = computed(() => {
+  const bd = props.cell?.bounds
+  if (!bd) return false
+  return koLabel(bd.best) !== koLabel(bd.worst)
+})
+const koText = computed(() => {
+  const c = props.cell
+  if (!c) return ''
+  if (!koSpan.value) return koLabel(c)
+  const best = koLabel(c.bounds!.best) || '—'
+  return `${best} ~ ${koLabel(c.bounds!.worst) || '—'}`
+})
 const guessText = computed(() => {
   const g: CellGuess | null | undefined = props.cell?.guess
   if (!g) return ''
@@ -82,7 +95,8 @@ const guessText = computed(() => {
 const pctInt = (v: number) => Number((v * 100).toFixed(v < 0.1 ? 1 : 0))
 const realText = computed(() => {
   const c = props.cell
-  if (!c || c.koReal == null || !c.ko) return ''
+  // 배분 범위에 따라 KO 판정이 갈리면 생략 (실전 확률은 불리한 쪽 기준이라 헷갈림)
+  if (!c || c.koReal == null || !c.ko || koSpan.value) return ''
   if (Math.abs(c.koReal - c.ko.percent) < 0.05) return ''
   return t('battle.ko.real', {
     p: c.koReal >= 99.95 ? '100' : c.koReal < 0.1 ? '<0.1' : c.koReal.toFixed(1),

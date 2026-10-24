@@ -447,8 +447,10 @@ export interface UsageSet {
   sp?: number[] // H A B C D S
   spreadShare?: number // 이 배분(성격 + 능력 포인트)의 비율 (0~1)
   ability: string
+  abilityUsage?: Record<string, number> // 특성별 비율 (0~1)
   items: string[] // 많이 쓴 순 (최대 3개)
   itemShare?: number[] // items 와 같은 순서, 각 도구 채용률 (0~1)
+  itemUsage?: Record<string, number> // 도구별 채용률 전체 (0.5% 이상, 0~1)
 }
 // 사용률 통계 종류: 싱글(배틀스타디움 싱글) / 더블(VGC)
 export type UsageKind = 'single' | 'double'

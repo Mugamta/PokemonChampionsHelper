@@ -1,7 +1,23 @@
 <!-- 도구 선택. 메가스톤은 이 포켓몬용 스톤만 보여주고, 다른 슬롯에서 쓰는 도구는 제외 (도구 중복 금지) -->
 <template>
+  <UiLazyField
+    v-if="!live"
+    :dirty="!!model"
+    :text="gd.name('items', model)"
+    :placeholder="t('common.item')"
+    clearable
+    @activate="activate"
+    @clear="model = ''"
+  >
+    <template v-if="model" #prepend-inner>
+      <UiItemIcon :id="model" :size="24" />
+    </template>
+  </UiLazyField>
   <v-autocomplete
+    v-else
+    ref="real"
     v-model="selected"
+    v-model:menu="menu"
     :items="items"
     item-title="title"
     item-value="value"
@@ -24,6 +40,7 @@
           <UiItemIcon :id="item.value" :size="26" />
           <span class="opt-name">{{ item.title }}</span>
           <span v-if="item.mega" class="mega-tag">MEGA</span>
+          <span v-if="item.share != null" class="share num">{{ item.share }}%</span>
         </div>
       </v-list-item>
     </template>
@@ -37,9 +54,17 @@ const selected = computed({
   get: () => model.value || null,
   set: (v: string | null) => (model.value = v ?? ''),
 })
-const props = defineProps<{ species?: string; exclude?: string[] }>()
+// usage: 도구별 사용률 (0~1). 주면 비율을 붙이고 많이 쓴 순으로 맨 위에 (배틀 화면 상대 도구 확정)
+const props = defineProps<{
+  species?: string
+  exclude?: string[]
+  usage?: Record<string, number>
+}>()
 const { t } = useI18n()
 const gd = useGameData()
+
+// 처음엔 가벼운 자리표시, 누르거나 포커스하면 진짜 입력칸 (화면 전환 속도, composables/useLazyField.ts)
+const { live, menu, real, activate } = useLazyField()
 
 const items = computed(() => {
   const all = gd.data.value?.items || {}
@@ -55,8 +80,17 @@ const items = computed(() => {
   if (model.value && !ids.includes(model.value)) ids.push(model.value)
   return gd
     .options('items', ids)
-    .map((o) => ({ ...o, mega: !!all[o.value]?.megaStone, desc: gd.text('items', o.value) }))
-    .sort((a, b) => Number(b.mega) - Number(a.mega))
+    .map((o) => {
+      const u = props.usage?.[o.value]
+      return {
+        ...o,
+        mega: !!all[o.value]?.megaStone,
+        desc: gd.text('items', o.value),
+        usage: u ?? -1,
+        share: u == null ? null : Number((u * 100).toFixed(1)),
+      }
+    })
+    .sort((a, b) => b.usage - a.usage || Number(b.mega) - Number(a.mega))
 })
 </script>
 
@@ -69,6 +103,10 @@ const items = computed(() => {
 }
 .opt-name {
   flex: 1;
+}
+.share {
+  font-size: 11px;
+  color: var(--text-3);
 }
 .mega-tag {
   font-size: 9px;

@@ -3,10 +3,20 @@
     데미지: 깎인 양을 바로 입력
     체력 전후: 맞기 전 HP → 맞은 뒤 HP 를 입력하면 차이를 데미지로 (전은 비우면 지금 HP)
   unit: pct = 상대 HP %(0~100, 소수 1자리) / hp = 내 HP 실수치(정수)
+  내 HP(hp)는 오차가 없어서 "전"은 지금 HP 로 고정. locked: 결과가 하나로 정해져 부모가 값을 채움 (수정 불가)
 -->
 <template>
   <div v-if="mode === 'hp'" class="hp-pair">
     <input
+      v-if="unit === 'hp' || locked"
+      :value="fmt(current)"
+      type="number"
+      class="field-input num"
+      :title="t('battle.hpBefore')"
+      disabled
+    />
+    <input
+      v-else
       v-model.number="before"
       type="number"
       min="0"
@@ -19,6 +29,15 @@
     />
     <span class="arrow">→</span>
     <input
+      v-if="locked"
+      :value="model == null ? '' : fmt(Math.max(0, current - model))"
+      type="number"
+      class="field-input num"
+      :title="t('battle.hpAfter')"
+      disabled
+    />
+    <input
+      v-else
       v-model.number="after"
       type="number"
       min="0"
@@ -29,7 +48,7 @@
       :title="t('battle.hpAfter')"
       :disabled="disabled"
     />
-    <!-- 상대 %는 화면에 정수로만 보여서 실제 데미지는 ±1%p 범위 (배분 추정도 이 범위로 확인) -->
+    <!-- 상대 %는 화면에 정수(버림)로만 보여서 실제 데미지는 ±1%p 범위 (배분 추정은 utils/hpDisplay 로 정확히) -->
     <span
       v-if="model != null"
       class="delta num"
@@ -49,7 +68,7 @@
     :step="step"
     class="field-input num"
     :placeholder="unit === 'pct' ? '0~100' : '0'"
-    :disabled="disabled"
+    :disabled="disabled || locked"
   />
 </template>
 
@@ -60,6 +79,7 @@ const props = defineProps<{
   current: number // 맞는 쪽의 지금 HP (pct: %, hp: 실수치)
   max: number // 최대 (pct: 100, hp: 최대 HP)
   disabled?: boolean
+  locked?: boolean
 }>()
 const { t } = useI18n()
 const mode = useState<'damage' | 'hp'>('battle-dmg-mode', () => 'damage')

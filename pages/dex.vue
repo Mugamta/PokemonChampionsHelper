@@ -105,7 +105,10 @@ watch(
   flex-direction: column;
   gap: 2px;
 }
+/* 목록이 300개가 넘어서 화면 밖 항목은 레이아웃·그리기를 건너뛴다 (높이 = 스프라이트 32 + 위아래 여백 2) */
 .dex-item {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 36px;
   appearance: none;
   border: 0;
   background: none;

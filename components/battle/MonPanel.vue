@@ -122,6 +122,7 @@
               max="100"
               step="0.1"
               class="field-input hp-in num"
+              :title="m.hpCheck ? t('battle.hpCheckHint') : undefined"
             />
             <span class="muted num"
               >% ({{ an.oppHpRange(idx).min }}~{{ an.oppHpRange(idx).max }}/{{ max }})</span
@@ -135,16 +136,42 @@
           <span class="st-k">{{ t('stat.short.' + k) }}</span>
           <span
             class="st-v num"
-            :class="r.nature?.plus === k ? 'up' : r.nature?.minus === k ? 'down' : ''"
-            >{{ r.stats[k] }}</span
+            :class="[
+              r.nature?.plus === k ? 'up' : r.nature?.minus === k ? 'down' : '',
+              { range: !!oppBounds },
+            ]"
+            :title="oppBounds ? t('battle.oppStatHint') : undefined"
+            >{{ statText(k) }}</span
           >
+          <span v-if="spText(k)" class="st-sp num" :title="t('battle.spHint')">{{
+            spText(k)
+          }}</span>
           <span
             v-if="k !== 'hp' && m.boosts[k as BoostKey]"
             class="st-b num"
             :class="m.boosts[k as BoostKey] > 0 ? 'pos' : 'neg'"
-            >{{ applyBoost(r.stats[k], m.boosts[k as BoostKey]) }}</span
+            >{{ statText(k, m.boosts[k as BoostKey]) }}</span
           >
         </div>
+      </div>
+
+      <!-- 기술과 남은 PP (상대는 이번 배틀에서 쓴 기술 = 확정, 모르는 칸은 ?) -->
+      <div
+        v-if="moveList.length"
+        class="moves-pp"
+        :title="t(side === 'opp' ? 'battle.ppHintOpp' : 'battle.ppHint')"
+      >
+        <span
+          v-for="(mv, i) in moveList"
+          :key="mv.id || 'unknown' + i"
+          class="mv-chip"
+          :class="{ unknown: !mv.id, out: mv.id && mv.left <= 0 }"
+        >
+          <template v-if="mv.id"
+            >{{ gd.name('moves', mv.id) }} <b class="num">{{ mv.left }}/{{ mv.max }}</b></template
+          >
+          <template v-else>?</template>
+        </span>
       </div>
 
       <div class="lower" @click.stop>
@@ -210,8 +237,9 @@ import {
   type useBattle,
 } from '~/composables/useBattle'
 import type { useBattleAnalysis } from '~/composables/useBattleAnalysis'
+import { spRangeOf } from '~/utils/statInference'
 import { applyBoost } from '~/utils/stats'
-import { STAT_KEYS, type BoostKey } from '~/utils/types'
+import { STAT_KEYS, type BoostKey, type StatKey } from '~/utils/types'
 import { forecastForm, typesInWeather } from '~/utils/damage'
 
 const props = defineProps<{
@@ -236,6 +264,48 @@ const castform = computed(() => {
   return id ? id.replace('castform', '') : 'normal'
 })
 const max = computed(() => r.value?.stats.hp || 0)
+// 상대 실능치는 추정 범위 (선출 화면의 배분은 쓰지 않음). 변신 중이면 복사한 실능치라 null
+const oppBounds = computed(() =>
+  props.side === 'opp' && idx.value != null ? props.b.oppBoundsNow(idx.value) : null,
+)
+const statText = (k: StatKey, boost = 0) => {
+  const bd = oppBounds.value
+  const one = (v: number) => (k === 'hp' ? v : applyBoost(v, boost))
+  if (!bd) return String(one(r.value!.stats[k]))
+  const lo = one(bd[k].min)
+  const hi = one(bd[k].max)
+  return lo === hi ? String(lo) : `${lo}~${hi}`
+}
+// 능력 포인트: 내 쪽은 입력값, 상대는 추정 실능치 범위에 들어가는 SP 범위. 변신 중이면 복사한 실능치라 없음
+const spText = (k: StatKey) => {
+  const rr = r.value
+  if (!rr || m.value?.transform) return ''
+  if (props.side === 'mine') return `(+${rr.slot.sp[k]})`
+  const bd = oppBounds.value
+  const sp = bd ? spRangeOf(k, rr.species.stats[k], bd[k]) : null
+  if (!sp) return ''
+  return sp.min === sp.max ? `(+${sp.min})` : `(+${sp.min}~${sp.max})`
+}
+// 기술별 남은 PP. 내 포켓몬의 기술(내 쪽, 또는 내 포켓몬으로 변신한 상대)은 정해진 기술 /
+// 상대의 기술(상대, 또는 상대로 변신한 내 포켓몬)은 쓴 기술·잠꼬대로 드러난 기술(확정) + 모르는 칸(?)을 4칸까지.
+// 변신 중이면 복사한 기술이라 PP 5 (useBattle.maxPp)
+const moveList = computed(() => {
+  const rr = r.value
+  const i = idx.value
+  if (!rr || !m.value || i == null) return []
+  const tf = m.value.transform
+  const used = props.b.ppUsedOf(props.side, i)
+  const knownSet = tf ? tf.side === 'mine' : props.side === 'mine'
+  const ids = knownSet
+    ? rr.slot.moves.filter(Boolean)
+    : [...new Set([...Object.keys(used), ...(tf ? [] : (m.value.movesSeen ?? []))])]
+  const list = ids.map((id) => {
+    const max = props.b.maxPp(props.side, i, id)
+    return { id, max, left: Math.max(0, max - (used[id] ?? 0)) }
+  })
+  if (!knownSet) while (list.length < 4) list.push({ id: '', max: 0, left: 0 })
+  return list
+})
 const hpPercent = computed(() =>
   !m.value ? 0 : props.side === 'opp' ? m.value.hp : max.value ? (m.value.hp / max.value) * 100 : 0,
 )
@@ -469,11 +539,49 @@ const volLabel = (v: string) => {
   font-size: 14px;
   font-weight: 700;
 }
+.st-v.range {
+  font-size: 11px;
+  white-space: nowrap;
+}
 .st-v.up {
   color: var(--nature-up);
 }
 .st-v.down {
   color: var(--nature-down);
+}
+.moves-pp {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px;
+}
+.mv-chip {
+  background: var(--well);
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.mv-chip b {
+  color: var(--text-2);
+}
+.mv-chip.unknown {
+  justify-content: center;
+  color: var(--text-3);
+}
+.mv-chip.out b {
+  color: var(--bad);
+}
+.st-sp {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-3);
+  white-space: nowrap;
 }
 .st-b {
   font-size: 10px;

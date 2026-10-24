@@ -1,7 +1,21 @@
 <!-- 포켓몬 선택 (스프라이트 + 타입 표시, 이름 검색) -->
 <template>
+  <UiLazyField
+    v-if="!live"
+    :dirty="!!model"
+    :text="gd.name('pokemon', model)"
+    :placeholder="label ?? t('common.pokemon')"
+    prepend-icon="mdi-magnify"
+    clearable
+    class="species-picker"
+    @activate="activate"
+    @clear="model = ''"
+  />
   <v-autocomplete
+    v-else
+    ref="real"
     v-model="selected"
+    v-model:menu="menu"
     :items="items"
     item-title="title"
     item-value="value"
@@ -41,6 +55,9 @@ const selected = computed({
 const props = defineProps<{ ids: string[]; exclude?: string[]; label?: string }>()
 const { t } = useI18n()
 const gd = useGameData()
+
+// 처음엔 가벼운 자리표시, 누르거나 포커스하면 진짜 입력칸 (화면 전환 속도, composables/useLazyField.ts)
+const { live, menu, real, activate } = useLazyField()
 
 const items = computed(() => {
   const ex = new Set(props.exclude || [])

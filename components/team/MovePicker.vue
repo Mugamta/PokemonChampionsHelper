@@ -1,8 +1,27 @@
 <!-- 기술 선택 (타입/분류/위력 표시). 선택된 기술 아래에 정보 한 줄 -->
 <template>
   <div class="move-picker">
+    <UiLazyField
+      v-if="!live"
+      :dirty="!!model"
+      :text="gd.name('moves', model)"
+      :placeholder="t('common.move')"
+      clearable
+      :disabled="disabled"
+      @activate="activate"
+      @clear="model = ''"
+    >
+      <template v-if="showInfo && move && power != null" #append-inner>
+        <span class="decisive" :title="hitsTitle"
+          >{{ t('common.decisive') }} <b class="num">{{ power.toLocaleString() }}</b></span
+        >
+      </template>
+    </UiLazyField>
     <v-autocomplete
+      v-else
+      ref="real"
       v-model="selected"
+      v-model:menu="menu"
       :items="items"
       item-title="title"
       item-value="value"
@@ -38,18 +57,18 @@
     <div v-if="showInfo && !move" class="info" />
     <div v-else-if="move && showInfo" class="info">
       <!-- 기술 타입에 마우스를 올리면 공격 상성 (스킨류로 바뀐 경우 바뀐 타입 기준) -->
-      <v-tooltip location="bottom" :open-delay="150" class="type-tip-overlay">
-        <template #activator="{ props: act }">
-          <UiTypeBadge
-            v-bind="act"
-            :type="shownType!"
-            small
-            class="move-type"
-            :class="{ changed: shownType !== move.type }"
-          />
-        </template>
-        <UiTypeTip mode="attack" :types="[shownType!]" :note="changedNote" />
-      </v-tooltip>
+      <!-- 툴팁은 처음 마우스를 올릴 때 만든다 (파티 화면에 기술 칸이 24개) -->
+      <span class="move-type-wrap">
+        <UiTypeBadge
+          :type="shownType!"
+          small
+          class="move-type"
+          :class="{ changed: shownType !== move.type }"
+        />
+        <UiLazyTooltip location="bottom" class="type-tip-overlay">
+          <UiTypeTip mode="attack" :types="[shownType!]" :note="changedNote" />
+        </UiLazyTooltip>
+      </span>
       <!-- 기술 설명은 타입 배지를 뺀 나머지에만 (타입 상성 툴팁과 겹치지 않게) -->
       <span class="info-rest" :title="gd.text('moves', move.id)">
         <UiCategoryBadge :category="move.category" />
@@ -99,6 +118,9 @@ const props = defineProps<{
 }>()
 const { t } = useI18n()
 const gd = useGameData()
+
+// 처음엔 가벼운 자리표시, 누르거나 포커스하면 진짜 입력칸 (화면 전환 속도, composables/useLazyField.ts)
+const { live, menu, real, activate } = useLazyField()
 
 const move = computed(() => gd.move(model.value))
 // 특성/날씨/필드로 바뀐 타입
@@ -192,6 +214,9 @@ const items = computed(() => {
 /* 배치는 .info 의 flex 를 그대로 따르고 툴팁(title)만 나눔 */
 .info-rest {
   display: contents;
+}
+.move-type-wrap {
+  display: inline-flex;
 }
 /* 특성으로 바뀐 타입 (마우스를 올리면 설명) */
 .move-type {

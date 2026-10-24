@@ -39,14 +39,19 @@ export function useGameData() {
       fetchJson<NameTable>(`names.${lang}.json`),
       fetchJson<TextTable>(`texts.${lang}.json`),
     ])
-    names.value = { ...names.value, [lang]: n }
-    texts.value = { ...texts.value, [lang]: t }
+    names.value = { ...names.value, [lang]: markRaw(n) }
+    texts.value = { ...texts.value, [lang]: markRaw(t) }
   }
 
   // 앱 시작 시 1회 (AppHeader 의 onMounted 에서 호출)
   const load = async () => {
     if (data.value || loading.value) return
     loading.value = true
+    // 언어를 바꾸면 그 언어 이름표 로드. 여기서 한 번만 등록 (useGameData 는 스프라이트 등 컴포넌트마다 불려서
+    // 부를 때마다 감시자를 만들면 목록 화면에서 수백 개가 됨)
+    watch(locale, (lang) => {
+      if (data.value) loadLocale(lang)
+    })
     try {
       const [parts, usage] = await Promise.all([
         Promise.all(CORE_FILES.map((f) => fetchJson(`${f}.json`))),
@@ -65,7 +70,9 @@ export function useGameData() {
         usage,
       } as unknown as GameData
       await loadLocale(locale.value)
-      data.value = core
+      // 게임 데이터는 바뀌지 않으므로 반응형 프록시로 감싸지 않는다 (깊은 반응형이면 모든 조회가 프록시를 거치고
+      // 계산 하나에 의존성 추적이 수천 개씩 걸려 화면 전환이 느려짐). 바뀌는 건 data.value 교체뿐
+      data.value = markRaw(core)
     } finally {
       loading.value = false
     }
@@ -115,10 +122,6 @@ export function useGameData() {
     ids
       .map((id) => ({ value: id, title: name(kind, id) }))
       .sort((a, b) => a.title.localeCompare(b.title, locale.value))
-
-  watch(locale, (lang) => {
-    if (data.value) loadLocale(lang)
-  })
 
   return {
     data,

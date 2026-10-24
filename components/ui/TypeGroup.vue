@@ -3,31 +3,25 @@
   배지에 마우스를 올리면 그 타입 하나의 상성, 복합 타입은 두 배지를 묶은 영역(테두리·가운데 +)에 올리면 합친 상성.
 -->
 <template>
-  <v-tooltip location="bottom" :open-delay="150" class="type-tip-overlay">
-    <template #activator="{ props: act }">
-      <span
-        class="type-group"
-        :class="{ dual: types.length > 1 }"
-        v-bind="act"
+  <span class="type-group" :class="{ dual: types.length > 1 }" @mouseleave="hovered = null">
+    <template v-for="(ty, i) in types" :key="ty">
+      <span v-if="i" class="joint" @mouseenter="hovered = null">+</span>
+      <UiTypeBadge
+        :type="ty"
+        :small="small"
+        @mouseenter="hovered = ty"
         @mouseleave="hovered = null"
-      >
-        <template v-for="(ty, i) in types" :key="ty">
-          <span v-if="i" class="joint" @mouseenter="hovered = null">+</span>
-          <UiTypeBadge
-            :type="ty"
-            :small="small"
-            @mouseenter="hovered = ty"
-            @mouseleave="hovered = null"
-          />
-        </template>
-      </span>
+      />
     </template>
-    <UiTypeTip
-      mode="defense"
-      :types="hovered ? [hovered] : types"
-      :hint="hovered && types.length > 1 ? t('typeTip.combinedHint') : undefined"
-    />
-  </v-tooltip>
+    <!-- 처음 마우스를 올릴 때 만든다 (성능표처럼 수십 개면 화면 전환이 느려짐) -->
+    <UiLazyTooltip location="bottom" class="type-tip-overlay">
+      <UiTypeTip
+        mode="defense"
+        :types="hovered ? [hovered] : types"
+        :hint="hovered && types.length > 1 ? t('typeTip.combinedHint') : undefined"
+      />
+    </UiLazyTooltip>
+  </span>
 </template>
 
 <script setup lang="ts">

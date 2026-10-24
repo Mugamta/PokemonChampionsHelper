@@ -55,6 +55,10 @@ export interface Cell {
   sub?: { hp: number; breaks: 'sure' | 'maybe' | 'none' } | null
   // 확정 전 상대 도구의 추측(선출 화면 도구)을 지녔다면의 결과. 본 결과는 확정한 사실만으로 계산한 것
   guess?: CellGuess | null
+  maxHp: number // 맞는 쪽 최대 HP (실수치)
+  // 배틀: 상대 배분 범위의 양 끝으로 계산한 두 결과 (공격에 가장 유리한 / 불리한 배분). 위의 수치는 둘을 합친 범위,
+  // KO 판정(ko·koHit·koReal)은 불리한 쪽 (spanCells)
+  bounds?: { best: Cell; worst: Cell } | null
 }
 export interface CellGuess {
   item: string
@@ -65,6 +69,22 @@ export interface CellGuess {
   lethal: boolean
   ko: KoInfo | null
   koHit: Cell['koHit']
+  maxHp: number
+  bounds?: Cell['bounds']
+}
+
+// 상대 배분 범위의 양 끝 결과를 하나로: 데미지는 둘을 합친 범위, KO 판정은 불리한 쪽 + bounds 에 둘 다
+export function spanCells(best: Cell | null, worst: Cell | null): Cell | null {
+  if (!best || !worst) return best ?? worst
+  return {
+    ...worst,
+    min: Math.min(best.min, worst.min),
+    max: Math.max(best.max, worst.max),
+    pctMin: Math.min(best.pctMin, worst.pctMin),
+    pctMax: Math.max(best.pctMax, worst.pctMax),
+    lethal: best.lethal || worst.lethal,
+    bounds: { best, worst },
+  }
 }
 
 // 배틀 밖(파티/선출 표)에서 쓰는 배틀 폼 기본값. 팔라피는 실전에서 거의 항상 마이티폼으로 싸운다.
@@ -282,6 +302,7 @@ export function useTeamCalc() {
       critChance: pc,
       koReal,
       fickle,
+      maxHp,
       sub: subHp
         ? { hp: subHp, breaks: min >= subHp ? 'sure' : max >= subHp ? 'maybe' : 'none' }
         : null,

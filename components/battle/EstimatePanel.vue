@@ -1,6 +1,6 @@
 <!--
   상대 능력 추정: 주고받은 데미지를 쌓아서 상대의 내구(HP·방어·특방, 내구 지수)와 공격(실능치, 도구 후보) 범위를 좁힌다.
-  관측은 "이번 턴 적용" 때 저장 (내가 준 % → 내구, 내가 받은 HP → 공격). 계산: composables/useOppEstimate.ts
+  관측은 "이번 턴 적용" 때 저장 (내가 준 % → 내구, 내가 받은 HP → 공격, 턴 끝 HP 를 게임 값으로 고침 → HP). 계산: composables/useOppEstimate.ts
 -->
 <template>
   <section class="panel panel-pad est">
@@ -26,7 +26,7 @@
         <div class="blk">
           <span class="section-label"
             >{{ t('battle.est.bulk') }}
-            <small>{{ t('battle.est.obs', { n: e.dealt }) }}</small></span
+            <small>{{ t('battle.est.obs', { n: e.dealt + e.hpChecks }) }}</small></span
           >
           <p v-if="!e.bulk.feasible" class="warn-text small">{{ t('battle.est.infeasible') }}</p>
           <dl v-else>
@@ -83,15 +83,17 @@
 
 <script setup lang="ts">
 import type { useBattle } from '~/composables/useBattle'
-import { useOppEstimate } from '~/composables/useOppEstimate'
 import type { Range } from '~/utils/statInference'
 
 const props = defineProps<{ b: ReturnType<typeof useBattle> }>()
 const { t } = useI18n()
 const gd = useGameData()
-const est = useOppEstimate(props.b)
 
-const oi = computed(() => est.focusOpp())
+// 분석 대상 칸의 상대. 추정은 배틀 계산과 같은 것 (useBattle 이 관측이 바뀔 때만 다시 계산)
+const oi = computed(() => {
+  const s = props.b.state.value
+  return s ? (s.sides.opp.active[s.focus.opp] ?? null) : null
+})
 const mon = computed(() =>
   oi.value == null ? null : props.b.state.value!.sides.opp.mons[oi.value],
 )
@@ -100,8 +102,8 @@ const observed = computed(() => !!mon.value?.speedSp)
 const name = computed(() =>
   oi.value == null ? '' : gd.name('pokemon', props.b.resolveAt('opp', oi.value)?.species.id),
 )
-const e = computed(() => (oi.value == null ? null : est.estimate(oi.value)))
-const count = computed(() => (e.value ? e.value.dealt + e.value.taken : 0))
+const e = computed(() => (oi.value == null ? null : props.b.oppEstimate(oi.value)))
+const count = computed(() => (e.value ? e.value.dealt + e.value.hpChecks + e.value.taken : 0))
 const attackInfeasible = computed(
   () => !!e.value && e.value.taken > 0 && !e.value.atk?.feasible && !e.value.spa?.feasible,
 )

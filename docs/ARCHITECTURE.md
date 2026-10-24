@@ -7,7 +7,7 @@ pages/                 라우트 (아래 표)
 layouts/default.vue    AppHeader + 데이터 로딩 대기 + 푸터
 components/
   AppHeader.vue        로고, 메뉴, 레귤레이션 선택, 시계, 언어 전환. onMounted 에서 데이터 로드 + 예전 파티 이전
-  ui/                  PokeSprite, ItemIcon, TypeBadge, CategoryBadge, HpBar, DamageCell, RankControl,
+  ui/                  PokeSprite, ItemIcon, TypeBadge, CategoryBadge, HpBar, DamageCell, RankControl, LazyField, LazyTooltip,
                        TypeGroup(포켓몬 타입 + 방어 상성 툴팁), TypeTip(상성 툴팁 내용)
   team/                SlotEditor(슬롯 편집), SlotCard(읽기 전용 카드), SpeciesPicker / ItemPicker / MovePicker / NaturePicker,
                        FormToggle(배틀 폼 토글 / 캐스퐁 날씨 버튼), PreviewConditions(결정력 미리보기 조건: 날씨·필드·상태이상·랭크),
@@ -66,6 +66,7 @@ Nuxt 컴포넌트 이름은 폴더 접두사가 붙는다: `components/team/Slot
 | `useOppEstimate(b)` | 상대 배분 추정: 저장된 관측(주고받은 데미지)마다 그 시점 상태로 다시 계산해 내구·공격·도구 후보 범위를 좁힌다 |
 | `usePerfList()` | 성능표 대상 (레귤레이션 출전 가능 + 메가, 계산 폼, "신규"), 이름 검색. 계산용 데이터는 `toRaw` 로 넘김(반응형 추적 비용) |
 | `useIncremental(list)` | 긴 목록을 조금씩 그리기 (끝 요소가 화면 근처에 오면 더) |
+| `useLazyField()` | 입력칸을 처음엔 `UiLazyField`(겉모습만 같은 정적 마크업)로 그리고, 누르거나 포커스하면 진짜 v-autocomplete/v-select 로 바꿔 포커스·목록 열기. 종/도구/성격/기술 피커가 사용 |
 | `useLine()` | 위 문구를 현재 언어로 렌더링 (`@키` / `@키|이름` 파라미터 번역) |
 | `useThemeMode()` | 테마 선택값 `'light' | 'dark' | 'system'` (적용·저장은 plugins/theme.client.ts) |
 | `useFitLayout()` | 넓은 화면 한 화면 배치 여부 (`(min-width: 1400px) and (min-height: 700px)`). 배틀 화면의 패널 재배치·표 탭, 파티 6장 한 줄에 사용 |
@@ -95,4 +96,8 @@ Nuxt 컴포넌트 이름은 폴더 접두사가 붙는다: `components/team/Slot
 - PC 한 화면 배치: 폭 1400px 이상이면 `html { zoom: var(--ui-zoom) }`(0.9). 높이 700px 이상 + 페이지 `definePageMeta({ fit: true })`
   (파티·선출·배틀)이면 페이지를 화면 높이에 고정하고 `.fit-scroll` 열이 각자 스크롤. zoom 안에서 높이는 `100vh / --ui-zoom`
 - Vuetify 4 의 v-autocomplete `#item` 슬롯은 `item` 이 원본 객체다 (`item.raw` 없음)
+- **화면 전환 속도**: Vuetify 컴포넌트는 하나가 컴포넌트 수십 개라서 목록·카드마다 반복하면 전환이 수백 ms 느려진다.
+  입력칸은 `useLazyField` + `UiLazyField`, 툴팁은 `UiLazyTooltip`(처음 마우스를 올릴 때 생성, 툴팁 띄울 요소의 자식으로 둔다)을 쓴다.
+  v-tooltip 을 직접 쓰면 Vuetify 4.1 은 열지 않아도 마운트 직후 내용을 만들어 두므로 내용은 `#default="{ isActive }"` + `v-if="isActive.value"` 로.
+  게임 데이터(`useGameData().data`, 이름표)는 `markRaw` — 바뀌지 않는 큰 JSON 을 깊은 반응형으로 만들지 않는다
 - 폰트 Rubik(숫자/제목) + Noto Sans KR/JP

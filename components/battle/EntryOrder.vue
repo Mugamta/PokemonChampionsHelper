@@ -15,7 +15,8 @@
           :key="v"
           type="button"
           class="chip"
-          :class="{ active: b.entryObsOf(p.mi, p.oi) === v }"
+          :class="{ active: (fixedOf(p) ?? b.entryObsOf(p.mi, p.oi)) === v }"
+          :disabled="!!fixedOf(p)"
           @click="b.setEntryOrder(p.mi, p.oi, b.entryObsOf(p.mi, p.oi) === v ? 'unknown' : v)"
         >
           {{ t(v === 'mine' ? 'battle.entryMineFirst' : 'battle.entryOppFirst') }}
@@ -36,6 +37,19 @@ const gd = useGameData()
 const pairs = computed(() => props.b.entryPairsNow.value)
 const name = (side: BattleSide, idx: number) =>
   gd.name('pokemon', props.b.resolveAt(side, idx)?.species.id)
+// 스피드로 순서가 확정 (동속 가능성 없음) → 칩을 그쪽으로 고정 (특성 발동은 선제공격손톱·퀵드로와 무관)
+const fixedOf = (p: EntryPair): BattleSide | null =>
+  (p.auto === 'mine' || p.auto === 'opp') && !p.tiePossible ? p.auto : null
+// 확정됐는데 예전에 고른 관찰이 남아 있으면 지운다 (스피드 구간을 잘못 좁히지 않게)
+watch(
+  pairs,
+  (ps) => {
+    for (const p of ps)
+      if (fixedOf(p) && props.b.entryObsOf(p.mi, p.oi) !== 'unknown')
+        props.b.setEntryOrder(p.mi, p.oi, 'unknown')
+  },
+  { immediate: true },
+)
 const autoText = (p: EntryPair) =>
   p.auto === 'mine' || p.auto === 'opp'
     ? t('battle.entryAuto', { name: name(p.auto, p.auto === 'mine' ? p.mi : p.oi) })

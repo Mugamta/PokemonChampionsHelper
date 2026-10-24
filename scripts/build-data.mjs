@@ -734,8 +734,18 @@ function summarizeUsage(json, month, format) {
           spreadShare: round4(d.Spreads[spread] / weight),
         }),
       ability: top(d.Abilities, (a) => !!abilities[a])[0] ?? '',
+      // 특성별 비율 전체 (배틀 화면 상대 특성 확정 선택지)
+      abilityUsage: Object.fromEntries(
+        top(d.Abilities, (a) => !!abilities[a]).map((a) => [a, round4(d.Abilities[a] / weight)]),
+      ),
       items: itemIds,
       itemShare: share(d.Items, itemIds),
+      // 도구별 비율 전체 (0.5% 이상, 배틀 화면 상대 도구 확정 선택지)
+      itemUsage: Object.fromEntries(
+        top(d.Items, (i) => !!items[i])
+          .map((i) => [i, round4(d.Items[i] / weight)])
+          .filter(([, v]) => v >= 0.005),
+      ),
     }
   }
   return { format, month, battles: json.info['number of battles'], pokemon: out }

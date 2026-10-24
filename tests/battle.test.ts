@@ -12,6 +12,8 @@ import { useTeamCalc } from '../composables/useTeamCalc'
 import { emptySlot, type TeamSlot } from '../utils/types'
 import { calcDamage } from '../utils/damage'
 import { koHitIndexWithSub, statusDamage } from '../utils/ko'
+import { hpStepsMatch } from '../utils/hpDisplay'
+import { calcStat } from '../utils/stats'
 
 const pad6 = (s: TeamSlot[]) => [...s, ...Array.from({ length: 6 - s.length }, emptySlot)]
 
@@ -542,9 +544,10 @@ describe('둔갑 (따라큐)', () => {
     const an = useBattleAnalysis(b)
     moveAction(b, 'mine', 0, 'earthquake')
     const c = an.mineActionPreview.value!
-    const maxHp = b.resolveAt('opp', 0)!.stats.hp
+    // 상대 HP 는 추정 범위 (관측 없음 → SP 0~32) → 1/8 도 범위
+    const hp = b.oppBoundsNow(0)!.hp
     expect(c.disguise).toBe(true)
-    expect([c.min, c.max]).toEqual([Math.floor(maxHp / 8), Math.floor(maxHp / 8)])
+    expect([c.min, c.max]).toEqual([Math.floor(hp.min / 8), Math.floor(hp.max / 8)])
     expect(c.ko!.hits).toBeGreaterThanOrEqual(2)
     S(b).actions.mine[0]!.amount = 12
     b.executeTurn()
@@ -625,7 +628,7 @@ describe('메타몽 변신', () => {
     expect(d.species.id).toBe('garchomp')
     expect(d.transformedFrom).toBe('ditto')
     expect({ ...d.stats, hp: 0 }).toEqual({ ...me.stats, hp: 0 })
-    expect(d.stats.hp).toBe(48 + 75) // 메타몽 자신의 HP (종족값 48, SP 0)
+    expect(d.stats.hp).toBe(48 + 16 + 75) // 메타몽 자신의 HP (종족값 48, HP 범위 SP 0~32 의 가운데)
     expect(d.slot.item).toBe('choicescarf')
     expect(d.slot.moves).toEqual(me.slot.moves)
     expect(mon(b, 'opp', 0).boosts.atk).toBe(1)
@@ -759,19 +762,26 @@ describe('상대 배분 추정 (주고받은 데미지 누적)', () => {
       [real],
     )
     b.sendOut('opp', 0, 0)
-    const an = useBattleAnalysis(b)
     const est = useOppEstimate(b)
-    // 실제 배분(입력값)으로 계산한 데미지를 그대로 입력 (한 방에 쓰러지지 않는 기술로)
+    // 실제 배분으로 계산한 데미지를 그대로 입력 (한 방에 쓰러지지 않는 기술로).
+    // 배틀 계산은 선출 화면의 배분을 쓰지 않으므로 실제 배분은 따로 계산
+    const calc = useTeamCalc()
+    const r = calc.resolve(real, false, false)!
+    const me = b.combatantOf('mine', 0)!
+    const dealt = calc.cell(
+      'dragonclaw',
+      b.combatantOf('mine', 0, undefined, true)!,
+      calc.combatant(r),
+    )!
+    const taken = calc.cell('shadowball', calc.combatant(r), me)!
     moveAction(b, 'mine', 0, 'dragonclaw')
-    const dealt = an.mineActionPreview.value!
     S(b).actions.mine[0]!.amount = Math.round(((dealt.pctMin + dealt.pctMax) / 2) * 10) / 10
     moveAction(b, 'opp', 0, 'shadowball')
-    const taken = an.oppVsMine(0, 'shadowball', 0)!
     S(b).actions.opp[0]!.amount = taken.min
+    S(b).observedOrder = 'mine'
     b.executeTurn()
 
     const e = est.estimate(0)!
-    const r = b.resolveAt('opp', 0)!
     expect(e.dealt).toBe(1)
     expect(e.taken).toBe(1)
     expect(e.bulk.feasible).toBe(true)
@@ -785,6 +795,83 @@ describe('상대 배분 추정 (주고받은 데미지 누적)', () => {
     // 관측이 없을 때보다 좁다
     // 방어 종족값 95: 관측이 없으면 하락 SP0 = 103 ~ 보정 SP32 = 161
     expect(e.bulk.def!.max - e.bulk.def!.min).toBeLessThan(161 - 103)
+  })
+
+  it('배틀 계산은 선출 화면의 성격·능력 포인트를 쓰지 않는다', () => {
+    const run = (extra: Partial<TeamSlot>) => {
+      resetNuxtState()
+      const b = setup('single', [slot('garchomp')], [slot('gholdengo', extra)])
+      b.sendOut('opp', 0, 0)
+      const an = useBattleAnalysis(b)
+      moveAction(b, 'mine', 0, 'earthquake')
+      const mine = an.mineActionPreview.value!
+      const opp = an.oppVsMine(0, 'shadowball', 0)!
+      return { stats: b.resolveAt('opp', 0)!.stats, mine, opp, bounds: b.oppBoundsNow(0)! }
+    }
+    const bulky = run({ nature: 'bold', sp: { hp: 32, atk: 0, def: 32, spa: 0, spd: 2, spe: 0 } })
+    const frail = run({ nature: 'timid', sp: { hp: 0, atk: 0, def: 0, spa: 32, spd: 2, spe: 32 } })
+    expect(frail.stats).toEqual(bulky.stats)
+    expect([frail.mine.min, frail.mine.max]).toEqual([bulky.mine.min, bulky.mine.max])
+    expect([frail.opp.min, frail.opp.max]).toEqual([bulky.opp.min, bulky.opp.max])
+    // 관측이 없으면 SP 0 하락 성격 ~ SP 32 보정 성격 전체 (골덴 HP 87, 방어 95, 특공 133)
+    expect(bulky.bounds.hp).toEqual({ min: 162, max: 194 })
+    expect(bulky.bounds.def).toEqual({ min: 103, max: 161 })
+    expect(bulky.bounds.spa).toEqual({ min: 137, max: 203 })
+    // 데미지는 범위: 가장 약한 내구 ~ 가장 단단한 내구로 계산한 두 결과
+    expect(bulky.mine.bounds).toBeTruthy()
+    expect(bulky.mine.bounds!.best.pctMin).toBeGreaterThan(bulky.mine.bounds!.worst.pctMin)
+    expect(bulky.opp.bounds!.best.max).toBeGreaterThan(bulky.opp.bounds!.worst.max)
+  })
+
+  it('준 데미지 관측으로 상대 내구 범위가 좁아지면 데미지 표 범위도 좁아진다', () => {
+    const b = setup('single', [slot('garchomp')], [slot('gholdengo')])
+    b.sendOut('opp', 0, 0)
+    const an = useBattleAnalysis(b)
+    moveAction(b, 'mine', 0, 'dragonclaw')
+    const before = an.mineActionPreview.value!
+    // 실제: HB 252 (H32 B32 보정)
+    const calc = useTeamCalc()
+    const real = calc.resolve(
+      slot('gholdengo', {
+        nature: 'bold',
+        sp: { hp: 32, atk: 0, def: 32, spa: 0, spd: 2, spe: 0 },
+      }),
+      false,
+      false,
+    )!
+    const truth = calc.cell(
+      'dragonclaw',
+      b.combatantOf('mine', 0, undefined, true)!,
+      calc.combatant(real),
+    )!
+    S(b).actions.mine[0]!.amount = Math.round(truth.pctMax * 10) / 10
+    b.executeTurn()
+    moveAction(b, 'mine', 0, 'dragonclaw')
+    const after = an.mineActionPreview.value!
+    expect(after.pctMax - after.pctMin).toBeLessThan(before.pctMax - before.pctMin)
+    // 실제 배분의 결과를 포함 (HP % 환산 오차 ±1%p 이내)
+    expect(after.pctMin).toBeLessThanOrEqual(truth.pctMin + 1)
+    expect(after.pctMax).toBeGreaterThanOrEqual(truth.pctMax - 1)
+    // 상대 HP % → 실수치는 HP 범위의 가운데
+    const hp = b.oppBoundsNow(0)!.hp
+    expect(b.maxHp('opp', 0)).toBe(Math.round((hp.min + hp.max) / 2))
+  })
+
+  it('선후공을 모르면 예상 흐름은 각자 먼저 맞힌다면의 결과만', () => {
+    const b = setup('single', [slot('garchomp')], [slot('gholdengo')])
+    b.sendOut('opp', 0, 0)
+    const an = useBattleAnalysis(b)
+    moveAction(b, 'mine', 0, 'earthquake')
+    moveAction(b, 'opp', 0, 'shadowball')
+    // 한카리아스 122 vs 골덴 S 범위 (도구 미확정 → 스카프 포함) → 모름
+    expect(b.speedOrder(0, 0)?.first).toBeNull()
+    const keys = an.forecast.value.map((l) => l.key)
+    expect(keys[0]).toBe('battle.flow.orderUnknown')
+    expect(keys).not.toContain('battle.flow.first')
+    expect(keys.filter((k) => k === 'battle.flow.attack')).toHaveLength(2)
+    // 본 순서를 입력하면 그 순서로
+    S(b).observedOrder = 'opp'
+    expect(an.forecast.value[0]!.key).toBe('battle.flow.first')
   })
 
   it('입력과 맞는 배분이 없으면 feasible = false', () => {
@@ -927,13 +1014,13 @@ describe('턴 끝 회복·데미지', () => {
     expect(mon(b, 'opp', 0).item).toBe('leftovers')
     expect(an.pendingLines.value.map((l) => l.key)).toContain('battle.pending.residual')
     b.executeTurn()
-    expect(mon(b, 'opp', 0).hp).toBeCloseTo(70 + step)
+    expect(mon(b, 'opp', 0).hp).toBe(Math.round(70 + step)) // 상대 HP 는 턴 끝에 정수 %
     b.executeTurn()
-    expect(mon(b, 'opp', 0).hp).toBeCloseTo(70 + 2 * step)
+    expect(mon(b, 'opp', 0).hp).toBe(Math.round(Math.round(70 + step) + step))
     b.confirmItem('opp', 0, '')
     expect(an.pendingLines.value.map((l) => l.key)).not.toContain('battle.pending.residual')
     b.executeTurn()
-    expect(mon(b, 'opp', 0).hp).toBeCloseTo(70 + 2 * step)
+    expect(mon(b, 'opp', 0).hp).toBe(Math.round(Math.round(70 + step) + step))
   })
   it('검은진흙: 독 타입이 아니면 1/8 데미지', () => {
     const b = setup('single', [slot('garchomp', { item: 'blacksludge' })], [slot('kingambit')])
@@ -962,8 +1049,48 @@ describe('턴 끝 회복·데미지', () => {
     const oppMax = b.resolveAt('opp', 0)!.stats.hp
     const drain = Math.floor(oppMax / 8)
     expect(mon(b, 'opp', 0).volatiles.leechseed).toBeTruthy()
-    expect(mon(b, 'opp', 0).hp).toBeCloseTo(100 - (drain / oppMax) * 100)
+    // 상대 HP 는 턴 끝에 정수 % — 가득 찬 데서 깎이면 실제 값을 알아서 게임처럼 버림
+    expect(mon(b, 'opp', 0).hp).toBe(Math.floor(100 - (drain / oppMax) * 100))
     expect(mon(b, 'mine', 0).hp).toBe(50 + drain)
+  })
+  it('턴 끝 HP 를 게임 화면 값으로 고치면 HP 실능치 추정에 반영', () => {
+    const b = setup('single', [slot('garchomp')], [slot('polteageist')])
+    b.sendOut('opp', 0, 0)
+    b.state.value!.weather = { ...b.state.value!.weather, key: 'sand', cur: 0, total: 8 }
+    mon(b, 'opp', 0).hp = 38
+    b.executeTurn()
+    const m = mon(b, 'opp', 0)
+    const c = m.hpCheck!
+    expect(c).toMatchObject({ start: 38, steps: [{ frac: -1 / 16 }], predicted: m.hp })
+    const base = b.resolveAt('opp', 0)!.species.stats.hp
+    const maxes = Array.from({ length: 33 }, (_, h) => calcStat('hp', base, h))
+    // 예상과 1% 다른 값 중 어떤 최대 HP 로는 나올 수 있는 것
+    const v = [c.predicted + 1, c.predicted - 1].find((x) =>
+      maxes.some((M) => hpStepsMatch(M, { start: 38, steps: c.steps, shown: x })),
+    )!
+    m.hp = v
+    const e = b.oppEstimate(0)!
+    expect(e.hpChecks).toBe(1)
+    const ok = maxes.filter((M) => hpStepsMatch(M, { start: 38, steps: c.steps, shown: v }))
+    expect(e.bulk.hp).toEqual({ min: Math.min(...ok), max: Math.max(...ok) })
+    // 다음 턴 적용 때 관측으로 저장
+    b.executeTurn()
+    expect(m.hpObs).toHaveLength(1)
+    expect(b.oppEstimate(0)!.hpChecks).toBe(1)
+    b.resetEstimate(0)
+    expect(b.oppEstimate(0)!.hpChecks).toBe(0)
+  })
+  it('상대 HP 표시는 버림: 가득 → 모래바람은 버림, 화면 % 에서 시작하면 실제 p+0.5% 기준 (반올림)', () => {
+    const b = setup('single', [slot('garchomp')], [slot('polteageist')])
+    b.sendOut('opp', 0, 0)
+    b.state.value!.weather = { ...b.state.value!.weather, key: 'sand', cur: 1, total: 5 }
+    const max = b.resolveAt('opp', 0)!.stats.hp
+    const sand = (Math.floor(max / 16) / max) * 100
+    b.executeTurn()
+    expect(mon(b, 'opp', 0).hp).toBe(Math.floor(100 - sand))
+    mon(b, 'opp', 0).hp = 38
+    b.executeTurn()
+    expect(mon(b, 'opp', 0).hp).toBe(Math.floor(38.5 - sand))
   })
 })
 
@@ -1451,7 +1578,7 @@ describe('상대 도구: 선출 화면 도구는 추측, 확정은 배틀에만'
     expect(b.resolveAt('opp', 0)!.slot.item).toBe('lifeorb')
     expect(b.guessedItem(0)).toBe('')
   })
-  it('추측 스카프: 스피드는 스카프 없이, 선후공이 바뀌면 안내 / 메가스톤은 그대로', () => {
+  it('추측 스카프: 스피드는 스카프 없이, 선후공은 스카프 구간까지 넣어 모름 / 메가스톤은 그대로', () => {
     const b = setup('single', [slot('garchomp')], [slot('dragonite', { item: 'choicescarf' })])
     b.sendOut('opp', 0, 0)
     const an = useBattleAnalysis(b)
@@ -1462,7 +1589,7 @@ describe('상대 도구: 선출 화면 도구는 추측, 확정은 배틀에만'
     expect(b.speedOf('mine', 0)).toBeLessThan(Math.floor(raw * 1.5))
     moveAction(b, 'mine', 0, 'earthquake')
     moveAction(b, 'opp', 0, 'dragonclaw')
-    expect(an.forecast.value.map((l) => l.key)).toContain('battle.flow.orderGuess')
+    expect(an.forecast.value.map((l) => l.key)).toContain('battle.flow.orderUnknown')
 
     const m = setup('single', [slot('garchomp')], [slot('clefable', { item: 'clefablite' })])
     m.sendOut('opp', 0, 0)
@@ -1479,7 +1606,7 @@ describe('상대 도구: 선출 화면 도구는 추측, 확정은 배틀에만'
 })
 
 describe('상대 HP % → 실수치 범위', () => {
-  it('올림·반올림·버림을 모두 덮는 (p−1)% 초과 ~ (p+1)% 미만', () => {
+  it('버림 표시: p% = 실제 p% 이상 ~ (p+1)% 미만', () => {
     const b = setup('single', [slot('garchomp')], [slot('kingambit')])
     b.sendOut('opp', 0, 0)
     const an = useBattleAnalysis(b)
@@ -1487,16 +1614,9 @@ describe('상대 HP % → 실수치 범위', () => {
     const m = mon(b, 'opp', 0)
     m.hp = 37
     const r = an.oppHpRange(0)
-    for (const hp of [r.min, r.max]) {
-      const pct = (hp / max) * 100
-      // 세 규칙 중 하나로는 37% 로 보임
-      expect([Math.ceil(pct), Math.round(pct), Math.floor(pct)]).toContain(37)
-    }
-    // 범위 바로 밖은 어느 규칙으로도 37% 가 아님
-    for (const hp of [r.min - 1, r.max + 1]) {
-      const pct = (hp / max) * 100
-      expect([Math.ceil(pct), Math.round(pct), Math.floor(pct)]).not.toContain(37)
-    }
+    for (const hp of [r.min, r.max]) expect(Math.floor((hp / max) * 100)).toBe(37)
+    // 범위 바로 밖은 37% 가 아님
+    for (const hp of [r.min - 1, r.max + 1]) expect(Math.floor((hp / max) * 100)).not.toBe(37)
     m.hp = 100
     expect(an.oppHpRange(0).max).toBe(max)
   })
@@ -1755,6 +1875,95 @@ describe('내 파티 완성 조건: 성별', () => {
   })
 })
 
+describe('교체기로 물러난 뒤의 공격', () => {
+  it('상대가 먼저 유턴으로 물러나면 내 공격은 들어오는 포켓몬이 맞는다', () => {
+    const b = setup('single', [slot('garchomp')], [slot('corviknight'), slot('gholdengo')])
+    b.sendOut('opp', 0, 0)
+    const an = useBattleAnalysis(b)
+    moveAction(b, 'mine', 0, 'earthquake')
+    moveAction(b, 'opp', 0, 'uturn')
+    S(b).actions.opp[0]!.selfSwitch = 1
+    // 내가 먼저면 아머까오(비행)라 무효
+    S(b).observedOrder = 'mine'
+    expect(an.mineActionPreview.value!.immune).toBe(true)
+    // 상대가 먼저면 골덴(강철)이 맞음 → 효과 굉장, 예상 흐름에 교체 줄
+    S(b).observedOrder = 'opp'
+    const c = an.mineActionPreview.value!
+    expect(c.immune).toBe(false)
+    expect(c.effectiveness).toBe(2)
+    const keys = an.forecast.value.map((l) => l.key)
+    expect(keys).toContain('battle.flow.pivot')
+    expect(keys[keys.length - 1]).toBe('battle.flow.attack')
+  })
+
+  it('잠든 뒤 첫 시도는 반드시 행동 불가: 같은 턴 먼저 잠들어도, 기술 사용으로 골라도', () => {
+    // 같은 턴: 내가 먼저 최면술 → 상대 기술은 나가지 않음
+    const b = setup('single', [slot('gholdengo')], [slot('garchomp')]) // 기술은 배우는지 따지지 않음
+    b.sendOut('opp', 0, 0)
+    moveAction(b, 'mine', 0, 'hypnosis')
+    moveAction(b, 'opp', 0, 'swordsdance')
+    S(b).observedOrder = 'mine'
+    b.executeTurn()
+    expect(mon(b, 'opp', 0).status).toBe('slp')
+    expect(mon(b, 'opp', 0).boosts.atk).toBe(0)
+    expect(mon(b, 'opp', 0).toxicTurn).toBe(1)
+    // 다음 턴: 2번째 시도(33%) → 기술 사용이면 깨어남
+    moveAction(b, 'mine', 0, 'protect')
+    moveAction(b, 'opp', 0, 'swordsdance')
+    b.executeTurn()
+    expect(mon(b, 'opp', 0).status).toBe('')
+    expect(mon(b, 'opp', 0).boosts.atk).toBe(2)
+
+    // 턴 시작 때 이미 잠듦(첫 시도)인데 기술 사용으로 골라도 깨어나지 않음
+    resetNuxtState()
+    const c = setup('single', [slot('garchomp')], [slot('garchomp')])
+    c.sendOut('opp', 0, 0)
+    Object.assign(mon(c, 'opp', 0), { status: 'slp', toxicTurn: 0 })
+    moveAction(c, 'opp', 0, 'swordsdance')
+    c.executeTurn()
+    expect(mon(c, 'opp', 0).status).toBe('slp')
+    expect(mon(c, 'opp', 0).boosts.atk).toBe(0)
+
+    // 내 쪽이 깨어나지 못하면: 예상 흐름은 행동 불가, 남아 있는 데미지 입력은 검사·적용하지 않음
+    resetNuxtState()
+    const d = setup('single', [slot('garchomp')], [slot('gholdengo')])
+    d.sendOut('opp', 0, 0)
+    Object.assign(mon(d, 'mine', 0), { status: 'slp', toxicTurn: 0 })
+    moveAction(d, 'mine', 0, 'earthquake', 150)
+    moveAction(d, 'opp', 0, 'nastyplot')
+    expect(d.sleepsThrough('mine', 0, 'earthquake')).toBe(true)
+    expect(d.validationError.value).toBe('')
+    const lines = useBattleAnalysis(d).forecast.value
+    expect(lines[0]).toMatchObject({ key: 'battle.flow.cant' })
+    d.executeTurn()
+    expect(mon(d, 'opp', 0).hp).toBe(100)
+  })
+
+  it('상대 HP 는 턴을 적용하면 정수 % (59% + 먹다남은음식 → 65%)', () => {
+    const b = setup('single', [slot('indeedee')], [slot('hippowdon')])
+    b.sendOut('opp', 0, 0)
+    b.confirmItem('opp', 0, 'leftovers')
+    mon(b, 'opp', 0).hp = 59
+    b.executeTurn()
+    expect(mon(b, 'opp', 0).hp).toBe(65)
+  })
+
+  it('입력한 데미지는 들어온 포켓몬이 받는다 (물러난 포켓몬 HP 는 그대로)', () => {
+    const b = setup('single', [slot('garchomp')], [slot('polteageist'), slot('gyarados')])
+    b.sendOut('opp', 0, 0)
+    mon(b, 'opp', 0).hp = 32
+    moveAction(b, 'mine', 0, 'earthquake', 40)
+    moveAction(b, 'opp', 0, 'batonpass')
+    S(b).actions.opp[0]!.selfSwitch = 1
+    S(b).observedOrder = 'opp'
+    expect(b.hitTarget('mine', 0).idx).toBe(1)
+    b.executeTurn()
+    expect(S(b).sides.opp.active[0]).toBe(1)
+    expect(mon(b, 'opp', 1).hp).toBe(60)
+    expect(mon(b, 'opp', 0).hp).toBe(32)
+  })
+})
+
 describe('선후공 판정 (스피드 범위)', () => {
   // 에써르 vs 하마돈 (둘 다 우선도 0 기술): 하마돈 최대 스피드는 스카프 없이 108 (보정 S32), 스카프면 162
   const setupIndeedee = (mine: Partial<TeamSlot> = {}) => {
@@ -1778,7 +1987,7 @@ describe('선후공 판정 (스피드 범위)', () => {
   it('도구 미확정이면 스카프 가능 → 확정 못 함, 먹다남은음식 확정이면 내가 선공 확정', () => {
     const b = setupIndeedee() // 에써르 무보정 S0 = 110
     expect(b.speedOrder(0, 0)?.first).toBeNull()
-    expect(keys(b)).toContain('battle.flow.orderEstimate')
+    expect(keys(b)).toContain('battle.flow.orderUnknown')
     b.confirmItem('opp', 0, 'leftovers')
     const v = b.speedOrder(0, 0)!
     expect(v.first).toBe('mine')
@@ -1792,11 +2001,14 @@ describe('선후공 판정 (스피드 범위)', () => {
     expect(b.speedRangesOf(0).plusScarf).toEqual([0, 32])
   })
 
-  it('관찰한 선후공은 다음 턴에도 이어짐 (추측 배치보다 우선), 랭크가 바뀌면 다시 판정', () => {
-    // 에써르 하락 성격 S0 = 99 < 추측 배치 하마돈(최속) 108 → 관찰 전에는 상대 선공으로 예상
+  it('관찰한 선후공은 다음 턴에도 이어짐, 랭크가 바뀌면 다시 판정', () => {
+    // 에써르 하락 성격 S0 = 99, 하마돈 60~108 에 걸침 → 관찰 전에는 모름
+    // (선출 화면의 최속 배분은 쓰지 않음. 적용 순서는 범위 가운데 84 기준)
     const b = setupIndeedee({ nature: 'brave' })
     b.confirmItem('opp', 0, 'leftovers')
-    expect(b.turnOrder()[0]!.side).toBe('opp')
+    expect(b.speedOrder(0, 0)?.first).toBeNull()
+    expect(b.turnOrder()[0]!.side).toBe('mine')
+    expect(b.speedOf('opp', 0)).toBe(84)
     S(b).observedOrder = 'mine'
     b.executeTurn()
     moveAction(b, 'mine', 0, 'expandingforce')
@@ -1825,6 +2037,17 @@ describe('선후공 판정 (스피드 범위)', () => {
     b.toggleRoom('trickroom')
     expect(b.speedOrder(0, 0)?.first).toBe('opp')
     expect(b.turnOrder()[0]!.side).toBe('opp')
+    // 상대가 먼저면 상대의 선제공격손톱은 순서를 못 바꿈 → 무작위 아님
+    expect(b.speedOrder(0, 0)?.random).toBe(false)
+  })
+
+  it('선제공격손톱은 나중에 움직일 쪽만: 상대가 빠르면 상대 도구 미확정이어도 확정', () => {
+    const b = setupIndeedee()
+    mon(b, 'opp', 0).boosts.spe = 2 // 하마돈 최소 60 ×2 = 120 > 에써르 110
+    expect(b.speedOrder(0, 0)).toMatchObject({ first: 'opp', random: false })
+    const q = setupIndeedee({ item: 'quickclaw' })
+    mon(q, 'opp', 0).boosts.spe = 2
+    expect(q.speedOrder(0, 0)).toMatchObject({ first: 'opp', random: true })
   })
 
   it('우선도가 다르면 우선도로 (스피드 판정 안내 없음)', () => {
@@ -1833,6 +2056,103 @@ describe('선후공 판정 (스피드 범위)', () => {
     moveAction(b, 'opp', 0, 'suckerpunch')
     expect(b.turnOrder()[0]!.side).toBe('opp')
     expect(keys(b)).not.toContain('battle.flow.orderSure')
+  })
+})
+
+describe('결과가 정해진 데미지 / 먼저 쓰러져 행동 못 함', () => {
+  // 상대 갸라도스(공격·스피드 +2) 깨물어부수기 → 내 포트데스(악 2배): 갸라도스가 반드시 빠르고 반드시 1타
+  const setupEq = (item: string) => {
+    const b = setup('single', [slot('polteageist', { item })], [slot('gyarados')])
+    b.sendOut('opp', 0, 0)
+    Object.assign(mon(b, 'opp', 0).boosts, { atk: 2, spe: 2 })
+    moveAction(b, 'mine', 0, 'shadowball')
+    moveAction(b, 'opp', 0, 'crunch')
+    return b
+  }
+
+  it('기합의띠 없음: 내 히드런은 먼저 쓰러져 행동 못 함, 받은 데미지는 남은 HP 전부로 정해짐', () => {
+    const b = setupEq('leftovers')
+    const an = useBattleAnalysis(b)
+    expect(an.faintsFirst.value).toBe('mine')
+    expect(an.fixedAmount('opp')).toBe(mon(b, 'mine', 0).hp)
+    expect(an.fixedAmount('mine')).toBeNull()
+    expect(an.oppActionPreview.value?.min).toBeGreaterThan(0)
+  })
+
+  it('기합의띠(HP 가득): 반드시 1 남음 → 쓰러지지 않고, 받은 데미지 = HP−1, 관측은 "그 이상"으로 기록', () => {
+    const b = setupEq('focussash')
+    const an = useBattleAnalysis(b)
+    const hp = mon(b, 'mine', 0).hp
+    expect(an.faintsFirst.value).toBeNull()
+    expect(an.forecast.value.map((l) => l.key)).not.toContain('battle.flow.koSure')
+    expect(an.fixedAmount('opp')).toBe(hp - 1)
+    S(b).actions.opp[0]!.amount = hp - 1
+    b.executeTurn()
+    expect(mon(b, 'mine', 0).hp).toBe(1)
+    expect(mon(b, 'mine', 0).itemGone).toBe(true)
+    expect(mon(b, 'opp', 0).obs?.at(-1)).toMatchObject({ ko: true, amount: hp - 1 })
+  })
+})
+
+describe('배틀 결과', () => {
+  const setup3 = () => {
+    const b = setup(
+      'single',
+      [slot('garchomp'), slot('corviknight'), slot('polteageist')],
+      [slot('hippowdon'), slot('gyarados'), slot('polteageist'), slot('salamence')],
+    )
+    b.sendOut('opp', 0, 0)
+    return b
+  }
+
+  it('상대 선출 3마리가 모두 쓰러지면 승리, 턴 적용 불가 / 되돌리면 다시 진행', () => {
+    const b = setup3()
+    expect(b.battleResult.value).toBeNull()
+    S(b).sides.opp.revealed = [0, 1, 2]
+    for (const i of [1, 2]) mon(b, 'opp', i).hp = 0
+    expect(b.battleResult.value).toBeNull() // 필드의 하마돈이 남음
+    moveAction(b, 'mine', 0, 'earthquake', 100)
+    b.executeTurn()
+    expect(b.battleResult.value).toBe('win')
+    expect(b.validationError.value).toBe('battleOver')
+    b.undo()
+    expect(b.battleResult.value).toBeNull()
+  })
+
+  it('공개가 선출 수보다 적으면 아직 안 나온 포켓몬이 있다고 봄', () => {
+    const b = setup3()
+    mon(b, 'opp', 0).hp = 0
+    expect(b.battleResult.value).toBeNull()
+  })
+
+  it('내 선출 3마리가 모두 쓰러지면 패배', () => {
+    const b = setup3()
+    for (const i of [0, 1, 2]) mon(b, 'mine', i).hp = 0
+    expect(b.battleResult.value).toBe('lose')
+  })
+})
+
+describe('흡수 후 HP 입력', () => {
+  it('기가드레인으로 42% 갸라도스를 쓰러뜨리고 HP 1 → 37: 입력값으로 회복, 잃은 HP 71~72 를 관측에 기록', () => {
+    const b = setup('single', [slot('polteageist')], [slot('gyarados')])
+    b.sendOut('opp', 0, 0)
+    mon(b, 'mine', 0).hp = 1
+    mon(b, 'opp', 0).hp = 42
+    moveAction(b, 'mine', 0, 'gigadrain', 42)
+    moveAction(b, 'opp', 0, 'crunch')
+    expect(b.drainObservable(0)).toBe(true)
+    S(b).actions.mine[0]!.drainAfter = 37
+    b.executeTurn()
+    expect(mon(b, 'opp', 0).hp).toBe(0)
+    expect(mon(b, 'mine', 0).hp).toBe(37)
+    expect(mon(b, 'opp', 0).obs?.at(-1)).toMatchObject({ ko: true, drainLost: [71, 72] })
+  })
+
+  it('HP 가 가득이면 입력칸 없음 (회복량을 볼 수 없음)', () => {
+    const b = setup('single', [slot('polteageist')], [slot('gyarados')])
+    b.sendOut('opp', 0, 0)
+    moveAction(b, 'mine', 0, 'gigadrain')
+    expect(b.drainObservable(0)).toBe(false)
   })
 })
 
@@ -1859,6 +2179,22 @@ describe('동시 등장: 특성 발동 순서', () => {
     expect(mon(b, 'opp', 0).speedSp!.neutral).toEqual([0, 32])
     b.setEntryOrder(0, 0, 'unknown')
     expect(mon(b, 'opp', 0).speedSp).toBeNull()
+  })
+
+  it('선두 뒤 상대 도구 확정 (스카프 아님) → 발동 순서를 다시 판정해 날씨 다시 적용', () => {
+    // 내 나인테일 120 vs 상대 하마돈 60~162 (스카프면 최대 162, 아니면 108)
+    const b = setup('single', [slot('ninetales', { ability: 'drought' })], [slot('hippowdon')])
+    b.sendOut('opp', 0, 0)
+    expect(b.entryPairsNow.value[0]!.auto).toBeNull()
+    b.setEntryOrder(0, 0, 'opp') // 잘못 고른 순서 (상대 먼저 → 쾌청)
+    expect(S(b).weather.key).toBe('sun')
+    b.confirmItem('opp', 0, 'leftovers')
+    expect(b.entryPairsNow.value[0]!.auto).toBe('mine')
+    b.setEntryOrder(0, 0, 'unknown') // 화면(EntryOrder)이 확정되면 남은 관찰을 지움
+    expect(S(b).weather.key).toBe('sand')
+    expect(mon(b, 'opp', 0).speedSp).toBeNull()
+    b.confirmItem('opp', 0, '')
+    expect(b.entryPairsNow.value[0]!.auto).toBeNull()
   })
 
   it('위협은 순서를 고쳐도 다시 발동하지 않음', () => {
@@ -2028,12 +2364,12 @@ describe('흡수기 회복', () => {
     moveAction(b, 'opp', 0, 'drainpunch', 60)
     b.executeTurn()
     const oppMax = b.maxHp('opp', 0)
-    expect(mon(b, 'opp', 0).hp).toBeCloseTo(40 + (30 / oppMax) * 100, 5)
+    expect(mon(b, 'opp', 0).hp).toBe(Math.round(40 + (30 / oppMax) * 100)) // 상대 HP 는 턴 끝에 정수 %
     b.confirmItem('opp', 0, 'bigroot')
     mon(b, 'opp', 0).hp = 40
     moveAction(b, 'opp', 0, 'drainpunch', 60)
     b.executeTurn()
-    expect(mon(b, 'opp', 0).hp).toBeCloseTo(40 + (39 / oppMax) * 100, 5)
+    expect(mon(b, 'opp', 0).hp).toBe(Math.round(40 + (39 / oppMax) * 100))
   })
 
   it('해감액이면 회복 대신 데미지, 회복봉인이면 회복 없음', () => {
@@ -2136,7 +2472,7 @@ describe('공격한 쪽 HP 변화 (반동·도구·접촉)', () => {
     moveAction(b2, 'mine', 0, 'earthquake', 1)
     b2.executeTurn()
     const om = b2.maxHp('opp', 0)
-    expect(mon(b2, 'opp', 0).hp).toBeCloseTo(39 + (Math.floor(om / 4) / om) * 100, 5)
+    expect(mon(b2, 'opp', 0).hp).toBe(Math.round(39 + (Math.floor(om / 4) / om) * 100)) // 상대 HP 는 턴 끝에 정수 %
   })
 })
 
@@ -2218,7 +2554,8 @@ describe('기술 자체의 HP 효과', () => {
     b.executeTurn()
     const avg = Math.floor((20 + oppMax) / 2)
     expect(mon(b, 'mine', 0).hp).toBe(avg)
-    expect(mon(b, 'opp', 0).hp).toBeCloseTo((avg / oppMax) * 100, 5)
+    // 상대 HP 는 턴 끝에 정수 % (가득 찬 데서 실수치로 계산 → 버림)
+    expect(mon(b, 'opp', 0).hp).toBe(Math.floor((avg / oppMax) * 100))
     mon(b, 'mine', 0).hp = 20
     const atk = b.resolveAt('opp', 0)!.stats.atk
     moveAction(b, 'mine', 0, 'strengthsap')
@@ -2231,7 +2568,7 @@ describe('기술 자체의 HP 효과', () => {
     moveAction(b2, 'mine', 0, 'surf', 0)
     b2.executeTurn()
     const vm = b2.maxHp('opp', 0)
-    expect(mon(b2, 'opp', 0).hp).toBeCloseTo(50 + (Math.floor(vm / 4) / vm) * 100, 5)
+    expect(mon(b2, 'opp', 0).hp).toBe(Math.round(50 + (Math.floor(vm / 4) / vm) * 100))
   })
 
   it('치유소원: 쓴 포켓몬은 쓰러지고 다음에 나오는 포켓몬이 전부 회복', () => {
@@ -2244,5 +2581,128 @@ describe('기술 자체의 HP 효과', () => {
     b.replaceFainted([{ side: 'mine', slot: 0, idx: 1 }])
     expect(mon(b, 'mine', 1).hp).toBe(b.maxHp('mine', 1))
     expect(mon(b, 'mine', 1).status).toBe('')
+  })
+})
+
+describe('PP · 앙코르', () => {
+  it('쓴 기술의 PP 를 기록 (빗나가도 1, 프레셔인 상대를 노리면 1 더) — 교체해도 유지', () => {
+    const b = setup(
+      'single',
+      [slot('garchomp', { moves: ['earthquake', 'swordsdance', '', ''] }), slot('dragonite')],
+      [slot('kingambit', { ability: 'pressure' })],
+    )
+    b.sendOut('opp', 0, 0)
+    moveAction(b, 'mine', 0, 'earthquake')
+    S(b).actions.mine[0]!.missed = true
+    b.executeTurn()
+    expect(mon(b, 'mine', 0).ppUsed).toEqual({ earthquake: 2 })
+    moveAction(b, 'mine', 0, 'swordsdance') // 자기 대상 → 프레셔 무관
+    b.executeTurn()
+    expect(mon(b, 'mine', 0).ppUsed).toEqual({ earthquake: 2, swordsdance: 1 })
+    // 상대: 쓴 기술 = 확정 (프레셔 없는 내 포켓몬 상대라 1). 이 턴 나는 교체 → 내 PP 는 그대로 유지
+    moveAction(b, 'opp', 0, 'suckerpunch')
+    Object.assign(S(b).actions.mine[0]!, { kind: 'switch', switchTo: 1 })
+    b.executeTurn()
+    expect(mon(b, 'opp', 0).ppUsed).toEqual({ suckerpunch: 1 })
+    expect(mon(b, 'mine', 0).ppUsed).toEqual({ earthquake: 2, swordsdance: 1 })
+  })
+  it('앙코르 중이면 마지막으로 쓴 기술로 고정 (모르면 고정 안 함)', () => {
+    const b = setup(
+      'single',
+      [slot('garchomp', { moves: ['earthquake', 'swordsdance', '', ''] })],
+      [slot('kingambit')],
+    )
+    b.sendOut('opp', 0, 0)
+    const m = mon(b, 'mine', 0)
+    m.volatiles.encore = 1
+    expect(b.encoreMove('mine', 0)).toBe('')
+    m.lastMove = 'swordsdance'
+    expect(b.encoreMove('mine', 0)).toBe('swordsdance')
+    moveAction(b, 'mine', 0, 'earthquake', 30)
+    b.executeTurn()
+    expect(m.ppUsed).toEqual({ swordsdance: 1 })
+    expect(mon(b, 'opp', 0).hp).toBe(100)
+  })
+})
+
+describe('PP · 부른 기술 · 변신', () => {
+  it('잠꼬대: 잠든 채로 나간 기술의 데미지·효과, PP 는 잠꼬대에서, 상대면 나간 기술 확정', () => {
+    const b = setup('single', [slot('garchomp')], [slot('kingambit')])
+    b.sendOut('opp', 0, 0)
+    const om = mon(b, 'opp', 0)
+    Object.assign(om, { status: 'slp', toxicTurn: 0 }) // 잠든 뒤 첫 시도 → 잠꼬대만 나감
+    Object.assign(S(b).actions.opp[0]!, {
+      kind: 'move',
+      move: 'ironhead',
+      via: 'sleeptalk',
+      amount: 30,
+      target: 0,
+    })
+    const before = mon(b, 'mine', 0).hp
+    b.executeTurn()
+    expect(mon(b, 'mine', 0).hp).toBe(before - 30)
+    expect(om.status).toBe('slp') // 잠꼬대는 깨우지 않음
+    expect(om.ppUsed).toEqual({ sleeptalk: 1 })
+    expect(om.movesSeen).toEqual(['ironhead'])
+    expect(om.lastMove).toBe('sleeptalk') // 앙코르는 잠꼬대로 고정
+  })
+  it('흉내내기: 직전에 나간 기술을 기록, PP 는 흉내내기에서', () => {
+    const b = setup('single', [slot('garchomp')], [slot('kingambit')])
+    b.sendOut('opp', 0, 0)
+    moveAction(b, 'opp', 0, 'swordsdance')
+    b.executeTurn()
+    expect(S(b).lastUsedMove).toBe('swordsdance')
+    moveAction(b, 'opp', 0, '')
+    Object.assign(S(b).actions.mine[0]!, {
+      kind: 'move',
+      move: 'swordsdance',
+      via: 'copycat',
+      target: 0,
+    })
+    b.executeTurn()
+    expect(mon(b, 'mine', 0).ppUsed).toEqual({ copycat: 1 })
+    expect(mon(b, 'mine', 0).boosts.atk).toBe(2)
+  })
+  it('변신 중에는 복사한 기술 PP 5 를 따로 쓰고, 풀리면 원래 PP', () => {
+    const b = setup('single', [slot('ditto', { ability: 'imposter' })], [slot('kingambit')])
+    b.sendOut('opp', 0, 0)
+    const m = mon(b, 'mine', 0)
+    expect(m.transform).not.toBeNull()
+    moveAction(b, 'mine', 0, 'ironhead')
+    b.executeTurn()
+    expect(m.tfPpUsed).toEqual({ ironhead: 1 })
+    expect(m.ppUsed ?? {}).toEqual({})
+    expect(b.maxPp('mine', 0, 'ironhead')).toBe(5)
+    b.toggleTransform('mine', 0)
+    expect(m.tfPpUsed).toEqual({})
+    expect(b.maxPp('mine', 0, 'ironhead')).toBe(gameData.moves.ironhead!.pp)
+  })
+  it('원한 −4 / 으스스주문 −3 (대상이 마지막으로 쓴 기술), 과사열매는 0 이 되면 10 회복', () => {
+    const b = setup('single', [slot('garchomp')], [slot('kingambit', { item: 'leppaberry' })])
+    b.sendOut('opp', 0, 0)
+    const om = mon(b, 'opp', 0)
+    om.itemKnown = true
+    moveAction(b, 'opp', 0, 'suckerpunch')
+    b.executeTurn()
+    expect(om.ppUsed).toEqual({ suckerpunch: 1 })
+    moveAction(b, 'opp', 0, '')
+    moveAction(b, 'mine', 0, 'spite')
+    b.executeTurn()
+    expect(om.ppUsed).toEqual({ suckerpunch: 5 })
+    // 원한으로 기습 PP 가 0 이 됨 → 과사열매로 10 회복
+    const max = gameData.moves.suckerpunch!.pp
+    om.ppUsed = { suckerpunch: max - 1 }
+    b.executeTurn()
+    expect(om.ppUsed).toEqual({ suckerpunch: Math.max(0, max - 10) }) // 최대 PP 를 넘게 회복하지는 않음
+    expect(om.itemGone).toBe(true)
+  })
+  it('앙코르 남은 턴 (이번 턴 포함)', () => {
+    const b = setup('single', [slot('garchomp')], [slot('kingambit')])
+    b.sendOut('opp', 0, 0)
+    const m = mon(b, 'mine', 0)
+    m.volatiles.encore = 1
+    expect(b.encoreTurnsLeft('mine', 0)).toBe(3)
+    m.volatiles.encore = 3
+    expect(b.encoreTurnsLeft('mine', 0)).toBe(1)
   })
 })
