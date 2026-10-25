@@ -2,6 +2,7 @@
   <!-- fit: 넓은 화면에서 페이지를 화면 높이에 고정 (definePageMeta({ fit: true }), assets/css/main.css 참고) -->
   <div class="shell" :class="{ fit: route.meta.fit }">
     <AppHeader />
+    <UiPageLoading />
     <main class="content">
       <slot v-if="ready" />
       <div v-else class="boot">

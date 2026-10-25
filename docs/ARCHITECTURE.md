@@ -23,6 +23,7 @@ utils/                 순수 계산 (tests/ 에서 테스트): types.ts, stats.
                        perfTable.ts(성능표 내구·결정력·스피드), autoSet.ts(상대 포켓몬 자동 배치), accuracy.ts(명중·급소)
 plugins/locale.client.ts  언어 선택 (localStorage 'pch_lang' → 브라우저 언어 → en)
 plugins/theme.client.ts   화면 테마 낮/밤/시스템 (localStorage 'pch_theme', 없으면 시스템) → <html data-theme> + Vuetify 테마
+plugins/page-loading.client.ts  페이지 이동 시 로딩 오버레이(UiPageLoading) 를 먼저 그린 뒤 이동, page:finish 에서 끔
 i18n/locales/          화면 문구 ko/en/ja (.json) + Vuetify 문구 병합(.ts)
 public/data/           게임 데이터 (scripts/build-data.mjs 생성물)
 public/sprites/        포켓몬/도구 스프라이트 (생성물)
@@ -116,6 +117,8 @@ Nuxt 컴포넌트 이름은 폴더 접두사가 붙는다: `components/team/Slot
 - **화면 전환 속도**: Vuetify 컴포넌트는 하나가 컴포넌트 수십 개라서 목록·카드마다 반복하면 전환이 수백 ms 느려진다.
   입력칸은 `useLazyField` + `UiLazyField`, 툴팁은 `UiLazyTooltip`(처음 마우스를 올릴 때 생성, 툴팁 띄울 요소의 자식으로 둔다)을 쓴다.
   v-tooltip 을 직접 쓰면 Vuetify 4.1 은 열지 않아도 마운트 직후 내용을 만들어 두므로 내용은 `#default="{ isActive }"` + `v-if="isActive.value"` 로.
+  페이지 이동 중에는 `UiPageLoading` 오버레이가 80ms 뒤 나타난다 (`plugins/page-loading.client.ts` 가 그려질 때까지 이동을 미룸.
+  새 페이지를 만드는 동안 메인 스레드가 막히므로 오버레이 애니메이션은 opacity·transform 만 — 컴포지터에서 돌아감).
   게임 데이터(`useGameData().data`, 이름표)는 `markRaw` — 바뀌지 않는 큰 JSON 을 깊은 반응형으로 만들지 않는다
 - 폰트 Rubik(숫자/제목) + Noto Sans KR/JP
 - 아이콘: Vuetify `mdi-svg` (아이콘 폰트·CDN 없음). 직접 쓸 때는 `@mdi/js` 에서 경로를 import (`:prepend-inner-icon="mdiMagnify"`), 문자열 `mdi-xxx` 는 안 됨

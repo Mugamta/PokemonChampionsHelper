@@ -2,6 +2,7 @@
   "app": {
     "title": "Pokémon Champions Helper",
     "loading": "Loading game data...",
+    "pageLoading": "Opening page...",
     "language": "Language"
   },
   "nav": {
