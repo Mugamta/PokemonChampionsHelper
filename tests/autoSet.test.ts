@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import {
   autoSet,
   exclusiveMoves,
+  formItemUsage,
   pickUsageTable,
   topUsage,
   usageSet,
@@ -254,6 +255,20 @@ describe('사용률 통계 우선', () => {
     expect(r.nature).toBe('jolly')
     expect(r.moves.slice(0, 2)).toEqual(['earthquake', 'swordsdance'])
     expect(r.moves.filter(Boolean)).toHaveLength(4)
+  })
+
+  it('도구 채용률은 원종 + 메가 폼을 사용 수로 합침 (메가스톤 = 메가 폼 비율)', () => {
+    const t: UsageTable = {
+      ...table,
+      pokemon: {
+        garchomp: { ...table.pokemon.garchomp!, itemUsage: { choicescarf: 0.6, lifeorb: 0.4 } },
+        garchompmega: { ...table.pokemon.garchompmega!, itemUsage: { garchompite: 1 } },
+      },
+    }
+    const u = formItemUsage(pokemon.garchomp!, t)!
+    expect(u.garchompite).toBeCloseTo(500 / 800)
+    expect(u.choicescarf).toBeCloseTo((0.6 * 300) / 800)
+    expect(formItemUsage(pokemon.corviknight!, t)).toBeUndefined()
   })
 
   it('통계가 없으면 null (규칙 배치를 씀)', () => {

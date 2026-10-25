@@ -54,7 +54,7 @@ const selected = computed({
   get: () => model.value || null,
   set: (v: string | null) => (model.value = v ?? ''),
 })
-// usage: 도구별 사용률 (0~1). 주면 비율을 붙이고 많이 쓴 순으로 맨 위에 (배틀 화면 상대 도구 확정)
+// usage: 도구별 사용률 (0~1). 주면 비율을 붙이고 많이 쓴 순으로 위에 (배틀 화면 상대 도구 확정). 메가스톤은 항상 맨 위
 const props = defineProps<{
   species?: string
   exclude?: string[]
@@ -90,7 +90,7 @@ const items = computed(() => {
         share: u == null ? null : Number((u * 100).toFixed(1)),
       }
     })
-    .sort((a, b) => b.usage - a.usage || Number(b.mega) - Number(a.mega))
+    .sort((a, b) => Number(b.mega) - Number(a.mega) || b.usage - a.usage)
 })
 </script>
 

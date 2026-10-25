@@ -462,6 +462,24 @@ export interface UsageTable {
   pokemon: Record<string, UsageSet> // 폼 id (메가 폼은 메가 id)
 }
 
+// 원종 + 메가 폼을 합친 도구별 채용률 (통계는 메가 폼을 따로 세서 원종 표에는 메가스톤이 없다).
+// 폼별 사용 수로 가중 평균 → 메가스톤 비율 = 메가 폼 사용 수 / 전체. 통계가 없으면 undefined
+export function formItemUsage(
+  base: Pokemon,
+  table: UsageTable | undefined,
+): Record<string, number> | undefined {
+  const forms = [base.id, ...(base.megas ?? [])]
+    .map((id) => table?.pokemon[id])
+    .filter((u): u is UsageSet => !!u)
+  const total = forms.reduce((a, u) => a + u.count, 0)
+  if (!total) return undefined
+  const out: Record<string, number> = {}
+  for (const u of forms)
+    for (const [item, v] of Object.entries(u.itemUsage ?? {}))
+      out[item] = (out[item] ?? 0) + (v * u.count) / total
+  return out
+}
+
 // 통계가 있으면 그걸로 배치: 원종·메가 폼 중 사용 수가 많은 쪽, 많이 쓴 기술 4개·배분·특성·도구.
 // 기술이 4개가 안 되면 규칙 배치(fallback)로 채운다. 통계가 없으면 null.
 // taken: 같은 파티의 다른 포켓몬이 지닌 도구 (도구 중복 금지 → 다음으로 많이 쓴 도구)

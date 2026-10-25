@@ -423,7 +423,7 @@
             <TeamItemPicker
               :model-value="confirmedItem(oi)"
               :species="b.oppSlots.value[oi]?.species"
-              :usage="usageOf(oi)?.itemUsage"
+              :usage="itemUsageOf(oi)"
               @update:model-value="(v: string) => onConfirmItem(oi, v)"
             />
           </div>
@@ -487,6 +487,7 @@ import {
   type useBattle,
 } from '~/composables/useBattle'
 import type { useBattleAnalysis } from '~/composables/useBattleAnalysis'
+import { formItemUsage } from '~/utils/autoSet'
 import { isSpreadMove } from '~/utils/damage'
 
 const props = defineProps<{
@@ -805,11 +806,15 @@ const itemTargets = computed(() =>
 )
 // 특성·도구 선택지: 사용률 통계(이 배틀 모드·현재 레귤레이션)에 있는 특성은 비율을 붙임
 const reg = useRegulation()
-const usageOf = (oi: number) => {
-  const table = reg.active.value
+const usageTable = () =>
+  reg.active.value
     ? gd.data.value?.usage?.[props.b.N === 1 ? 'single' : 'double']?.[reg.active.value.id]
     : undefined
-  return table?.pokemon[props.b.oppSlots.value[oi]?.species ?? '']
+const usageOf = (oi: number) => usageTable()?.pokemon[props.b.oppSlots.value[oi]?.species ?? '']
+// 도구는 원종 + 메가 폼 통계를 합쳐서 (메가스톤 비율이 나오게)
+const itemUsageOf = (oi: number) => {
+  const base = gd.pokemon(props.b.oppSlots.value[oi]?.species ?? '')
+  return base ? formItemUsage(base, usageTable()) : undefined
 }
 const abilityLabel = (oi: number, a: string) => {
   const share = usageOf(oi)?.abilityUsage?.[a]
@@ -820,6 +825,7 @@ const abilityTargets = computed(() =>
   oppActive.value.filter(
     (oi) =>
       !props.b.isFainted('opp', oi) &&
+      !props.b.resolveAt('opp', oi)?.isMega && // 메가진화하면 특성은 메가 폼 하나로 고정
       abilitiesOf(oi).length > 1 &&
       (!s.value.sides.opp.mons[oi]?.abilityKnown || pickedThisTurn.value.ability.has(oi)),
   ),
