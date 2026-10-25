@@ -357,7 +357,8 @@ export function useBattleAnalysis(b: Battle) {
   })
 
   // 결과가 하나로 정해지는 데미지 (싱글, 분석 대상의 기술): 반드시 쓰러뜨림 → 남은 HP 전부,
-  // 내 포켓몬이 기합의띠·옹골참(HP 가득)으로 반드시 버팀 → HP 1 남김. 정해지지 않으면 null
+  // 내 포켓몬이 기합의띠·옹골참(HP 가득)으로 반드시 버팀 → HP 1 남김,
+  // 둔갑(따라큐)이 막음 (연속기 아님) → 최대 HP 1/8. 정해지지 않으면 null
   const fixedAmount = (side: BattleSide): number | null => {
     if (b.N > 1 || faintsFirst.value === side) return null
     const a = action(side)
@@ -370,6 +371,9 @@ export function useBattleAnalysis(b: Battle) {
     const foe: BattleSide = side === 'mine' ? 'opp' : 'mine'
     const hp = S().sides[foe].mons[t.idx]!.hp
     if (hp <= 0) return null
+    // 상대 % 는 HP 범위에 따라 1/8 의 비율이 조금 달라서 가운데 값 (소수 1자리)
+    if (cell.disguise && !cell.hits)
+      return foe === 'mine' ? cell.min : Math.round((cell.pctMin + cell.pctMax) * 5) / 10
     if (foe === 'mine' && cell.holdOn && !cell.hits) {
       const min = Math.min(cell.min, cell.guess?.min ?? Infinity)
       return min >= hp - 1 ? hp - 1 : null

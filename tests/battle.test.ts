@@ -585,11 +585,32 @@ describe('둔갑 (따라큐)', () => {
     expect(c.disguise).toBe(true)
     expect([c.min, c.max]).toEqual([Math.floor(hp.min / 8), Math.floor(hp.max / 8)])
     expect(c.ko!.hits).toBeGreaterThanOrEqual(2)
+    // 입력할 데미지는 1/8 로 정해짐 (상대 % 의 가운데 값), 실능치 추정 관측에는 넣지 않음
+    expect(an.fixedAmount('mine')).toBe(Math.round((c.pctMin + c.pctMax) * 5) / 10)
     S(b).actions.mine[0]!.amount = 12
     b.executeTurn()
     expect(mon(b, 'opp', 0).alt).toBe(true)
+    expect(mon(b, 'opp', 0).obs ?? []).toEqual([])
+    expect(an.fixedAmount('mine')).toBeNull()
     moveAction(b, 'mine', 0, 'earthquake')
     expect(an.mineActionPreview.value!.disguise).toBe(false)
+  })
+
+  it('내 따라큐가 맞으면 받은 데미지는 최대 HP 1/8 로 정해짐, 연속기·틀깨기는 아님', () => {
+    const b = setup(
+      'single',
+      [slot('mimikyu', { ability: 'disguise' })],
+      [slot('excadrill', { moves: ['ironhead', 'rockblast'] })],
+    )
+    b.sendOut('opp', 0, 0)
+    const an = useBattleAnalysis(b)
+    moveAction(b, 'opp', 0, 'ironhead')
+    expect(an.fixedAmount('opp')).toBe(Math.floor(b.maxHp('mine', 0) / 8))
+    moveAction(b, 'opp', 0, 'rockblast')
+    expect(an.fixedAmount('opp')).toBeNull()
+    useTeam('opp').slots.value[0]!.ability = 'moldbreaker'
+    moveAction(b, 'opp', 0, 'ironhead')
+    expect(an.fixedAmount('opp')).toBeNull()
   })
 })
 

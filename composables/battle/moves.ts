@@ -570,6 +570,14 @@ export function createMoves(b: BattleCore & BattleQueries & BattleField & Battle
     // 연속기는 맞은 횟수를 알 수 없어 제외
     const atkC = combatantOf(side, userIdx, undefined, true)
     if (!atkC || hitInfo(move, atkC, !!opts.spread).max > 1) return
+    // 둔갑이 막은 공격은 최대 HP 1/8 고정이라 실능치와 무관
+    const tm = mon(foe, targetIdx)
+    if (
+      resolveAt(foe, targetIdx)?.ability === 'disguise' &&
+      !tm.alt &&
+      atkC.ability !== 'moldbreaker'
+    )
+      return
     // 쓰러뜨렸으면 알 수 있는 건 "남은 HP 이상" 뿐 → 입력값이 남은 HP 보다 커도 남은 HP 로 기록
     const left = side === 'mine' ? om.hp : mm.hp
     // 내 포켓몬이 HP 가득에서 기합의띠·옹골참으로 1 남았으면 이것도 "그 이상" 만 안다
