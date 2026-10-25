@@ -15,7 +15,14 @@
         </p>
       </div>
       <div class="head-actions">
-        <span v-if="blocker" class="warn-text small">{{ blocker }}</span>
+        <!-- 성별 미입력 (내 쪽은 파티 완성 조건이라 막음, 상대는 경고만) -->
+        <span v-if="mineGenderNames" class="warn-text small">{{
+          t('party.genderMissing', { names: mineGenderNames })
+        }}</span>
+        <span v-if="oppGenderNames" class="warn-text small">{{
+          t('entry.oppGenderMissing', { names: oppGenderNames })
+        }}</span>
+        <span v-if="blocker.trim()" class="warn-text small">{{ blocker }}</span>
         <NuxtLink
           :to="`/${mode}/battle`"
           class="btn btn-primary"
@@ -40,23 +47,49 @@
           {{ t('common.mine') }}
           <span class="spacer" />
           <span class="muted small num">{{ entry.picks.value.length }}/{{ entry.max }}</span>
+          <button type="button" class="btn btn-sm" @click="foldAll('mine')">
+            {{ allFolded('mine') ? t('entry.unfoldAll') : t('entry.foldAll') }}
+          </button>
         </h2>
-        <TeamSlotCard
-          v-for="(s, i) in mine.slots.value"
-          :key="i"
-          :slot="s"
-          v-model:mega-on="mine.megaOn.value[i]"
-          v-model:alt-on="mine.altOn.value[i]"
-          mega-toggle
-          form-toggle
-          :order="entry.order(i)"
-          :dim="entry.isFull.value && entry.order(i) == null"
-          :spread="mode === 'double'"
-          :field="field"
-          clickable
-          @select="entry.toggle(i)"
-          @update:weather="field.weather = $event"
-        />
+        <template v-for="(s, i) in mine.slots.value" :key="i">
+          <BattleSlotMini
+            v-if="folded.mine[i]"
+            :slot="s"
+            :mega-on="mine.megaOn.value[i]"
+            :alt-on="mine.altOn.value[i]"
+            :order="entry.order(i)"
+            :dim="entry.isFull.value && entry.order(i) == null"
+            :warn="mine.missingGender.value.includes(i)"
+            selectable
+            @select="entry.toggle(i)"
+            @expand="folded.mine[i] = false"
+          />
+          <div v-else class="slot-wrap" :class="{ warn: mine.missingGender.value.includes(i) }">
+            <TeamSlotCard
+              :slot="s"
+              v-model:mega-on="mine.megaOn.value[i]"
+              v-model:alt-on="mine.altOn.value[i]"
+              mega-toggle
+              form-toggle
+              :order="entry.order(i)"
+              :dim="entry.isFull.value && entry.order(i) == null"
+              :spread="mode === 'double'"
+              :field="field"
+              clickable
+              @select="entry.toggle(i)"
+              @update:weather="field.weather = $event"
+            />
+            <button
+              type="button"
+              class="fold-btn"
+              :title="t('entry.fold')"
+              :aria-label="t('entry.fold')"
+              @click="folded.mine[i] = true"
+            >
+              ▴
+            </button>
+          </div>
+        </template>
       </section>
 
       <section class="col center-col">
@@ -125,34 +158,57 @@
           <button type="button" class="btn btn-sm btn-danger" @click="opp.reset()">
             {{ t('common.reset') }}
           </button>
+          <button type="button" class="btn btn-sm" @click="foldAll('opp')">
+            {{ allFolded('opp') ? t('entry.unfoldAll') : t('entry.foldAll') }}
+          </button>
         </h2>
         <!-- 자동 배치에 쓰는 사용률 통계의 출처·시점 -->
         <TeamUsageSource :kind="mode" />
-        <TeamSlotEditor
-          v-for="(_, i) in opp.slots.value"
-          :key="i"
-          v-model:slot="opp.slots.value[i]!"
-          v-model:mega-on="opp.megaOn.value[i]!"
-          v-model:alt-on="opp.altOn.value[i]!"
-          v-model:field-weather="field.weather"
-          :usage-kind="mode"
-          :index="i"
-          auto-set
-          :species-ids="reg.selectableSpecies.value"
-          :exclude-species="
-            opp.slots.value
-              .filter((_, j) => j !== i)
-              .map((s) => s.species)
-              .filter(Boolean)
-          "
-          :exclude-items="
-            opp.slots.value
-              .filter((_, j) => j !== i)
-              .map((s) => s.item)
-              .filter(Boolean)
-          "
-          compact
-        />
+        <template v-for="(_, i) in opp.slots.value" :key="i">
+          <BattleSlotMini
+            v-if="folded.opp[i]"
+            :slot="opp.slots.value[i]!"
+            :mega-on="opp.megaOn.value[i]!"
+            :alt-on="opp.altOn.value[i]"
+            :index="i"
+            :warn="oppMissingGender.includes(i)"
+            @expand="folded.opp[i] = false"
+          />
+          <div v-else class="slot-wrap opp-wrap" :class="{ warn: oppMissingGender.includes(i) }">
+            <TeamSlotEditor
+              v-model:slot="opp.slots.value[i]!"
+              v-model:mega-on="opp.megaOn.value[i]!"
+              v-model:alt-on="opp.altOn.value[i]!"
+              v-model:field-weather="field.weather"
+              :usage-kind="mode"
+              :index="i"
+              auto-set
+              :species-ids="reg.selectableSpecies.value"
+              :exclude-species="
+                opp.slots.value
+                  .filter((_, j) => j !== i)
+                  .map((s) => s.species)
+                  .filter(Boolean)
+              "
+              :exclude-items="
+                opp.slots.value
+                  .filter((_, j) => j !== i)
+                  .map((s) => s.item)
+                  .filter(Boolean)
+              "
+              compact
+            />
+            <button
+              type="button"
+              class="fold-btn"
+              :title="t('entry.fold')"
+              :aria-label="t('entry.fold')"
+              @click="folded.opp[i] = true"
+            >
+              ▴
+            </button>
+          </div>
+        </template>
       </section>
     </div>
   </div>
@@ -206,7 +262,38 @@ const oppResolved = computed(() =>
   ),
 )
 
+// ── 슬롯 접기 (스크롤을 줄이려고 — 화면을 옮겨도 유지) ─────────────
+const folded = useState('entry-folded', () => ({
+  mine: Array(6).fill(false) as boolean[],
+  opp: Array(6).fill(false) as boolean[],
+}))
+const allFolded = (side: 'mine' | 'opp') => folded.value[side].every(Boolean)
+const foldAll = (side: 'mine' | 'opp') => {
+  folded.value[side] = Array(6).fill(!allFolded(side))
+}
+
+// ── 성별 미입력 (선출 전에 확인할 수 있는 정보) ─────────────
+// 내 쪽은 파티 완성 조건(useTeam.missingGender), 상대는 성별이 둘 다 가능한 종인데 안 고른 슬롯 → 붉은 테두리 + 경고(막지는 않음)
+const oppMissingGender = computed(() =>
+  opp.slots.value
+    .map((s, i) => ({ s, i }))
+    .filter(({ s }) => {
+      const p = s.species ? gd.pokemon(s.species) : null
+      return !!p && !p.gender && !s.gender
+    })
+    .map(({ i }) => i),
+)
+const namesOf = (slots: { species: string }[], idx: number[]) =>
+  idx.map((i) => gd.name('pokemon', slots[i]!.species)).join(', ')
+const mineGenderNames = computed(() => namesOf(mine.slots.value, mine.missingGender.value))
+const oppGenderNames = computed(() => namesOf(opp.slots.value, oppMissingGender.value))
+
 const blocker = computed(() => {
+  // 성별만 빠졌으면 위의 성별 안내로 충분 (버튼은 막지만 문구는 하나만)
+  const onlyGender =
+    mine.slots.value.every((s) => s.species && s.moves.some(Boolean)) &&
+    mine.missingGender.value.length > 0
+  if (onlyGender) return ' '
   if (!mine.isComplete.value) return t('home.partyIncomplete')
   if (!opp.slots.value.every((s) => s.species)) return t('entry.needOpponent')
   if (!entry.isFull.value) return t('entry.needPick', { n: entry.max })
@@ -223,6 +310,41 @@ const blocker = computed(() => {
 }
 .head-actions .btn {
   text-decoration: none;
+}
+/* 펼친 슬롯: 오른쪽 위 접기 버튼, 성별 미입력은 붉은 테두리 */
+.slot-wrap {
+  position: relative;
+  border-radius: var(--radius);
+}
+.slot-wrap.warn > :first-child {
+  border-color: var(--bad);
+  box-shadow: 0 0 0 1px var(--bad);
+}
+.fold-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  border: 1px solid var(--line);
+  background: var(--well);
+  color: var(--text-2);
+  border-radius: 6px;
+  width: 22px;
+  height: 22px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  line-height: 1;
+}
+.fold-btn:hover {
+  background: var(--hover);
+}
+/* 내 카드의 선출 순서 배지·상대 입력의 머리줄이 접기 버튼과 겹치지 않게 */
+.slot-wrap :deep(.order) {
+  right: 34px;
+}
+.opp-wrap :deep(.slot-head) {
+  padding-right: 24px;
 }
 .btn.disabled {
   opacity: 0.4;

@@ -135,11 +135,17 @@ export interface HitsUsed {
   parentalBond: boolean
 }
 
-function hitOutcomes(move: Move, ability: string, item: string): HitOutcome[] | null {
+// hitAcc: 두 번째부터의 명중률 (0~1). 생략하면 기술 명중 × 특성 (배틀 계산은 날씨·랭크 등을 반영한 값을 넘긴다)
+function hitOutcomes(
+  move: Move,
+  ability: string,
+  item: string,
+  hitAcc?: number,
+): HitOutcome[] | null {
   const skillLink = ability === 'skilllink'
   const dice = item === 'loadeddice'
   const acc = effectiveAccuracy(move, ability)
-  const a = acc == null ? 1 : Math.min(1, acc / 100) // 두 번째부터의 명중
+  const a = hitAcc ?? (acc == null ? 1 : Math.min(1, acc / 100)) // 두 번째부터의 명중
   if (move.id === 'tripleaxel' || move.id === 'triplekick') {
     const pw = move.id === 'tripleaxel' ? [20, 40, 60] : [10, 20, 30]
     const f = [1, (pw[0]! + pw[1]!) / pw[0]!, (pw[0]! + pw[1]! + pw[2]!) / pw[0]!]
@@ -178,8 +184,8 @@ function hitOutcomes(move: Move, ability: string, item: string): HitOutcome[] | 
   return Array.from({ length: n }, (_, i) => ({ hits: mh.min + i, factor: mh.min + i, p: 1 / n }))
 }
 
-export function hitsUsed(move: Move, ability = '', item = ''): HitsUsed | null {
-  const outcomes = hitOutcomes(move, ability, item)?.filter((o) => o.p > 0)
+export function hitsUsed(move: Move, ability = '', item = '', hitAcc?: number): HitsUsed | null {
+  const outcomes = hitOutcomes(move, ability, item, hitAcc)?.filter((o) => o.p > 0)
   if (!outcomes?.length) return null
   return {
     outcomes,

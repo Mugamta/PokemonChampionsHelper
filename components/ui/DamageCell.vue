@@ -29,7 +29,8 @@
         guessText
       }}</span>
       <span v-if="cell.sub" class="muted hits" :title="t('battle.subHint', { hp: cell.sub.hp })">{{
-        t('battle.subCell', { hp: cell.sub.hp })
+        t('battle.subCell', { hp: cell.sub.hp }) +
+        (cell.sub.breakP != null ? ` · ${t('battle.subBreak', { p: pct1(cell.sub.breakP) })}` : '')
       }}</span>
       <span
         v-if="showEff && cell.effectiveness !== 1"
@@ -93,21 +94,27 @@ const guessText = computed(() => {
 })
 // 실전 KO: 명중이나 급소·무작위 위력 때문에 확률이 달라질 때만
 const pctInt = (v: number) => Number((v * 100).toFixed(v < 0.1 ? 1 : 0))
+// 확률(%) 표시: 소수 한 자리 (거의 100 은 100)
+const pct1 = (v: number) => (v >= 99.95 ? '100' : v < 0.1 && v > 0 ? '<0.1' : v.toFixed(1))
 const realText = computed(() => {
   const c = props.cell
   // 배분 범위에 따라 KO 판정이 갈리면 생략 (실전 확률은 불리한 쪽 기준이라 헷갈림)
-  if (!c || c.koReal == null || !c.ko || koSpan.value) return ''
-  if (Math.abs(c.koReal - c.ko.percent) < 0.05) return ''
-  return t('battle.ko.real', {
-    p: c.koReal >= 99.95 ? '100' : c.koReal < 0.1 ? '<0.1' : c.koReal.toFixed(1),
-  })
+  if (!c || c.koReal == null || koSpan.value) return ''
+  const p = c.koReal >= 99.95 ? '100' : c.koReal < 0.1 ? '<0.1' : c.koReal.toFixed(1)
+  // 연속기: 타수·히트별 급소까지 섞은 확률 (한 번에 못 쓰러뜨리면 몇 번 써야 하는지와 함께)
+  if (c.hits) {
+    if (c.koRealUses > 1) return t('battle.ko.realUses', { n: c.koRealUses, p })
+    return t('battle.ko.real', { p })
+  }
+  if (!c.ko || Math.abs(c.koReal - c.ko.percent) < 0.05) return ''
+  return t('battle.ko.real', { p })
 })
 const realHint = computed(() => {
   const c = props.cell
   if (!c) return ''
   return (
-    t('battle.ko.realHint', {
-      n: c.ko?.hits ?? 1,
+    t(c.hits ? 'battle.ko.realHintMulti' : 'battle.ko.realHint', {
+      n: c.hits ? c.koRealUses : (c.ko?.hits ?? 1),
       acc: pctInt(c.hitChance),
       crit: pctInt(c.critChance),
     }) + (c.fickle ? ` · ${t('battle.fickle')}` : '')

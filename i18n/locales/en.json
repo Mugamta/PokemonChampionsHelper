@@ -239,7 +239,12 @@
     "needOpponent": "Enter all 6 opposing Pokémon",
     "needPick": "Pick {n} of your Pokémon",
     "autoSet": "Auto-fill",
-    "autoSetHint": "Refill the opponents' ability, item, nature, stat points and moves (overwrites manual edits). Also filled automatically when you pick a Pokémon. Pokémon in the current regulation's usage stats (source below) get their most used set; others are filled by power/bulk ratio rules. Either way it is a guess and is not treated as confirmed in battle"
+    "autoSetHint": "Refill the opponents' ability, item, nature, stat points and moves (overwrites manual edits). Also filled automatically when you pick a Pokémon. Pokémon in the current regulation's usage stats (source below) get their most used set; others are filled by power/bulk ratio rules. Either way it is a guess and is not treated as confirmed in battle",
+    "fold": "Collapse",
+    "unfold": "Expand",
+    "foldAll": "Collapse all",
+    "unfoldAll": "Expand all",
+    "oppGenderMissing": "Opponent gender not set: {names} (visible in game)"
   },
   "battle": {
     "titleSingle": "Single Battle",
@@ -351,7 +356,9 @@
       "orderSureTie": "※ Opponent Speed {span}, you {my} — a Speed tie is possible, in which case the order is random.",
       "orderUnknown": "※ Opponent Speed {span} overlaps your {my}, so the order is unknown. Pick the actual order under \"Turn order\".",
       "orderUnknownPlain": "※ The move order is unknown. Pick the actual order under \"Turn order\".",
-      "orderRandom": "※ Quick Claw (also possible while the opponent's item is unconfirmed) or Quick Draw can change the order."
+      "orderRandom": "※ Quick Claw (also possible while the opponent's item is unconfirmed) or Quick Draw can change the order.",
+      "subMaybeP": "→ {name}'s substitute (HP {hp}) breaks with {p}% chance. The Pokémon itself takes no damage.",
+      "subMulti": "→ {name}'s substitute (HP {hp}) takes the hits first; once it breaks, the remaining hits hit the Pokémon ({p}% chance to break)."
     },
     "multiHit": {
       "fixed": "{n} hits",
@@ -371,7 +378,9 @@
       "sure": "guaranteed {n}HKO",
       "chance": "{p}% chance to {n}HKO",
       "real": "Real {p}%",
-      "realHint": "Chance to KO within {n} hit(s) including accuracy {acc}% and crit {crit}%"
+      "realHint": "Chance to KO within {n} hit(s) including accuracy {acc}% and crit {crit}%",
+      "realUses": "Real {p}% in {n} uses",
+      "realHintMulti": "Chance to KO within {n} use(s) including accuracy {acc}%, crit {crit}% per hit and the hit count"
     },
     "spreadNote": "0.75× spread applied",
     "focus": "Analysis target",
@@ -530,7 +539,11 @@
       "lastUsed": "Last move used"
     },
     "calledMove": "Called move",
-    "calledUnknown": "Unknown (only the caller is applied)"
+    "calledUnknown": "Unknown (only the caller is applied)",
+    "subBreak": "breaks {p}%",
+    "amountWarn": "⚠ Outside the expected range {min}–{max}{unit}. Check item, ability, crit and stat stages (you can still apply the turn)",
+    "fxSelf": "Self",
+    "fxSure": "Always happens on hit (applied automatically)"
   },
   "help": {
     "title": "Help",

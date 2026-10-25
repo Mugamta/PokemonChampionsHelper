@@ -182,13 +182,7 @@
                 </div>
                 <div v-else class="amount">
                   <span class="section-label amount-head"
-                    >{{
-                      spreadOther(side, slot) != null
-                        ? t(side === 'mine' ? 'battle.dealtPctTo' : 'battle.takenDmgTo', {
-                            name: targetName(side, a.target, slot),
-                          })
-                        : t(side === 'mine' ? 'battle.dealtPct' : 'battle.takenDmg')
-                    }}
+                    >{{ amountLabel(side, a.target, slot) }}
                     <!-- 급소였으면 체크 (상대 추정에 반영) / 빗나감·실패 -->
                     <label class="crit" :title="t('battle.critHint')">
                       <input v-model="a.crit" type="checkbox" />
@@ -218,6 +212,9 @@
                   <span v-if="subText(side, slot, a.target)" class="muted small">
                     {{ subText(side, slot, a.target) }}
                   </span>
+                  <span v-if="warnText(side, slot, a.target, a.amount)" class="bad-text small">
+                    {{ warnText(side, slot, a.target, a.amount) }}
+                  </span>
                 </div>
                 <!-- 내 흡수기: 흡수로 회복한 직후 HP (상대가 잃은 실수치 HP → 상대 HP 배분 추정) -->
                 <div v-if="side === 'mine' && b.drainObservable(slot)" class="amount">
@@ -246,11 +243,26 @@
                     </span>
                   </div>
                 </div>
-                <!-- 이 기술·도구·특성으로 맞은 쪽에게 생긴 확률 효과 (생길 수 있는 것만, 확정 효과는 자동) -->
-                <div v-if="inflictOpts(side, slot, a.target).length" class="fx-row">
+                <!-- 이 기술·도구·특성으로 생긴 부가효과: 확정(100%)은 체크 고정(자동 반영), 확률 효과는 생겼으면 체크 -->
+                <div
+                  v-if="
+                    inflictOpts(side, slot, a.target).length ||
+                    sureOpts(side, slot, a.target).length
+                  "
+                  class="fx-row"
+                >
                   <span class="section-label">{{
                     t('battle.inflictOnTarget', { name: targetName(side, a.target, slot) })
                   }}</span>
+                  <label
+                    v-for="k in sureOpts(side, slot, a.target)"
+                    :key="'s' + k"
+                    class="crit sure"
+                    :title="t('battle.fxSure')"
+                  >
+                    <input type="checkbox" checked disabled />
+                    {{ fxLabel(k) }}
+                  </label>
                   <label v-for="k in inflictOpts(side, slot, a.target)" :key="k" class="crit">
                     <input
                       type="checkbox"
@@ -278,11 +290,7 @@
                 </div>
                 <!-- 더블 광역기: 다른 상대 칸이 받은 피해 -->
                 <div v-if="spreadOther(side, slot) != null" class="amount">
-                  <span class="section-label">{{
-                    t(side === 'mine' ? 'battle.dealtPctTo' : 'battle.takenDmgTo', {
-                      name: targetName(side, 1 - a.target, slot),
-                    })
-                  }}</span>
+                  <span class="section-label">{{ amountLabel(side, 1 - a.target, slot) }}</span>
                   <BattleDamageInput
                     v-model="a.amount2"
                     v-bind="hpOf(side, 1 - a.target, slot)"
@@ -291,16 +299,30 @@
                   <span v-if="subText(side, slot, 1 - a.target)" class="muted small">
                     {{ subText(side, slot, 1 - a.target) }}
                   </span>
+                  <span v-if="warnText(side, slot, 1 - a.target, a.amount2)" class="bad-text small">
+                    {{ warnText(side, slot, 1 - a.target, a.amount2) }}
+                  </span>
                 </div>
                 <div
                   v-if="
-                    spreadOther(side, slot) != null && inflictOpts(side, slot, 1 - a.target).length
+                    spreadOther(side, slot) != null &&
+                    (inflictOpts(side, slot, 1 - a.target).length ||
+                      sureOpts(side, slot, 1 - a.target).length)
                   "
                   class="fx-row"
                 >
                   <span class="section-label">{{
                     t('battle.inflictOnTarget', { name: targetName(side, 1 - a.target, slot) })
                   }}</span>
+                  <label
+                    v-for="k in sureOpts(side, slot, 1 - a.target)"
+                    :key="'s' + k"
+                    class="crit sure"
+                    :title="t('battle.fxSure')"
+                  >
+                    <input type="checkbox" checked disabled />
+                    {{ fxLabel(k) }}
+                  </label>
                   <label v-for="k in inflictOpts(side, slot, 1 - a.target)" :key="k" class="crit">
                     <input
                       type="checkbox"
@@ -459,6 +481,7 @@ import {
   CALLER_MOVES,
   CANT_DAMAGE_REASONS,
   CANT_REASONS,
+  parseBoostKey,
   type ActionState,
   type BattleSide,
   type useBattle,
@@ -587,17 +610,24 @@ const targetName = (side: BattleSide, k: number, slot?: number) => {
   const r = props.b.resolveAt(foe, i)
   return r ? gd.name('pokemon', r.species.id) : '—'
 }
+// 데미지 입력칸 제목: "○○에게 입힌 데미지 (%)" / "○○이(가) 받은 데미지" (맞는 포켓몬을 모르면 이름 없이)
+const amountLabel = (side: BattleSide, k: number, slot: number) => {
+  const name = targetName(side, k, slot)
+  if (name === '—') return t(side === 'mine' ? 'battle.dealtPct' : 'battle.takenDmg')
+  return t(side === 'mine' ? 'battle.dealtPctTo' : 'battle.takenDmgTo', { name })
+}
 // 잠든 뒤 첫 시도(잠자기는 2번째까지)는 반드시 행동 불가 → 잠꼬대·코골기 외 기술은 나가지 않음 (턴 적용도 같은 규칙)
 const mustSleep = (side: BattleSide, slot: number) => {
   const a = s.value.actions[side][slot]
   const i = userIdx(side, slot)
   return !!a && a.kind === 'move' && i != null && props.b.sleepsThrough(side, i, a.via || a.move)
 }
+// 메가진화는 진영당 한 번: 이미 메가진화했거나, 더블에서 다른 칸이 이번 턴 메가진화를 체크했으면 없음
 const canMega = (side: BattleSide, slot: number) => {
   const i = userIdx(side, slot)
   if (i == null) return false
-  const m = s.value.sides[side].mons[i]!
-  return !!userOf(side, slot)?.megaId && !m.megaUsed
+  const other = s.value.actions[side][1 - slot]
+  return !!userOf(side, slot)?.megaId && props.b.canMegaEvolve(side, i) && !other?.useMega
 }
 
 // 행동 종류를 바꾸면 입력한 HP 값은 비움 (기술 데미지 ↔ 행동 불가로 잃은 HP 는 단위가 다름)
@@ -828,10 +858,18 @@ const hpOf = (side: BattleSide, k: number, slot: number) => {
     ? { unit: 'pct' as const, current: hp, max: 100 }
     : { unit: 'hp' as const, current: hp, max: i == null ? 0 : props.b.maxHp('mine', i) }
 }
+// 입력한 데미지가 계산 범위 밖이면 경고 (막지는 않음 — 도구·특성·급소를 잘못 알고 있을 수 있음)
+const warnText = (side: BattleSide, slot: number, k: number, amount: number | null) => {
+  const w = props.an.amountWarning(side, slot, k, amount, hpOf(side, k, slot).current)
+  return w ? t('battle.amountWarn', { ...w, unit: side === 'mine' ? '%' : '' }) : ''
+}
 // ── 이번 턴 확률 효과 체크 ─────────────
 // 맞는 상대(k칸): hitIdx (교체·교체기로 들어오는 포켓몬 포함)
 const inflictOpts = (side: BattleSide, slot: number, k: number) =>
   props.b.possibleInflicts(side, slot, hitIdx(side, slot, k))
+// 맞으면 반드시 생기는 효과 (매지컬플레임 특공 −1 등) — 체크 고정으로 표시만
+const sureOpts = (side: BattleSide, slot: number, k: number) =>
+  props.b.sureInflicts(side, slot, hitIdx(side, slot, k))
 const contactOpts = (side: BattleSide, slot: number) => {
   const a = s.value.actions[side][slot]
   return a ? props.b.possibleContactInflicts(side, slot, hitIdx(side, slot, a.target)) : []
@@ -841,7 +879,18 @@ const contactAbility = (side: BattleSide, slot: number) => {
   const r = a ? props.b.resolveAt(foeOf(side), hitIdx(side, slot, a.target)) : null
   return r ? gd.name('abilities', r.ability) : ''
 }
-const fxLabel = (k: string) =>
+// 랭크 변화 키는 "특방 −1" / "자신 공격 +1"
+const fxLabel = (k: string) => {
+  const bk = parseBoostKey(k)
+  if (bk) {
+    const text = bk.stats
+      .map(([st, v]) => `${t('stat.' + st)} ${v > 0 ? '+' : '−'}${Math.abs(v)}`)
+      .join(' ')
+    return bk.target === 'self' ? `${t('battle.fxSelf')} ${text}` : text
+  }
+  return fxStatusLabel(k)
+}
+const fxStatusLabel = (k: string) =>
   k === 'flinch'
     ? t('battle.chance.flinch')
     : k === 'confusion' || k === 'attract'
@@ -1027,6 +1076,10 @@ const errMax = computed(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+.crit.sure {
+  cursor: default;
+  color: var(--text-2);
 }
 .crit {
   display: inline-flex;

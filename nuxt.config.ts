@@ -65,7 +65,7 @@ export default defineNuxtConfig({
   // 화면 문구 다국어 (게임 데이터 이름은 public/data/names.{locale}.json 을 useGameData 가 따로 로드)
   i18n: {
     strategy: 'no_prefix', // GitHub Pages 정적 배포라서 URL은 그대로 두고 쿠키로 언어 유지
-    defaultLocale: 'ko',
+    defaultLocale: 'en',
     langDir: 'locales',
     locales: [
       { code: 'ko', language: 'ko-KR', name: '한국어', file: 'ko.ts' },

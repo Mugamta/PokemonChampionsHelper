@@ -17,7 +17,7 @@ node scripts/build-data.mjs --refresh   # 캐시 무시하고 소스 다시 받�
 | (규칙) | **챔피언스 PP** = Showdown 챔피언스 기본 PP 를 5→8, 10→12, 15→16, 20 이상→20 으로 변환 (PP 는 8/12/16/20 네 단계, 1 은 그대로). Serebii 512개 기술과 전부 일치 확인 |
 | `scripts/sources/champions-pp.json` | PP 예외 덮어쓰기 (보통 `{}`). `{ id: pp }` 또는 `{ id: { pp, estimated: true } }` |
 | `scripts/sources/item-names-ko.json` | PokeAPI 에 한국어 이름이 없는 도구 (챔피언스 신규 메가스톤 등) |
-| `scripts/sources/regulation/*.json` | 레귤레이션 기간과 출전 가능 도감코드 목록 (`index.json` 에 파일명 등록) |
+| `scripts/sources/regulation/*.json` | 레귤레이션 기간과 출전 가능 도감코드 목록, 새 메가스톤(`new_mega_stones`) (`index.json` 에 파일명 등록) |
 | Bulbagarden Archives | 스프라이트: `Category:Champions menu sprites`, `Category:Champions Bag sprites` |
 
 op.gg 는 자동 수집을 차단(CloudFront 403)하므로 쓰지 않는다.
@@ -30,7 +30,7 @@ op.gg 는 자동 수집을 차단(CloudFront 403)하므로 쓰지 않는다.
 | `moves.json` | `{ id: { id, num, type, category, power, accuracy\|null, pp, ppEstimated?, priority, target, flags[], effects[] } }` — effects 는 `utils/types.ts MoveEffect`. flags 는 계산에 쓰는 것만 (접촉/펀치/소리 등 + 부자유친 제외용 charge/futuremove/noparentalbond + 매직미러 반사용 reflectable + 대타 무시 bypasssub) |
 | `items.json` | `{ id: { id, num, megaStone?{원종id: 메가id}, berry? } }` |
 | `abilities.json`, `natures.json`, `types.json` | 특성 목록 / `{ plus, minus }` / `{ types[], chart[공격][방어] }` |
-| `regulations.json` | `[{ id, start, end, rules, pokemon[id] }]` |
+| `regulations.json` | `[{ id, start, end, rules, pokemon[id], newMegaStones[item id] }]` |
 | `usage.json` | `{ single | double: { [레귤레이션 id]: { format, month, battles, pokemon: { [폼 id]: { count, usage, moves[4], moveShare[4], moveUsage{기술: 비율}, nature, sp[H,A,B,C,D,S], spreadShare, ability, abilityUsage{특성: 비율}, items[3], itemShare[3], itemUsage{도구: 비율} } } } } }` (`usage` = 팀 채용률 0~1·전체 합 6, `*Share` = 그 포켓몬 안에서의 비율 0~1, 분모는 특성 수치 합) — Smogon 월별 사용률 통계(싱글 `gen9championsbssreg<id>`, 더블 VGC 1판 `gen9championsvgc<연도>reg<id>` — bo3 제외, 레이팅 가중 1500, 가장 최근 달). 예전 형식(레귤레이션 → 표)은 읽을 때 싱글로 간주(useGameData). 사용 수 200 미만 제외. 선출 화면 상대 자동 배치(그 화면의 배틀 모드), 첫 화면 TOP 6·도감·파티 통계 추천(사용자가 고른 종류, `useUsageKind`)에 사용. 받기 실패하면 기존 파일 유지, 새 달 반영은 `--refresh`. 화면에는 출처(포맷·자료 월·배틀 수)를 선출 화면·상대 슬롯·소개 페이지에 표시 (게임 내 랭크배틀 통계가 아니므로) |
 | `names.{ko,en,ja}.json` | `{ pokemon, moves, abilities, items, natures, types }` 각각 `{ id: 이름 }` |
 | `texts.{ko,en,ja}.json` | `{ moves, abilities, items }` 설명문 |
@@ -54,6 +54,7 @@ node scripts/verify-data.mjs --dex   # + 포켓몬별 종족값·습득 기술·
 
 **새 레귤레이션**: Showdown 이 반영되면
 1. `scripts/sources/regulation/M-X.json` 추가 (`period`, `rules`, `pokemon_list` 도감코드 `"0026-001"`) + `index.json` 에 등록
+   새로 쓸 수 있게 된 메가스톤이 있으면 `new_mega_stones` (도구 id 배열, 예 `"absolitez"`) — 성능표 "신규" 표시용
 2. `node scripts/build-data.mjs --refresh --sprites`
 3. 경고(이름 없음/스프라이트 없음/PP 추정)를 확인하고 `scripts/sources/*.json` 보강 → 다시 빌드
 4. `npm test`, 화면 확인

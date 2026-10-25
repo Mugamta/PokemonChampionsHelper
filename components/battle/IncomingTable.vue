@@ -1,4 +1,5 @@
-<!-- 상대(분석 대상)의 기술 4개 × 내 로스터 받는 데미지. 기술은 여기서 바로 고칠 수 있다 (상대 파티에 저장) -->
+<!-- 상대(분석 대상)의 기술 4개 × 내 로스터 받는 데미지. 기술은 여기서 바로 고칠 수 있다 (상대 파티에 저장).
+     아직 메가진화하지 않은 쪽은 메가 폼도 함께 (내 쪽 = 열 추가, 상대 = 기술 줄 추가) -->
 <template>
   <section class="panel panel-pad">
     <h3 class="panel-title">
@@ -53,6 +54,26 @@
               />
             </td>
           </tr>
+          <template v-if="oppMega">
+            <tr>
+              <td class="mv-col">
+                <div class="att">
+                  <UiPokeSprite :id="b.resolveAt('opp', oi, true)?.species.id || null" :size="34" />
+                  <span>{{ gd.name('pokemon', b.resolveAt('opp', oi, true)?.species.id) }}</span>
+                </div>
+              </td>
+              <td v-for="c in cols" :key="c.key" />
+            </tr>
+            <tr v-for="mv in oppSlot.moves.filter(Boolean)" :key="'m' + mv">
+              <td class="mv-col mega-mv">{{ gd.name('moves', mv) }}</td>
+              <td v-for="c in cols" :key="c.key">
+                <UiDamageCell
+                  :cell="an.oppVsMine(oi, mv, c.idx, crit, c.mega, false, true)"
+                  show-eff
+                />
+              </td>
+            </tr>
+          </template>
         </tbody>
       </table>
     </div>
@@ -80,17 +101,17 @@ const attacker = computed(() =>
 )
 const oppSlot = computed(() => (oi.value == null ? null : oppTeam.slots.value[oi.value]))
 
-// 내 로스터 전체 + 필드의 내 포켓몬이 아직 메가진화 전이면 메가 상태 열 추가
+// 내 로스터 전체 + 아직 메가진화하지 않았고 메가진화할 수 있는 포켓몬(대기 중 포함)은 메가 상태 열 추가
 const cols = computed(() => {
   const out: { key: string; idx: number; mega?: boolean }[] = []
-  s.value.sides.mine.mons.forEach((m, i) => {
+  s.value.sides.mine.mons.forEach((_, i) => {
     out.push({ key: `${i}`, idx: i })
-    const active = s.value.sides.mine.active.includes(i)
-    if (active && !m.megaOn && props.b.resolveAt('mine', i, true)?.isMega)
-      out.push({ key: `${i}m`, idx: i, mega: true })
+    if (props.an.megaPreviewable('mine', i)) out.push({ key: `${i}m`, idx: i, mega: true })
   })
   return out
 })
+// 상대가 아직 메가진화 전이면 메가 폼의 기술 줄도
+const oppMega = computed(() => oi.value != null && props.an.megaPreviewable('opp', oi.value))
 </script>
 
 <style scoped>
@@ -129,6 +150,10 @@ td {
   left: 0;
   background: var(--panel-solid);
   z-index: 1;
+}
+.mega-mv {
+  padding-left: 16px;
+  color: var(--text-2);
 }
 .att {
   display: flex;

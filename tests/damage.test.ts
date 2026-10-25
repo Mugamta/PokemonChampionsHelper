@@ -39,6 +39,7 @@ type Side = {
   hpPercent?: number
   abilityOn?: boolean // 애널라이즈(나중 행동) / 잠복(대상 교체 등장)
   alliesFainted?: number
+  gender?: 'M' | 'F' | 'N'
 }
 type Case = {
   name: string
@@ -78,6 +79,7 @@ const mkOurs = (s: Side): Combatant => {
     status: s.status || '',
     boosts: s.boosts,
     hp: s.hpPercent ? Math.floor((stats.hp * s.hpPercent) / 100) : undefined,
+    gender: s.gender,
   }
 }
 function ours(c: Case) {
@@ -113,6 +115,7 @@ function smogonResult(c: Case, power: number) {
       boosts: s.boosts,
       abilityOn: s.abilityOn,
       alliesFainted: s.alliesFainted,
+      gender: s.gender,
     })
     if (s.hpPercent) p.originalCurHP = Math.floor((p.maxHP() * s.hpPercent) / 100)
     return p
@@ -771,6 +774,19 @@ const cases: Case[] = [
     move: 'shellsidearm',
   },
 ]
+
+// 라이벌의식: 같은 성별 1.25배 / 다른 성별 0.75배 / 무성이면 그대로
+for (const [name, a, d] of [
+  ['같은 성별', 'M', 'M'],
+  ['다른 성별', 'M', 'F'],
+  ['상대 무성', 'F', 'N'],
+] as const)
+  cases.push({
+    name: `라이벌의식 ${name}`,
+    atk: { species: 'luxray', sp: { atk: MAX }, nature: 'adamant', ability: 'rivalry', gender: a },
+    def: { species: 'garchomp', sp: { hp: MAX }, gender: d },
+    move: 'crunch',
+  })
 
 describe('calcDamage vs @smogon/calc (Gen 9, Lv50)', () => {
   for (const c of cases.filter((x) => data.pokemon[x.atk.species] && data.pokemon[x.def.species])) {

@@ -1,6 +1,14 @@
 {
     "period": "2026/09/09 11:00 ~ 2026/12/02 10:59",
     "rules": "Mega Evolution",
+    "new_mega_stones": [
+        "absolitez",
+        "garchompitez",
+        "lucarionitez",
+        "golisopite",
+        "baxcalibrite",
+        "meowsticite"
+    ],
     "pokemon_list": [
         "0003-000",
         "0006-000",

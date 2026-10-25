@@ -13,7 +13,7 @@ export interface PerfMon {
   form: Pokemon // 내구·스피드 계산 폼 (돌핀맨 → 마이티폼)
   atkForm: Pokemon // 결정력 계산 폼 (킬가르도 → 블레이드폼)
   learnset: string[]
-  isNew: boolean // 직전 레귤레이션에 없던 포켓몬 (메가는 원종 기준)
+  isNew: boolean // 직전 레귤레이션에 없던 포켓몬 (메가는 원종 기준) 또는 새로 추가된 메가스톤의 메가
 }
 
 export function usePerfList() {
@@ -57,7 +57,9 @@ export function usePerfList() {
         num: p.num,
         ...formsOf(p),
         learnset: toRaw(gd.learnset(p.id)),
-        isNew: newIds.value.has(p.mega?.from ?? p.id),
+        isNew:
+          newIds.value.has(p.mega?.from ?? p.id) ||
+          (!!p.mega && !!reg.active.value?.newMegaStones?.includes(p.mega.item)),
       }))
       .sort((a, b) => a.num - b.num || (a.form.mega ? 1 : 0) - (b.form.mega ? 1 : 0))
   })

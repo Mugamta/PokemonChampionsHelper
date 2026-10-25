@@ -243,6 +243,8 @@ for (const file of regIndex) {
     end,
     rules: r.rules,
     pokemon: [...new Set(ids)].sort(),
+    // 이 레귤레이션에서 처음 쓸 수 있게 된 메가스톤 (원종은 이전부터 있던 경우도 성능표 "신규"로 표시)
+    newMegaStones: r.new_mega_stones ?? [],
   })
 }
 
@@ -488,6 +490,9 @@ for (const id of Object.keys(baseItems).filter(isLegalItem).sort()) {
     ...(it.onPlate || it.onMemory ? {} : {}),
   }
 }
+for (const r of regulations)
+  for (const id of r.newMegaStones)
+    if (!items[id]?.megaStone) warn.push(`레귤레이션 ${r.id}: 메가스톤 아님 ${id}`)
 
 const natureIdent = apiIdent(csv.natures)
 const natureNamesApi = byLang(csv.nature_names, 'nature_id')

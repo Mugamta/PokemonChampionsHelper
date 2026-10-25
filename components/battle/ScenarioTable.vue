@@ -1,4 +1,5 @@
-<!-- 예상 데미지: 내 포켓몬(미리보기 대상)의 기술 × 상대 후보, 칸마다 상대 배분 4가지 시나리오 -->
+<!-- 예상 데미지: 내 포켓몬(미리보기 대상)의 기술 × 상대 후보, 칸마다 상대 배분 4가지 시나리오.
+     아직 메가진화하지 않은 쪽은 메가 폼도 함께 (내 쪽 = 미리보기 버튼 추가, 상대 = 열 추가) -->
 <template>
   <section class="panel panel-pad">
     <h3 class="panel-title">
@@ -11,18 +12,18 @@
     </h3>
     <div class="who">
       <button
-        v-for="i in roster"
-        :key="i"
+        v-for="w in roster"
+        :key="w.key"
         type="button"
         class="who-btn"
-        :class="{ active: i === previewIdx }"
-        :title="gd.name('pokemon', b.resolveAt('mine', i)?.species.id)"
-        @click="s.preview = i"
+        :class="{ active: w.idx === previewIdx && !!w.mega === previewMega }"
+        :title="gd.name('pokemon', b.resolveAt('mine', w.idx, w.mega)?.species.id)"
+        @click="pick(w.idx, !!w.mega)"
       >
         <UiPokeSprite
-          :id="b.resolveAt('mine', i)?.species.id || null"
+          :id="b.resolveAt('mine', w.idx, w.mega)?.species.id || null"
           :size="34"
-          :fainted="b.isFainted('mine', i)"
+          :fainted="b.isFainted('mine', w.idx)"
         />
       </button>
     </div>
@@ -31,14 +32,14 @@
         <thead>
           <tr>
             <th />
-            <th v-for="oi in oppCols" :key="oi">
+            <th v-for="c in oppCols" :key="c.key">
               <div class="col-head">
                 <UiPokeSprite
-                  :id="b.resolveAt('opp', oi)?.species.id || null"
+                  :id="b.resolveAt('opp', c.oi, c.mega)?.species.id || null"
                   :size="34"
-                  :fainted="b.isFainted('opp', oi)"
+                  :fainted="b.isFainted('opp', c.oi)"
                 />
-                <span>{{ gd.name('pokemon', b.resolveAt('opp', oi)?.species.id) }}</span>
+                <span>{{ gd.name('pokemon', b.resolveAt('opp', c.oi, c.mega)?.species.id) }}</span>
               </div>
             </th>
           </tr>
@@ -50,10 +51,13 @@
                 gd.name('moves', mv)
               }}
             </td>
-            <td v-for="oi in oppCols" :key="oi">
+            <td v-for="c in oppCols" :key="c.key">
               <div v-for="sc in DEF_SCENARIOS" :key="sc" class="sc-line">
                 <span class="sc-label">{{ t('battle.scenario.' + sc) }}</span>
-                <UiDamageCell :cell="an.mineVsScenario(previewIdx!, mv, oi, sc, crit)" compact />
+                <UiDamageCell
+                  :cell="an.mineVsScenario(previewIdx!, mv, c.oi, sc, crit, previewMega, c.mega)"
+                  compact
+                />
               </div>
             </td>
           </tr>
@@ -77,9 +81,33 @@ const gd = useGameData()
 const s = computed(() => props.b.state.value!)
 const crit = ref(false)
 
-const roster = computed(() => s.value.sides.mine.mons.map((_, i) => i))
+// 내 로스터 + 아직 메가진화하지 않았고 메가진화할 수 있는 포켓몬은 메가 폼 버튼도
+const roster = computed(() =>
+  s.value.sides.mine.mons.flatMap((_, i) =>
+    props.an.megaPreviewable('mine', i)
+      ? [
+          { key: `${i}`, idx: i },
+          { key: `${i}m`, idx: i, mega: true },
+        ]
+      : [{ key: `${i}`, idx: i }],
+  ),
+)
 const previewIdx = computed(() => s.value.preview ?? props.an.activeIdx('mine'))
-const attacker = computed(() => props.b.resolveAt('mine', previewIdx.value))
+// 메가 폼 버튼을 골랐는지 (메가진화가 더는 안 되면 기본 폼으로)
+const megaPick = ref(false)
+const previewMega = computed(
+  () =>
+    megaPick.value &&
+    previewIdx.value != null &&
+    props.an.megaPreviewable('mine', previewIdx.value),
+)
+const pick = (i: number, mega: boolean) => {
+  s.value.preview = i
+  megaPick.value = mega
+}
+const attacker = computed(() =>
+  props.b.resolveAt('mine', previewIdx.value, previewMega.value || undefined),
+)
 // 스킨류 특성(메가 포함)으로 바뀐 기술 타입
 const moveType = (id: string) => {
   const m = gd.move(id)
@@ -91,14 +119,21 @@ const attackMoves = computed(() =>
   (attacker.value?.slot.moves || []).filter((m) => m && gd.move(m)?.category !== 'status'),
 )
 
-// 선출 마릿수만큼 상대가 확인되면 그 포켓몬만, 아니면 상대 6마리 전부
+// 선출 마릿수만큼 상대가 확인되면 그 포켓몬만, 아니면 상대 6마리 전부 (메가진화 가능하면 메가 폼 열 추가)
 const oppCols = computed(() => {
   const rev = s.value.sides.opp.revealed
   const need = props.b.N === 1 ? 3 : 4
   const all = props.b.oppSlots.value
     .map((_, i) => i)
     .filter((i) => props.b.oppSlots.value[i]?.species)
-  return rev.length >= need ? rev : all
+  return (rev.length >= need ? rev : all).flatMap((oi) =>
+    props.an.megaPreviewable('opp', oi)
+      ? [
+          { key: `${oi}`, oi },
+          { key: `${oi}m`, oi, mega: true },
+        ]
+      : [{ key: `${oi}`, oi }],
+  )
 })
 </script>
 

@@ -13,13 +13,13 @@ components/
                        FormToggle(배틀 폼 토글 / 캐스퐁 날씨 버튼), PreviewConditions(결정력 미리보기 조건: 날씨·필드·상태이상·랭크),
                        TypeConsistency(파티 전원에게 1배 이상 들어가는 공격 타입 한 줄)
   battle/              EntryView(선출), BattleView(배틀) 와 그 하위 패널들 (DamageInput = 데미지 / 체력 전후 입력칸)
-                       (SpeedPanel = 상대 스피드 구간 막대, EstimatePanel = 상대 배분 추정)
+                       (SpeedPanel = 상대 스피드 구간 막대, EstimatePanel = 상대 배분 추정, SlotMini = 선출 화면의 접은 슬롯 한 줄)
   perf/                포켓몬 성능표: BulkTable / PowerTable / SpeedTable, MonCell(포켓몬 칸)
 composables/           상태 + 계산 연결 (아래 표)
 utils/                 순수 계산 (tests/ 에서 테스트): types.ts, stats.ts, damage.ts, ko.ts, typeCheck.ts(타입 상성 도우미),
                        speedInference.ts(선후공 → 상대 스피드 구간), statInference.ts(데미지 → 상대 배분 격자),
                        perfTable.ts(성능표 내구·결정력·스피드), autoSet.ts(상대 포켓몬 자동 배치), accuracy.ts(명중·급소)
-plugins/locale.client.ts  언어 선택 (localStorage 'pch_lang' → 브라우저 언어 → ko)
+plugins/locale.client.ts  언어 선택 (localStorage 'pch_lang' → 브라우저 언어 → en)
 plugins/theme.client.ts   화면 테마 낮/밤/시스템 (localStorage 'pch_theme', 없으면 시스템) → <html data-theme> + Vuetify 테마
 i18n/locales/          화면 문구 ko/en/ja (.json) + Vuetify 문구 병합(.ts)
 public/data/           게임 데이터 (scripts/build-data.mjs 생성물)

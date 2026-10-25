@@ -140,6 +140,42 @@ describe('도구 소모', () => {
     expect(mon(b, 'mine', 0).hp).toBe(1)
     expect(mon(b, 'mine', 0).itemGone).toBe(true)
   })
+
+  it('기합의띠: 상대가 100% → 1% 로 버티면 확정 도구·추측 도구가 기합의띠일 때 소모', () => {
+    const b = setup(
+      'single',
+      [slot('garchomp')],
+      [slot('gholdengo', { item: 'focussash' }), slot('kingambit', { item: 'leftovers' })],
+    )
+    b.sendOut('opp', 0, 0)
+    moveAction(b, 'mine', 0, 'earthquake', 99)
+    b.executeTurn()
+    const om = mon(b, 'opp', 0)
+    expect(om.hp).toBe(1)
+    expect(om.itemKnown).toBe(true)
+    expect(om.item).toBe('focussash')
+    expect(om.itemGone).toBe(true)
+    // 추측 도구가 다른 것이면 그대로
+    switchAction(b, 'opp', 0, 1)
+    b.executeTurn()
+    moveAction(b, 'mine', 0, 'earthquake', 99)
+    b.executeTurn()
+    expect(mon(b, 'opp', 1).itemKnown).toBeFalsy()
+    expect(mon(b, 'opp', 1).itemGone).toBeFalsy()
+  })
+})
+
+describe('분노의경혈', () => {
+  it('급소에 맞고 버티면 공격 +6, 급소가 아니면 그대로', () => {
+    const b = setup('single', [slot('krookodile', { ability: 'angerpoint' })], [slot('garchomp')])
+    b.sendOut('opp', 0, 0)
+    moveAction(b, 'opp', 0, 'dragonclaw', 20)
+    b.executeTurn()
+    expect(mon(b, 'mine', 0).boosts.atk ?? 0).toBe(0)
+    Object.assign(moveAction(b, 'opp', 0, 'dragonclaw', 30), { crit: true })
+    b.executeTurn()
+    expect(mon(b, 'mine', 0).boosts.atk).toBe(6)
+  })
 })
 
 describe('더블: 아군 효과', () => {
@@ -586,6 +622,191 @@ describe('천정부지 (메가저리더프)', () => {
     b.executeTurn()
     expect(mon(b, 'mine', 0).boosts.atk).toBe(1)
     expect(an.oppVsMine(0, 'earthquake', 0)!.immune).toBe(true)
+  })
+})
+
+describe('예상 데미지 표의 메가 폼 (아직 메가진화하지 않았을 때)', () => {
+  it('대기 중인 포켓몬도 메가 폼 대상, 그 진영이 한 번 메가진화하면 더는 없음', () => {
+    const b = setup(
+      'single',
+      [
+        slot('garchomp', { item: 'garchompite' }),
+        slot('lucario', { item: 'lucarionite' }),
+        slot('incineroar'),
+      ],
+      [slot('gholdengo')],
+    )
+    b.sendOut('opp', 0, 0)
+    const an = useBattleAnalysis(b)
+    expect(an.megaPreviewable('mine', 1)).toBe(true)
+    expect(an.megaPreviewable('mine', 2)).toBe(false)
+    // 대기 중인 메가루카리오로 계산
+    const cell = an.mineVsScenario(1, 'flashcannon', 0, 'neutral', false, true)!
+    const base = an.mineVsScenario(1, 'flashcannon', 0, 'neutral')!
+    expect(cell.max).toBeGreaterThan(base.max)
+    S(b).actions.mine[0]!.useMega = true
+    moveAction(b, 'mine', 0, 'dragonclaw', 10)
+    b.executeTurn()
+    expect(an.megaPreviewable('mine', 1)).toBe(false)
+  })
+})
+
+describe('메가진화는 진영당 한 번', () => {
+  it('한 마리가 메가진화하면 다른 포켓몬은 메가진화·미리보기 불가', () => {
+    const b = setup(
+      'single',
+      [slot('garchomp', { item: 'garchompite' }), slot('lucario', { item: 'lucarionite' })],
+      [slot('gholdengo')],
+    )
+    b.sendOut('opp', 0, 0)
+    b.setMega('mine', 1, true) // 대기 중 미리보기
+    S(b).actions.mine[0]!.useMega = true
+    moveAction(b, 'mine', 0, 'dragonclaw', 10)
+    b.executeTurn()
+    expect(mon(b, 'mine', 0).megaUsed).toBe(true)
+    expect(mon(b, 'mine', 1).megaOn).toBe(false)
+    expect(b.canMegaEvolve('mine', 1)).toBe(false)
+    b.setMega('mine', 1, true)
+    expect(mon(b, 'mine', 1).megaOn).toBe(false)
+    // 루카리오로 교체해 메가진화를 체크해도 되지 않음
+    switchAction(b, 'mine', 0, 1)
+    b.executeTurn()
+    S(b).actions.mine[0]!.useMega = true
+    moveAction(b, 'mine', 0, 'flashcannon', 10)
+    b.executeTurn()
+    expect(mon(b, 'mine', 1).megaUsed).toBe(false)
+    expect(b.resolveAt('mine', 1)!.isMega).toBe(false)
+  })
+
+  it('더블에서 두 칸 모두 체크해도 앞 칸만 메가진화', () => {
+    const b = setup(
+      'double',
+      [
+        slot('garchomp', { item: 'garchompite' }),
+        slot('lucario', { item: 'lucarionite' }),
+        slot('incineroar'),
+        slot('gholdengo'),
+      ],
+      [slot('kingambit'), slot('dragonite')],
+    )
+    b.sendOut('opp', 0, 0)
+    b.sendOut('opp', 1, 1)
+    for (const k of [0, 1]) S(b).actions.mine[k]!.useMega = true
+    moveAction(b, 'mine', 0, 'protect')
+    moveAction(b, 'mine', 1, 'protect')
+    b.executeTurn()
+    expect(mon(b, 'mine', 0).megaUsed).toBe(true)
+    expect(mon(b, 'mine', 1).megaUsed).toBe(false)
+  })
+})
+
+describe('이번 턴 먼저 행동한 기술의 효과 (예상 계산)', () => {
+  it('먼저 쓴 매지컬플레임(특공 −1)이 뒤에 오는 상대 특수기 예상에 반영', () => {
+    const b = setup('single', [slot('garchomp')], [slot('gholdengo')])
+    b.sendOut('opp', 0, 0)
+    const an = useBattleAnalysis(b)
+    moveAction(b, 'opp', 0, 'shadowball')
+    const before = an.oppActionPreview.value!.max
+    moveAction(b, 'mine', 0, 'mysticalfire')
+    const after = an.oppActionPreview.value!.max
+    expect(after).toBeLessThan(before)
+    // 빗나가면 반영 안 함
+    S(b).actions.mine[0]!.missed = true
+    expect(an.oppActionPreview.value!.max).toBe(before)
+  })
+
+  it('먼저 쓴 도깨비불(화상)·리플렉터·칼춤 반영, 뒤에 행동하면 없음', () => {
+    const b = setup('single', [slot('garchomp')], [slot('kingambit')])
+    b.sendOut('opp', 0, 0)
+    const an = useBattleAnalysis(b)
+    moveAction(b, 'opp', 0, 'ironhead')
+    const base = an.oppActionPreview.value!.max
+    moveAction(b, 'mine', 0, 'willowisp')
+    expect(an.oppActionPreview.value!.max).toBeLessThan(base)
+    moveAction(b, 'mine', 0, 'reflect')
+    expect(an.oppActionPreview.value!.max).toBeLessThan(base)
+    // 내 칼춤은 내 다음 턴 공격에만 — 이번 턴 상대 공격과 무관
+    moveAction(b, 'mine', 0, 'swordsdance')
+    expect(an.oppActionPreview.value!.max).toBe(base)
+  })
+})
+
+describe('부가효과 체크', () => {
+  it('확률 효과는 선택지, 100% 효과는 확정 목록 (턴 적용 때 반영)', () => {
+    const b = setup('single', [slot('garchomp')], [slot('gholdengo')])
+    b.sendOut('opp', 0, 0)
+    moveAction(b, 'mine', 0, 'mysticalfire', 20)
+    expect(b.sureInflicts('mine', 0, 0)).toEqual(['boost:target:spa=-1'])
+    expect(b.possibleInflicts('mine', 0, 0)).not.toContain('boost:target:spa=-1')
+    // 섀도볼 특방 −1 (20%): 체크하면 반영
+    moveAction(b, 'mine', 0, 'shadowball', 20)
+    expect(b.possibleInflicts('mine', 0, 0)).toContain('boost:target:spd=-1')
+    S(b).actions.mine[0]!.inflicts = ['boost:target:spd=-1']
+    b.executeTurn()
+    expect(mon(b, 'opp', 0).boosts.spd).toBe(-1)
+  })
+
+  it('자기 쪽 확률 효과 (코멧펀치 공격 +1)는 상대가 쓰러져도 반영', () => {
+    const b = setup('single', [slot('metagross')], [slot('garchomp'), slot('gholdengo')])
+    b.sendOut('opp', 0, 0)
+    moveAction(b, 'mine', 0, 'meteormash', 100)
+    expect(b.possibleInflicts('mine', 0, 0)).toContain('boost:self:atk=1')
+    S(b).actions.mine[0]!.inflicts = ['boost:self:atk=1']
+    b.executeTurn()
+    expect(mon(b, 'mine', 0).boosts.atk).toBe(1)
+  })
+})
+
+describe('데미지 입력 경고', () => {
+  it('계산 범위(±1) 밖이면 범위를 알려 주고, 쓰러뜨린 입력·급소 체크는 그에 맞게', () => {
+    const b = setup('single', [slot('garchomp')], [slot('gholdengo')])
+    b.sendOut('opp', 0, 0)
+    const an = useBattleAnalysis(b)
+    moveAction(b, 'mine', 0, 'earthquake')
+    const c = an.mineActionPreview.value!
+    const mid = (c.pctMin + c.pctMax) / 2
+    expect(an.amountWarning('mine', 0, 0, mid, 100)).toBeNull()
+    const w = an.amountWarning('mine', 0, 0, 1, 100)!
+    expect(w.min).toBeCloseTo(c.pctMin, 0)
+    // 남은 HP 가 적으면 쓰러뜨린 입력은 경고 없음
+    expect(an.amountWarning('mine', 0, 0, 5, 5)).toBeNull()
+    // 상대 공격 (내 HP 실수치)
+    moveAction(b, 'opp', 0, 'shadowball')
+    const o = an.oppActionPreview.value!
+    expect(an.amountWarning('opp', 0, 0, o.max, b.maxHp('mine', 0))).toBeNull()
+    expect(an.amountWarning('opp', 0, 0, o.max * 3, b.maxHp('mine', 0) * 5)).not.toBeNull()
+  })
+})
+
+describe('대타 뒤 실전 확률', () => {
+  it('단타: 대타가 깨질 확률만 (KO 확률 없음) / 연속기: 깨고 본체까지 KO 확률', () => {
+    const calc = useTeamCalc()
+    const b = setup('single', [slot('garchomp')], [slot('gengar')])
+    b.sendOut('opp', 0, 0)
+    const atk = b.combatantOf('mine', 0, undefined, true)!
+    const def = { ...b.combatantOf('opp', 0)!, sub: 1, hp: 1 }
+    const single = calc.cell('dragonclaw', atk, def)!
+    expect(single.sub!.breakP).toBeCloseTo(100, 6)
+    expect(single.koReal).toBeNull()
+    // 비늘가르기 2~5회: 첫 타가 대타, 두 번째 타가 본체 → 명중률 그대로
+    const multi = calc.cell('scaleshot', atk, def)!
+    expect(multi.sub!.breakP).toBeCloseTo(multi.hitChance * 100, 6)
+    expect(multi.koReal).toBeCloseTo(multi.hitChance * 100, 6)
+  })
+})
+
+describe('연속기 실전 KO 확률', () => {
+  it('2~5회 기술은 타수 확률을 섞은 한 번 사용 KO 확률', () => {
+    const calc = useTeamCalc()
+    const b = setup('single', [slot('garchomp')], [slot('gengar')])
+    b.sendOut('opp', 0, 0)
+    const atk = b.combatantOf('mine', 0, undefined, true)!
+    const def = { ...b.combatantOf('opp', 0)!, hp: 1 }
+    // HP 1 이면 첫 타가 맞으면 쓰러짐 → 명중률 그대로
+    const c = calc.cell('scaleshot', atk, def)!
+    expect(c.hits).not.toBeNull()
+    expect(c.koRealUses).toBe(1)
+    expect(c.koReal).toBeCloseTo(c.hitChance * 100, 6)
   })
 })
 

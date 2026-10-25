@@ -1,4 +1,4 @@
-// 언어 선택: localStorage 에 저장된 값 → 브라우저 언어(ko/ja/en) → 기본 ko
+// 언어 선택: localStorage 에 저장된 값 → 브라우저 언어(ko/ja/en) → 기본 en
 // (@nuxtjs/i18n 의 detectBrowserLanguage 는 정적 빌드와 충돌해서 끄고 직접 처리)
 
 const KEY = 'pch_lang'
@@ -18,7 +18,7 @@ export default defineNuxtPlugin(async (nuxtApp) => {
   const browser = (navigator.languages || [navigator.language])
     .map((l) => l.slice(0, 2).toLowerCase())
     .find((l) => (SUPPORTED as readonly string[]).includes(l))
-  const target = saved && (SUPPORTED as readonly string[]).includes(saved) ? saved : browser || 'ko'
+  const target = saved && (SUPPORTED as readonly string[]).includes(saved) ? saved : browser || 'en'
   if (target !== i18n.locale.value) await i18n.setLocale(target)
 
   nuxtApp.hook('i18n:localeSwitched', ({ newLocale }: { newLocale: string }) => {

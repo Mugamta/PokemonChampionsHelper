@@ -116,6 +116,7 @@ export interface Regulation {
   end: string
   rules: string
   pokemon: string[]
+  newMegaStones?: string[] // 이 레귤레이션에서 새로 쓸 수 있게 된 메가스톤
 }
 
 export interface GameData {

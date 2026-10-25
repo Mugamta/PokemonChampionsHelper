@@ -33,6 +33,7 @@ export interface Combatant {
   hp?: number // 현재 HP (없으면 최대)
   floating?: boolean // 전자부유 중 (땅에 있지 않음)
   sub?: number // 대타 HP (실수치, 맞는 쪽일 때만 의미 있음)
+  gender?: 'M' | 'F' | 'N' | '' // 성별 ('' = 모름) — 라이벌의식
 }
 
 export interface FieldState {
@@ -659,6 +660,10 @@ function offense(
   if (ab === 'steelyspirit' && type === 'steel') bpMod = chain(bpMod, M.x1_5)
   if ((ab === 'fairyaura' || defender.ability === 'fairyaura') && type === 'fairy')
     bpMod = chain(bpMod, 5448)
+  // 라이벌의식: 같은 성별 1.25배 / 다른 성별 0.75배 (한쪽이라도 무성·모름이면 그대로)
+  const genders = [attacker.gender, defender.gender]
+  if (ab === 'rivalry' && genders.every((g) => g === 'M' || g === 'F'))
+    bpMod = chain(bpMod, attacker.gender === defender.gender ? 5120 : M.x0_75)
   if (defender.ability === 'dryskin' && type === 'fire') bpMod = chain(bpMod, 5120)
   if (opts.helpingHand) bpMod = chain(bpMod, M.x1_5)
   if (opts.charged && type === 'electric') bpMod = chain(bpMod, M.x2)
@@ -940,6 +945,29 @@ export function hitInfo(
   return { min: mh.min, max: mh.max }
 }
 
+// 히트별 16단계 난수 (maxHits 길이)
+export function perHitRolls(
+  move: Move,
+  attacker: Combatant,
+  defender: Combatant,
+  chart: TypeChart,
+  field: FieldState,
+  opts: DamageOptions,
+  info: HitInfo,
+): number[][] {
+  if (info.parentalBond) {
+    const first = calcDamage(move, attacker, defender, chart, field, opts)
+    const second = calcDamage(move, attacker, defender, chart, field, { ...opts, bondHit: true })
+    return [first.rolls, second.rolls]
+  }
+  if (info.hitPowers)
+    return info.hitPowers.map(
+      (p) => calcDamage({ ...move, power: p }, attacker, defender, chart, field, opts).rolls,
+    )
+  const one = calcDamage(move, attacker, defender, chart, field, opts)
+  return Array(info.max).fill(one.rolls)
+}
+
 // 히트별 [최소, 최대] 데미지 배열 (maxHits 길이)
 export function perHitDamage(
   move: Move,
@@ -950,17 +978,6 @@ export function perHitDamage(
   opts: DamageOptions,
   info: HitInfo,
 ): { min: number[]; max: number[] } {
-  if (info.parentalBond) {
-    const first = calcDamage(move, attacker, defender, chart, field, opts)
-    const second = calcDamage(move, attacker, defender, chart, field, { ...opts, bondHit: true })
-    return { min: [first.min, second.min], max: [first.max, second.max] }
-  }
-  if (info.hitPowers) {
-    const r = info.hitPowers.map((p) =>
-      calcDamage({ ...move, power: p }, attacker, defender, chart, field, opts),
-    )
-    return { min: r.map((x) => x.min), max: r.map((x) => x.max) }
-  }
-  const one = calcDamage(move, attacker, defender, chart, field, opts)
-  return { min: Array(info.max).fill(one.min), max: Array(info.max).fill(one.max) }
+  const r = perHitRolls(move, attacker, defender, chart, field, opts, info)
+  return { min: r.map((x) => x[0]!), max: r.map((x) => x[x.length - 1]!) }
 }

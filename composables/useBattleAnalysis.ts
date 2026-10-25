@@ -50,12 +50,14 @@ export function useBattleAnalysis(b: Battle) {
   const order = computed(() => b.turnOrder())
   // 이번 턴 메가진화하면 메가 폼 기준
   // (행동하는 분석 대상 포켓몬만 — 교체기로 들어오는 포켓몬은 이번 턴 메가진화하지 않음)
+  // 예상 데미지 표에 메가 폼도 넣을 포켓몬: 그 진영이 아직 메가진화하지 않았고(배틀에 한 번), 메가스톤으로 메가진화 가능
+  const megaPreviewable = (side: BattleSide, idx: number) => {
+    const m = S().sides[side].mons[idx]
+    return !!m && !m.megaOn && m.hp > 0 && b.canMegaEvolve(side, idx)
+  }
   const megaThisTurn = (side: BattleSide, idx: number) => {
     const a = action(side)
-    return a?.kind === 'move' &&
-      a.useMega &&
-      activeIdx(side) === idx &&
-      !S().sides[side].mons[idx]!.megaUsed
+    return a?.kind === 'move' && a.useMega && activeIdx(side) === idx && b.canMegaEvolve(side, idx)
       ? true
       : undefined
   }
@@ -165,8 +167,9 @@ export function useBattleAnalysis(b: Battle) {
     oi: number,
     sc: (typeof DEF_SCENARIOS)[number],
     defKey: 'def' | 'spd',
+    oppMega?: boolean,
   ): StatTable | null => {
-    const r = b.resolveAt('opp', oi)
+    const r = b.resolveAt('opp', oi, oppMega)
     if (!r) return null
     // 변신(메타몽): 실능치는 복사한 값이라 배분 시나리오가 없다
     if (r.transformedFrom) return { ...r.stats }
@@ -181,20 +184,23 @@ export function useBattleAnalysis(b: Battle) {
     return stats
   }
   // 내 포켓몬(attacker 로스터 idx) → 상대 oi, 시나리오별 데미지 칸
+  // mineMega / oppMega: 아직 메가진화하지 않은 쪽을 메가 폼으로 (megaPreviewable)
   const mineVsScenario = (
     mi: number,
     moveId: string,
     oi: number,
     sc: (typeof DEF_SCENARIOS)[number],
     crit = false,
+    mineMega?: boolean,
+    oppMega?: boolean,
   ): Cell | null => {
     const move = gd.move(moveId)
     if (!move || move.category === 'status') return null
-    const atk = b.combatantOf('mine', mi, undefined, true)
+    const atk = b.combatantOf('mine', mi, mineMega || undefined, true)
     const defStatsKey =
       move.category === 'physical' || ['psyshock', 'psystrike'].includes(moveId) ? 'def' : 'spd'
-    const stats = scenarioDefStats(oi, sc, defStatsKey)
-    const r = b.resolveAt('opp', oi)
+    const stats = scenarioDefStats(oi, sc, defStatsKey, oppMega || undefined)
+    const r = b.resolveAt('opp', oi, oppMega || undefined)
     if (!atk || !stats || !r) return null
     const oppActive = S().sides.opp.active.includes(oi)
     const def = calc.combatant(r, {
@@ -224,19 +230,27 @@ export function useBattleAnalysis(b: Battle) {
     crit = false,
     megaPreview?: boolean,
     turn = false,
+    oppMega?: boolean, // 상대를 메가 폼으로 (megaPreviewable)
   ): Cell | null => {
     const move = gd.move(moveId)
     if (!move || move.category === 'status') return null
-    const atks = b.combatantRange('opp', oi, megaThisTurn('opp', oi), true)
+    // turn: 이번 턴 먼저 행동하는 기술의 확정 효과(랭크·상태이상·벽 등)를 반영한 시점 (turnStateBefore)
+    const snap = turn ? b.turnStateBefore('opp', oi, order.value) : null
+    const atks = b
+      .combatantRange('opp', oi, oppMega || megaThisTurn('opp', oi), true)
+      .map((c) => (snap ? b.withTurnState(snap, 'opp', oi, c) : c))
     const alt = turn ? b.formAtHit('mine', mi, 'opp', oi, order.value) : undefined
-    const def = b.combatantOf('mine', mi, megaPreview, false, alt)
+    const rawDef = b.combatantOf('mine', mi, megaPreview, false, alt)
+    const def = rawDef && snap ? b.withTurnState(snap, 'mine', mi, rawDef) : rawDef
     if (!atks.length || !def) return null
     const opts = {
       crit,
       spread: spreadFor('opp', oi, move, 'mine'),
       ...optsFor('opp', oi, moveId, turn),
     }
-    const field = b.fieldFor('mine', mi)
+    const field = snap
+      ? b.fieldWithTurnState(snap, 'mine', b.fieldFor('mine', mi))
+      : b.fieldFor('mine', mi)
     const g = guessOf(oi)
     return withGuess(rangedCell(moveId, atks, [def], field, opts), g, () =>
       rangedCell(moveId, withItem(atks, g), [def], field, opts),
@@ -416,16 +430,16 @@ export function useBattleAnalysis(b: Battle) {
             key: 'battle.flow.attackNoDmg',
             params: { name: L(label), move: move ? gd.name('moves', move) : '—' },
           }
-    // 대타 뒤면 대타가 받는 결과 (사라짐 / 난수 / 남음)
-    const subLine = (target: typeof mineLabel, c: Cell | null): Line[] =>
-      c?.sub
-        ? [
-            {
-              key: `battle.flow.sub${c.sub.breaks === 'sure' ? 'Sure' : c.sub.breaks === 'maybe' ? 'Maybe' : 'No'}`,
-              params: { name: L(target), hp: c.sub.hp },
-            },
-          ]
-        : []
+    // 대타 뒤면 대타가 받는 결과 (사라짐 / 난수(깨질 확률) / 남음). 연속기는 깨진 뒤 남은 타수를 본체가 받음
+    const subLine = (target: typeof mineLabel, c: Cell | null): Line[] => {
+      if (!c?.sub) return []
+      const { breaks, breakP, hp } = c.sub
+      const p = breakP == null ? null : breakP >= 99.95 ? '100' : breakP.toFixed(1)
+      const params = { name: L(target), hp, p: p ?? '?' }
+      if (c.hits && breaks !== 'none') return [{ key: 'battle.flow.subMulti', params }]
+      const key = breaks === 'sure' ? 'Sure' : breaks === 'maybe' ? (p ? 'MaybeP' : 'Maybe') : 'No'
+      return [{ key: `battle.flow.sub${key}`, params }]
+    }
     // 행동 불가가 있는 턴: 행동하지 못하는 쪽은 이유만, 나머지는 공격 줄
     // (잠든 뒤 첫 시도처럼 깨어나지 못하면 기술을 골라도 행동 불가)
     const asleepM = ma.kind === 'move' && b.sleepsThrough('mine', mi, ma.via || ma.move)
@@ -510,24 +524,24 @@ export function useBattleAnalysis(b: Battle) {
     oi: number,
     useMega = false,
     switchedIn = false,
+    crit = false,
   ) => {
     const move = gd.move(moveId)
     if (!move || move.category === 'status') return null
     const m = S().sides.mine.mons[mi]!
-    const atk = b.combatantOf('mine', mi, useMega && !m.megaUsed ? true : undefined, true)
+    // 이번 턴 먼저 행동하는 기술의 확정 효과(랭크·상태이상·벽 등)를 반영한 시점 (turnStateBefore)
+    const snap = b.turnStateBefore('mine', mi, order.value)
+    const rawAtk = b.combatantOf('mine', mi, useMega && !m.megaUsed ? true : undefined, true)
+    const atk = rawAtk && b.withTurnState(snap, 'mine', mi, rawAtk)
     // 상대 킬가르도가 이번 턴 먼저 공격하면 블레이드폼으로 맞는다 (교체로 들어오는 상대는 해당 없음)
     const alt = switchedIn ? undefined : b.formAtHit('opp', oi, 'mine', mi, order.value)
-    const field = b.fieldFor('opp', oi)
-    const defs = b.combatantRange(
-      'opp',
-      oi,
-      megaThisTurn('opp', oi),
-      false,
-      alt,
-      defStatOf(move, field),
-    )
+    const field = b.fieldWithTurnState(snap, 'opp', b.fieldFor('opp', oi))
+    const defs = b
+      .combatantRange('opp', oi, megaThisTurn('opp', oi), false, alt, defStatOf(move, field))
+      .map((c) => b.withTurnState(snap, 'opp', oi, c))
     if (!atk || !defs.length) return null
     const opts = {
+      crit,
       spread: spreadFor('mine', mi, move, 'opp'),
       ...optsFor('mine', mi, moveId, true),
     }
@@ -551,6 +565,44 @@ export function useBattleAnalysis(b: Battle) {
     const t = targetOf('opp')
     return t.idx == null ? null : oppVsMine(oi, oa.move, t.idx, false, undefined, !t.switchedIn)
   })
+
+  // ── 데미지 입력 검토 ─────────────
+  // side 의 slot 이 k칸에 입력한 데미지(mine → 상대 %, opp → 내 HP)가 계산 범위 밖이면 그 범위를 돌려준다 (안이면 null).
+  // 막지 않고 경고만: 도구·특성·급소·랭크를 잘못 알고 있을 수 있고, 입력값이 상대 배분 추정의 근거라서.
+  //   범위 = 상대 배분 추정 범위 + 추측 도구(선출 화면)의 경우, 급소 체크면 급소 기준
+  //   오차 = 상대 % 는 버림 표시라 ±1%p, 내 HP 는 ±1. 쓰러뜨렸으면(current 이상) 최대 데미지가 남은 HP 이상인지만 본다
+  //   대타가 받는 경우·고정 데미지(값이 정해져 잠김)는 검토하지 않음
+  const amountWarning = (
+    side: BattleSide,
+    slot: number,
+    k: number,
+    amount: number | null,
+    current: number,
+  ): { min: number; max: number } | null => {
+    const a = S().actions[side][slot]
+    const ui = S().sides[side].active[slot]
+    if (amount == null || !a || a.kind !== 'move' || !a.move || a.missed || ui == null) return null
+    if (slot === S().focus[side] && fixedAmount(side) != null) return null
+    const t = b.hitTarget(side, slot, order.value, k)
+    if (t.idx == null) return null
+    const c =
+      side === 'mine'
+        ? mineVsActual(ui, a.move, t.idx, a.useMega, t.switchedIn, a.crit)
+        : oppVsMine(ui, a.move, t.idx, a.crit, undefined, !t.switchedIn)
+    if (!c || c.sub) return null
+    const pct = side === 'mine'
+    const lo = c.immune
+      ? 0
+      : Math.min(pct ? c.pctMin : c.min, ...(c.guess ? [pct ? c.guess.pctMin : c.guess.min] : []))
+    const hi = c.immune
+      ? 0
+      : Math.max(pct ? c.pctMax : c.max, ...(c.guess ? [pct ? c.guess.pctMax : c.guess.max] : []))
+    const tol = 1
+    if (amount >= current - (pct ? tol : 0) && hi >= current - tol) return null // 쓰러뜨림
+    if (amount >= lo - tol && amount <= hi + tol) return null
+    const r = (v: number) => (pct ? Math.round(v * 10) / 10 : Math.round(v))
+    return { min: r(lo), max: r(hi) }
+  }
 
   // ── 더블: 아군도 맞히는 광역기 ─────────────
   // side 의 slot 이 쓰는 기술이 아군도 맞히면 아군이 받는 데미지 (텔레파시는 무효)
@@ -958,6 +1010,8 @@ export function useBattleAnalysis(b: Battle) {
   }
 
   return {
+    amountWarning,
+    megaPreviewable,
     activeIdx,
     speedOf,
     speedBands,

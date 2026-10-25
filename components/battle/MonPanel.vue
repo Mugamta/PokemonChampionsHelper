@@ -320,7 +320,10 @@ const itemGuessed = computed(() => props.side === 'opp' && !r.value?.slot.item &
 const abilityGuessed = computed(
   () => props.side === 'opp' && !r.value?.isMega && new Set(r.value?.base.abilities ?? []).size > 1,
 )
-const megaAvailable = computed(() => !!r.value?.megaId && !m.value?.megaUsed)
+// 메가진화는 진영당 한 번 (다른 포켓몬이 이미 메가진화했으면 토글 없음)
+const megaAvailable = computed(
+  () => !!r.value?.megaId && !m.value?.megaUsed && !props.b.sideMegaUsed(props.side),
+)
 // 잠듦·얼음은 행동하지 못한 턴 수도 (풀릴 확률은 예상 흐름의 "이번 턴 확률 효과")
 const statusText = computed(() => {
   const st = m.value?.status

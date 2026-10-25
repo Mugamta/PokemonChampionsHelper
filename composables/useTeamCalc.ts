@@ -3,14 +3,24 @@
 // 데미지 표의 한 칸(Cell)을 만드는 공용 함수 모음. 파티/선출/배틀 화면이 모두 이걸 쓴다.
 
 import type { Combatant, DamageOptions, FieldState } from '~/utils/damage'
-import { calcDamage, hitInfo, perHitDamage, powerIndex, withoutItems } from '~/utils/damage'
+import {
+  calcDamage,
+  hitInfo,
+  perHitDamage,
+  perHitRolls,
+  powerIndex,
+  withoutItems,
+} from '~/utils/damage'
 import { calcStats } from '~/utils/stats'
 import {
+  attackDistribution,
   holdsOnAtFull,
   koChance,
   koHitIndex,
   koHitIndexWithSub,
+  koProbUses,
   koProbWithin,
+  subBreakProb,
   type KoInfo,
 } from '~/utils/ko'
 import { critChance, hitChance } from '~/utils/accuracy'
@@ -47,12 +57,16 @@ export interface Cell {
   disguise: boolean // 둔갑(따라큐): 첫 공격은 막고 최대 HP 1/8 만 (KO 판정에 반영)
   hitChance: number // 명중 확률 (0~1, 특성·도구·날씨·중력 반영)
   critChance: number // 급소 확률 (0~1)
-  // 실전 KO 확률(%): ko.hits 번 안에 쓰러뜨릴 확률 — 명중·급소·변덕레이저(30% 위력 2배) 포함. 단타 기술만 (아니면 null)
+  // 실전 KO 확률(%): ko.hits 번 안에 쓰러뜨릴 확률 — 명중·급소·변덕레이저(30% 위력 2배) 포함.
+  // 연속기는 타수 분포·히트마다 급소까지 포함해 koRealUses 번 써서 쓰러뜨릴 확률.
+  // 대타 뒤면 연속기만 (한 번 써서 대타를 깨고 본체까지 쓰러뜨릴 확률), 대타를 무시하는 기술은 대타가 없는 것과 같다
   koReal: number | null
+  koRealUses: number // koReal 의 사용 횟수 (단타 = ko.hits, 연속기 = 한 번에 못 쓰러뜨리면 처음 가능해지는 횟수, 최대 4)
   fickle: boolean // 변덕레이저: max 는 위력 2배일 때
   // 대타 뒤 (대타를 무시하는 기술·틈새포착이 아닐 때): 이번 공격은 대타가 받음 → KO 타수는 대타를 깨는 타수 + 본체 타수.
   // breaks: 이번 한 번으로 대타가 깨지는가
-  sub?: { hp: number; breaks: 'sure' | 'maybe' | 'none' } | null
+  // breakP: 명중·급소·타수까지 섞어 이번 한 번으로 대타가 깨질 확률(%) (변덕레이저면 null)
+  sub?: { hp: number; breaks: 'sure' | 'maybe' | 'none'; breakP: number | null } | null
   // 확정 전 상대 도구의 추측(선출 화면 도구)을 지녔다면의 결과. 본 결과는 확정한 사실만으로 계산한 것
   guess?: CellGuess | null
   maxHp: number // 맞는 쪽 최대 HP (실수치)
@@ -168,6 +182,7 @@ export function useTeamCalc() {
     status: extra.status,
     boosts: extra.boosts,
     hp: extra.hp,
+    gender: gd.pokemon(r.slot.species)?.gender ?? r.slot.gender,
   })
 
   // 데미지 표 한 칸. 상태기/빈 기술이면 null
@@ -254,7 +269,52 @@ export function useTeamCalc() {
       : null
     if (dbl && !multi && !disguise) max = dbl.max
     let koReal: number | null = null
-    if (!multi && !disguise && !subHp && one.effectiveness > 0) {
+    let koRealUses = ko?.hits ?? 1
+    let subBreak: number | null = null
+    if ((multi || disguise || subHp) && !fickle && one.effectiveness > 0) {
+      // 연속기·둔갑·대타: 한 번 쓸 때의 누적 데미지 분포 (히트마다 난수·급소, 타수 분포) → 여러 번 쓴 합.
+      // 대타 뒤: 이번 한 번으로 대타가 깨질 확률 + (연속기면) 깨진 뒤 남은 히트로 본체까지 쓰러뜨릴 확률. 단타는 KO 확률 없음
+      const rollsOf = (crit: boolean) =>
+        multi
+          ? perHitRolls(move, atk, def, chart, field, { ...opts, spread, crit }, info)
+          : [
+              crit
+                ? calcDamage(move, atk, def, chart, field, { ...opts, spread, crit }).rolls
+                : one.rolls,
+            ]
+      const normal = rollsOf(!!opts.crit)
+      const crit = pc > 0 && !opts.crit ? rollsOf(true) : normal
+      const hitRolls = normal.map((r, i) => ({ normal: r, crit: crit[i]! }))
+      const counts = multi
+        ? (hitsUsed(move, atk.ability, atk.item, acc)?.outcomes.filter(
+            (o) => o.hits <= info.max,
+          ) ?? [{ hits: info.max, p: 1 }])
+        : [{ hits: 1, p: 1 }]
+      const first = attackDistribution(hitRolls, counts, acc, pc, defHp, {
+        holdOn,
+        fixed: disguise ? chip : undefined,
+        sub: subHp || undefined,
+      })
+      const later =
+        holdOn || disguise ? attackDistribution(hitRolls, counts, acc, pc, defHp) : first
+      if (subHp) {
+        subBreak = subBreakProb(first)
+        koRealUses = 1
+        const p = multi ? koProbUses(first, first, defHp, 1) : 0
+        koReal = p > 0 ? p : null
+      } else if (multi) {
+        koRealUses = 4
+        for (let u = 1; u <= 4; u++)
+          if (koProbUses(first, later, defHp, u) > 0) {
+            koRealUses = u
+            break
+          }
+      }
+      if (!subHp) {
+        const p = koProbUses(first, later, defHp, koRealUses)
+        koReal = p > 0 ? p : null
+      }
+    } else if (!multi && !disguise && !subHp && one.effectiveness > 0) {
       const fixed = one.rolls.every((v) => v === one.rolls[0])
       const critRolls =
         fixed || pc === 0 || opts.crit
@@ -301,10 +361,15 @@ export function useTeamCalc() {
       hitChance: acc,
       critChance: pc,
       koReal,
+      koRealUses,
       fickle,
       maxHp,
       sub: subHp
-        ? { hp: subHp, breaks: min >= subHp ? 'sure' : max >= subHp ? 'maybe' : 'none' }
+        ? {
+            hp: subHp,
+            breaks: min >= subHp ? 'sure' : max >= subHp ? 'maybe' : 'none',
+            breakP: subBreak,
+          }
         : null,
     }
   }

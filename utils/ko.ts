@@ -127,6 +127,103 @@ export function hpRemainderHint(
 }
 
 // ── 실전 KO 확률 (명중·급소·무작위 위력 포함) ─────────────
+// 연속기·둔갑: 한 번 쓸 때의 누적 데미지 분포를 만들고 (attackDistribution) 여러 번 쓴 합으로 KO 확률 (koProbUses)
+
+// 히트 하나의 보통 / 급소 난수 16개
+export interface HitRolls {
+  normal: number[]
+  crit: number[]
+}
+
+// 한 번 쓸 때의 누적 데미지 분포 (데미지 → 확률, 합 1). 첫 명중 판정에서 빗나가면 0.
+//   counts: 첫 타가 맞았을 때의 타수 분포 (perfTable.hitsUsed), 히트마다 급소·난수는 따로
+//   first.holdOn: 만피에서 본체가 처음 맞는 히트는 최대 hp−1 까지 (기합의띠·옹골참) / first.fixed: 첫 히트는 고정 데미지 (둔갑)
+//   first.sub: 대타 HP — 대타가 먼저 받고(넘긴 데미지는 버려짐) 깨진 다음 히트부터 본체. 대타가 남은 상태는 음수 키(−남은 대타 HP)
+//   hp 이상은 hp 로 묶는다 (쓰러지면 남은 히트는 의미 없음)
+export function attackDistribution(
+  hitRolls: HitRolls[],
+  counts: { hits: number; p: number }[],
+  acc: number,
+  critP: number,
+  hp: number,
+  first: { holdOn?: boolean; fixed?: number; sub?: number } = {},
+): Map<number, number> {
+  const out = new Map<number, number>()
+  const put = (m: Map<number, number>, k: number, p: number) => m.set(k, (m.get(k) || 0) + p)
+  const start = first.sub && first.sub > 0 ? -first.sub : 0
+  if (acc < 1) put(out, start, 1 - acc)
+  let dist = new Map<number, number>([[start, acc]])
+  const maxHits = Math.min(hitRolls.length, Math.max(...counts.map((c) => c.hits)))
+  let left = counts.reduce((s, c) => s + c.p, 0) // 타수 ≥ h+1 일 확률
+  for (let h = 0; h < maxHits && dist.size; h++) {
+    const r = hitRolls[h]!
+    const outcomes =
+      h === 0 && first.fixed != null
+        ? [{ dmg: first.fixed, p: 1 }]
+        : [
+            ...r.normal.map((d) => ({ dmg: d, p: (1 - critP) / r.normal.length })),
+            ...r.crit.map((d) => ({ dmg: d, p: critP / r.crit.length })),
+          ].filter((o) => o.p > 0)
+    const next = new Map<number, number>()
+    for (const [sum, p] of dist)
+      for (const o of outcomes) {
+        if (sum < 0) {
+          put(next, Math.min(0, sum + o.dmg), p * o.p) // 대타가 받음 (깨지면 0)
+          continue
+        }
+        let v = Math.min(hp, sum + o.dmg)
+        if (sum === 0 && first.holdOn && v >= hp) v = hp - 1
+        put(next, v, p * o.p)
+      }
+    // 여기서 끝나는 몫 (타수 = h+1)
+    const end = counts.filter((c) => c.hits === h + 1).reduce((s, c) => s + c.p, 0)
+    const frac = left > 0 ? Math.min(1, end / left) : 1
+    left -= end
+    dist = new Map()
+    for (const [v, p] of next) {
+      if (v >= hp || h === maxHits - 1 || frac >= 1) put(out, v, p)
+      else {
+        if (frac > 0) put(out, v, p * frac)
+        put(dist, v, p * (1 - frac))
+      }
+    }
+  }
+  return out
+}
+
+// attackDistribution(first.sub) 결과에서 대타가 깨질 확률(%)
+export const subBreakProb = (d: Map<number, number>) => {
+  let p = 0
+  for (const [v, q] of d) if (v >= 0) p += q
+  return Math.min(100, p * 100)
+}
+
+// first(첫 사용) 뒤로 later 를 더해 uses 번 안에 hp 이상이 될 확률(%) (대타 뒤 분포는 uses = 1 만)
+export function koProbUses(
+  first: Map<number, number>,
+  later: Map<number, number>,
+  hp: number,
+  uses: number,
+): number {
+  if (!hp || hp <= 0) return 100
+  let ko = 0
+  let dist = new Map<number, number>()
+  for (const [v, p] of first) {
+    if (v >= hp) ko += p
+    else dist.set(v, (dist.get(v) || 0) + p)
+  }
+  for (let u = 1; u < uses; u++) {
+    const next = new Map<number, number>()
+    for (const [sum, p] of dist)
+      for (const [d, q] of later) {
+        const v = sum + d
+        if (v >= hp) ko += p * q
+        else next.set(v, (next.get(v) || 0) + p * q)
+      }
+    dist = next
+  }
+  return Math.min(100, ko * 100)
+}
 // outcomes: 한 번 공격의 데미지와 확률 (빗나감 = 0, 급소 난수, 보통 난수 …, 합 1). hits 번 안에 쓰러질 확률(%)
 // holdOn: 만피에서 첫 타는 1 남김 (기합의띠·옹골참)
 export function koProbWithin(

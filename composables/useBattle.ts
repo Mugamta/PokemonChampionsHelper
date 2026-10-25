@@ -35,6 +35,7 @@ import {
   type HpObservation,
   type HpStep,
 } from '~/utils/hpDisplay'
+import { critChance } from '~/utils/accuracy'
 import { holdsOnAtFull, statusDamage } from '~/utils/ko'
 import { applyBoost, clampBoost, effectiveSpeed, highestStat } from '~/utils/stats'
 import {
@@ -58,6 +59,22 @@ import type {
 } from '~/utils/types'
 
 export type BattleSide = 'mine' | 'opp'
+
+// 랭크 변화 효과의 체크 키 (행동 칸 "이번 턴 확률 효과"): 'boost:{target|self}:{능력}={변화},...' 예) 'boost:target:spd=-1'
+export const boostKey = (target: 'target' | 'self', stats: Partial<Record<RankKey, number>>) =>
+  `boost:${target}:` +
+  Object.entries(stats)
+    .map(([k, v]) => `${k}=${v}`)
+    .join(',')
+export const parseBoostKey = (key: string) => {
+  const m = /^boost:(target|self):(.+)$/.exec(key)
+  if (!m) return null
+  const stats = m[2]!.split(',').map((p) => {
+    const [k, v] = p.split('=')
+    return [k as RankKey, Number(v)] as const
+  })
+  return { target: m[1] as 'target' | 'self', stats }
+}
 
 export interface MonState {
   hp: number // mine: 실제 HP / opp: %
@@ -1290,9 +1307,13 @@ export function useBattle(mode: BattleMode) {
   const setAlt = (side: BattleSide, idx: number, on: boolean) => {
     mon(side, idx).alt = on
   }
+  // 메가진화는 배틀에 한 번 (진영당): 한 마리가 메가진화하면 다른 포켓몬은 메가진화할 수 없다
+  const sideMegaUsed = (side: BattleSide) => state.value!.sides[side].mons.some((m) => m.megaUsed)
+  const canMegaEvolve = (side: BattleSide, idx: number) =>
+    !mon(side, idx).megaUsed && !sideMegaUsed(side) && !!resolveAt(side, idx, true)?.isMega
   const setMega = (side: BattleSide, idx: number, on: boolean) => {
     const m = mon(side, idx)
-    if (m.megaUsed) return
+    if (m.megaUsed || (on && sideMegaUsed(side))) return
     m.megaOn = on
     if (on && state.value!.sides[side].active.includes(idx)) onEnter(side, idx) // 메가진화로 특성이 바뀌면 날씨 등 재발동
   }
@@ -2064,8 +2085,9 @@ export function useBattle(mode: BattleMode) {
   }
 
   // 데미지를 받은 직후 (입력한 데미지가 있을 때만). hpBefore 는 받기 전 HP (mine: 실수치, opp: %)
-  //   도구: 반감열매(해당 타입 효과굉장, 노말은 그냥) / 풍선 / 기합의띠(만피에서 HP 1, 내 쪽만 — 상대 HP 는 % 라서 판단 불가)
-  //   맞은 쪽 특성: 지구력(방어+1) 깨어진갑옷(물리: 방어−1 스피드+2) 정의의마음(악: 공격+1) 열교환(불꽃: 공격+1)
+  //   도구: 반감열매(해당 타입 효과굉장, 노말은 그냥) / 풍선 / 기합의띠(만피에서 HP 1. 상대는 100% → 1% 이하로 남으면,
+  //     도구를 확정하지 않았어도 추측 도구가 기합의띠면 확정하고 소모)
+  //   맞은 쪽 특성: 분노의경혈(급소에 맞고 버티면 공격 +6) 지구력(방어+1) 깨어진갑옷(물리: 방어−1 스피드+2) 정의의마음(악: 공격+1) 열교환(불꽃: 공격+1)
   //     발끈(HP 절반 이하로: 특공+1) 모래뿜기(모래바람) 넘치는씨(그래스필드) 전기로바꾸기(충전) 독치장(물리: 공격 측에 독압정)
   //   공격한 쪽: 자기과신(쓰러뜨리면 공격+1)
   function onHit(
@@ -2075,6 +2097,7 @@ export function useBattle(mode: BattleMode) {
     tSide: BattleSide,
     targetIdx: number,
     hpBefore: number,
+    crit = false, // 입력에서 급소 체크 (반드시 급소인 경우는 아래에서 판정)
   ) {
     const t = mon(tSide, targetIdx)
     const r = resolveAt(tSide, targetIdx)
@@ -2091,12 +2114,25 @@ export function useBattle(mode: BattleMode) {
     else if (item === 'airballoon') t.itemGone = true
     else if (item === 'focussash' && tSide === 'mine' && hpBefore >= full && t.hp === 1)
       t.itemGone = true
+    else if (tSide === 'opp' && hpBefore >= full && t.hp > 0 && t.hp <= 1) {
+      const sash = item === 'focussash' || (!item && guessedItem(targetIdx) === 'focussash')
+      if (sash && !t.itemGone) {
+        if (!t.itemKnown) Object.assign(t, { item: 'focussash', itemKnown: true })
+        t.itemGone = true
+      }
+    }
 
     const ab = r.ability
     const physical = move.category === 'physical'
     // 둔갑(따라큐): 공격을 한 번 받으면 풀린 모습으로 (틀깨기 공격이면 둔갑은 그대로)
     if (ab === 'disguise' && !t.alt && atk?.ability !== 'moldbreaker') t.alt = true
     if (alive) {
+      if (
+        ab === 'angerpoint' &&
+        (crit ||
+          (!!atk && !!def && critChance(move, atk, def, attackOpts(side, userIdx, moveId)) >= 1))
+      )
+        t.boosts.atk = 6
       if (ab === 'stamina') statChange(tSide, targetIdx, 'def', 1)
       if (ab === 'weakarmor' && physical) {
         statChange(tSide, targetIdx, 'def', -1)
@@ -2280,9 +2316,14 @@ export function useBattle(mode: BattleMode) {
         const userIdx = s.sides[side].active[slot]
         if (a.kind !== 'move' || !a.useMega || userIdx == null) return
         const m = mon(side, userIdx)
-        if (!m.megaUsed && resolveAt(side, userIdx, true)?.isMega) {
+        // 더블에서 두 칸 모두 체크했으면 앞 칸만 (화면은 한 칸만 체크할 수 있게 막는다)
+        if (canMegaEvolve(side, userIdx)) {
           m.megaOn = true
           m.megaUsed = true
+          // 다른 포켓몬의 메가 미리보기는 끔 (더는 메가진화할 수 없음)
+          s.sides[side].mons.forEach((x, i) => {
+            if (i !== userIdx && !x.megaUsed) x.megaOn = false
+          })
           onEnter(side, userIdx, true)
         }
       })
@@ -2466,7 +2507,8 @@ export function useBattle(mode: BattleMode) {
             if (mv?.category === 'special') taken.special += hp
             taken.last = hp
           }
-          if (a.move) onHit(a.move, side, userIdx, foe, tIdx, hpBefore)
+          if (a.move)
+            onHit(a.move, side, userIdx, foe, tIdx, hpBefore, a.crit && tIdx === targetIdx)
           if (a.move && amount > 0) hitPunish(a.move, side, userIdx, foe, tIdx, hpBefore)
           checkBerry(foe, tIdx)
           // 길동무: 공격을 받아 쓰러지면 공격한 포켓몬도 쓰러짐
@@ -2527,8 +2569,20 @@ export function useBattle(mode: BattleMode) {
         // 확률 효과 적용 (빗나가면 없음, 쓰러진 상대는 제외). 풀죽음은 그 상대의 이번 턴 행동을 "행동 불가(풀죽음)"로
         const applyInflicts = (tSlot: number, tIdx: number | null, list: string[]) => {
           if (tIdx == null || a.missed) return
+          // 랭크 변화: 자기 쪽은 상대가 쓰러져도, 상대 쪽은 살아 있으면 (하양허브는 한 번에)
+          for (const k of list) {
+            const bk = parseBoostKey(k)
+            if (!bk) continue
+            const [tSd, tI] = bk.target === 'self' ? [side, userIdx] : [foe, tIdx]
+            if (isFainted(tSd, tI)) continue
+            const src: [BattleSide, number] | undefined =
+              bk.target === 'self' ? undefined : [side, userIdx]
+            for (const [st, v] of bk.stats) statChange(tSd, tI, st, v, src, true)
+            whiteHerb(tSd, tI)
+          }
           for (const k of list) {
             if (isFainted(foe, tIdx)) return
+            if (k.startsWith('boost:')) continue
             const tm = mon(foe, tIdx)
             if (k === 'flinch') {
               const ta = s.actions[foe][tSlot]
@@ -2816,12 +2870,7 @@ export function useBattle(mode: BattleMode) {
   // 이번 턴 메가진화하는 포켓몬은 메가 폼 기준
   const turnMega = (side: BattleSide, slot: number, idx: number) => {
     const a = state.value!.actions[side][slot]
-    return a?.kind === 'move' &&
-      a.useMega &&
-      !mon(side, idx).megaUsed &&
-      resolveAt(side, idx, true)?.isMega
-      ? true
-      : undefined
+    return a?.kind === 'move' && a.useMega && canMegaEvolve(side, idx) ? true : undefined
   }
   // 이번 턴 기술을 쓰는 순서: 우선도 → 스피드(트릭룸이면 느린 쪽부터, 내 쪽 vs 상대는 speedOrder 로 확정되면 그대로).
   // 분석 대상 칸끼리는 관찰한 선후공이 있으면 그대로 (우선도가 같을 때). 교체하는 칸은 기술을 안 씀
@@ -2945,7 +2994,7 @@ export function useBattle(mode: BattleMode) {
           (ef) =>
             ef.type === 'boost' &&
             ef.target === 'target' &&
-            !ef.chance &&
+            (!ef.chance || ef.chance >= 100) &&
             Object.values(ef.stats).some((v) => (v ?? 0) < 0),
         )
       )
@@ -3003,6 +3052,169 @@ export function useBattle(mode: BattleMode) {
     const mv = gd.move(dm)
     return mv && mv.category !== 'status' ? true : undefined
   }
+
+  // ── 이번 턴 앞선 행동의 확정 효과 (예상 계산용) ─────────────
+  // 이번 턴 (atkSide, atkIdx) 가 행동하기 직전의 랭크·상태이상·벽·날씨·필드. 실제 턴 적용(executeTurn)은 순서대로 상태를 바꾸므로
+  // 이건 예상(이번 턴 예상 흐름·행동 칸 예상 데미지·입력 경고)용이다. 반영하는 것:
+  //   - 교체로 나오는 포켓몬의 위협 (기술보다 먼저)
+  //   - 먼저 행동하는 기술의 확정 효과·확률 100% 부가효과 (applyMoveEffects 와 같은 조건: 빗나감·데미지 0·상성 무효·대타·
+  //     인분·우격다짐·황금몸이면 없음): 랭크(심술꾸러기·클리어바디류·오기·승기), 상태이상, 벽(리플렉터·빛의장막·오로라베일), 날씨, 필드, 흑안개
+  //   - 행동 칸에서 체크한 "이번 턴 확률 효과"의 상태이상
+  interface TurnSnapshot {
+    boosts: Map<string, Partial<BoostTable>>
+    status: Map<string, Status>
+    screens: Record<BattleSide, Set<string>>
+    weather?: Weather
+    terrain?: Terrain
+  }
+  const turnStateBefore = (
+    atkSide: BattleSide,
+    atkIdx: number,
+    order: TurnEntry[] = turnOrder(),
+  ): TurnSnapshot => {
+    const s = state.value!
+    const snap: TurnSnapshot = {
+      boosts: new Map(),
+      status: new Map(),
+      screens: { mine: new Set(), opp: new Set() },
+    }
+    const key = (sd: BattleSide, i: number) => `${sd}:${i}`
+    const boostsOf = (sd: BattleSide, i: number) => {
+      const k = key(sd, i)
+      if (!snap.boosts.has(k)) snap.boosts.set(k, { ...mon(sd, i).boosts })
+      return snap.boosts.get(k)!
+    }
+    const statusOf = (sd: BattleSide, i: number) => snap.status.get(key(sd, i)) ?? mon(sd, i).status
+    const setStatus = (sd: BattleSide, i: number, st: Exclude<Status, ''>) => {
+      if (!statusOf(sd, i) && !statusBlocked(sd, i, st)) snap.status.set(key(sd, i), st)
+    }
+    // statChange 와 같은 규칙 (상태를 바꾸지 않는 사본)
+    const change = (sd: BattleSide, i: number, k: RankKey, delta: number, byFoe: boolean) => {
+      const ab = resolveAt(sd, i)?.ability || ''
+      if (ab === 'contrary') delta = -delta
+      if (delta < 0 && byFoe && (BLOCK_FOE_DROPS.has(ab) || BLOCK_STAT_DROP[ab] === k)) return
+      if (delta < 0 && byFoe && ab === 'mirrorarmor') return
+      const b = boostsOf(sd, i)
+      const before = b[k] ?? 0
+      b[k] = clampBoost(before + delta)
+      if (b[k]! >= before || !byFoe) return
+      if (ab === 'defiant') change(sd, i, 'atk', 2, false)
+      if (ab === 'competitive') change(sd, i, 'spa', 2, false)
+    }
+    // 교체로 나오는 위협
+    for (const sd of ['mine', 'opp'] as const) {
+      const foe = foeOf(sd)
+      for (const a of s.actions[sd]) {
+        if (a?.kind !== 'switch' || a.switchTo == null) continue
+        if (resolveAt(sd, a.switchTo)?.ability !== 'intimidate') continue
+        s.sides[foe].active.forEach((fi, fSlot) => {
+          if (fi == null || isFainted(foe, fi) || s.actions[foe][fSlot]?.kind === 'switch') return
+          const ab = resolveAt(foe, fi)?.ability || ''
+          if (ab === 'guarddog') return change(foe, fi, 'atk', 1, false)
+          if (INTIMIDATE_IMMUNE.has(ab) || mon(foe, fi).volatiles.substitute) return
+          change(foe, fi, 'atk', -1, true)
+          if (ab === 'rattled') change(foe, fi, 'spe', 1, false)
+        })
+      }
+    }
+    for (const e of order) {
+      if (e.side === atkSide && e.idx === atkIdx) break
+      const a = s.actions[e.side][e.slot]
+      const move = gd.move(e.move)
+      if (!a || a.kind !== 'move' || a.missed || !move || isFainted(e.side, e.idx)) continue
+      const foe = foeOf(e.side)
+      const user = resolveAt(e.side, e.idx)
+      const damaging = move.category !== 'status'
+      // 맞은 상대 칸 (입력한 데미지가 0 이면 안 맞음, 공격기는 상성 무효 제외)
+      const hits: number[] = []
+      const tryHit = (k: number, amount: number | null | undefined) => {
+        const t = hitTarget(e.side, e.slot, order, k).idx
+        if (t == null || isFainted(foe, t) || hits.includes(t)) return
+        if (damaging && amount === 0) return
+        if (damaging) {
+          const atkC = combatantOf(e.side, e.idx, undefined, true)
+          const defC = combatantOf(foe, t)
+          if (atkC && defC && calc.cell(e.move, atkC, defC, fieldFor(foe, t))?.immune) return
+        } else if (resolveAt(foe, t)?.ability === 'goodasgold') return
+        hits.push(t)
+      }
+      if (move.target !== 'self') {
+        tryHit(a.target, a.amount)
+        if (N > 1 && isSpreadMove(move)) tryHit(1 - a.target, a.amount2)
+      }
+      const blocked = (t: number) => behindSub(e.side, e.idx, foe, t, e.move)
+      for (const ef of move.effects as MoveEffect[]) {
+        if (ef.type === 'boost' || ef.type === 'status') {
+          const chance = 'chance' in ef ? ef.chance : undefined
+          if (chance && (chance < 100 || user?.ability === 'sheerforce')) continue
+          if (damaging && !hits.length) continue
+          if (ef.target === 'self') {
+            if (ef.type === 'boost')
+              for (const [k, v] of Object.entries(ef.stats))
+                if (k in zeroBoosts()) change(e.side, e.idx, k as RankKey, v || 0, false)
+            continue
+          }
+          for (const t of hits) {
+            if (blocked(t) || (chance && resolveAt(foe, t)?.ability === 'shielddust')) continue
+            if (ef.type === 'boost') {
+              for (const [k, v] of Object.entries(ef.stats))
+                if (k in zeroBoosts()) change(foe, t, k as RankKey, v || 0, true)
+            } else setStatus(foe, t, ef.status)
+          }
+        } else if (ef.type === 'side' && ['reflect', 'lightscreen', 'auroraveil'].includes(ef.key))
+          snap.screens[ef.side === 'self' ? e.side : foe].add(ef.key)
+        else if (ef.type === 'weather' && !s.weather.permanent) snap.weather = ef.key
+        else if (ef.type === 'terrain') snap.terrain = ef.key
+      }
+      if (e.move === 'haze')
+        for (const sd of ['mine', 'opp'] as const)
+          for (const i of s.sides[sd].active)
+            if (i != null) snap.boosts.set(key(sd, i), zeroBoosts())
+      // 행동 칸에서 체크한 이번 턴 상태이상 (맞은 상대에게, 대타 뒤면 없음)
+      const checked: [number | null, string[] | undefined][] = [
+        [hitTarget(e.side, e.slot, order, a.target).idx, a.inflicts],
+        [N > 1 ? hitTarget(e.side, e.slot, order, 1 - a.target).idx : null, a.inflicts2],
+      ]
+      for (const [t, list] of checked) {
+        if (t == null || !hits.includes(t)) continue
+        for (const k of list ?? []) {
+          const bk = parseBoostKey(k)
+          if (bk?.target === 'self')
+            for (const [st, v] of bk.stats) change(e.side, e.idx, st, v, false)
+          if (blocked(t)) continue
+          if (bk?.target === 'target') for (const [st, v] of bk.stats) change(foe, t, st, v, true)
+          else if (['brn', 'par', 'psn', 'tox', 'slp', 'frz'].includes(k))
+            setStatus(foe, t, k as Exclude<Status, ''>)
+        }
+      }
+    }
+    return snap
+  }
+  // turnStateBefore 결과를 계산용 포켓몬에 덮어씀 (랭크는 필드에 나와 있는 포켓몬만)
+  const withTurnState = <C extends Combatant>(
+    snap: TurnSnapshot,
+    side: BattleSide,
+    idx: number,
+    c: C,
+  ): C => {
+    const b = snap.boosts.get(`${side}:${idx}`)
+    const st = snap.status.get(`${side}:${idx}`)
+    if (!b && !st) return c
+    const active = state.value!.sides[side].active.includes(idx)
+    return { ...c, ...(b && active ? { boosts: b } : {}), ...(st ? { status: st } : {}) }
+  }
+  const fieldWithTurnState = (
+    snap: TurnSnapshot,
+    defSide: BattleSide,
+    f: FieldState,
+  ): FieldState => ({
+    ...f,
+    ...(snap.weather ? { weather: snap.weather } : {}),
+    ...(snap.terrain ? { terrain: snap.terrain } : {}),
+    reflect: f.reflect || snap.screens[defSide].has('reflect'),
+    lightScreen: f.lightScreen || snap.screens[defSide].has('lightscreen'),
+    auroraVeil: f.auroraVeil || snap.screens[defSide].has('auroraveil'),
+  })
 
   // ── 상대 스피드 추정 ─────────────
   // 상대의 그때 스피드 계산 조건 (종족값 + 랭크/특성/순풍/마비/도구 상태). 변신 중이면 스피드 실능치가 정해짐
@@ -3435,9 +3647,24 @@ export function useBattle(mode: BattleMode) {
         attractable(side, ui, foe, tIdx) === 'maybe'
         ? ['attract']
         : []
-    if (target.ability === 'shielddust' || behindSub(side, ui, foe, tIdx, a.move)) return []
-    const out = new Set<string>()
     const sheer = user.ability === 'sheerforce'
+    // 랭크 변화 확률 효과 (100% 미만, 우격다짐이면 없음): 자기 쪽(원석의힘·코멧펀치 등)은 주 대상 칸에만,
+    // 상대 쪽(섀도볼 특방 −1 등)은 인분·대타면 없음
+    const chanceBoosts = sheer
+      ? []
+      : (move.effects as MoveEffect[]).filter(
+          (e): e is Extract<MoveEffect, { type: 'boost' }> =>
+            e.type === 'boost' && !!e.chance && e.chance < 100,
+        )
+    const main = hitTarget(side, slot, turnOrder(), a.target).idx === tIdx
+    const selfKeys = main
+      ? chanceBoosts.filter((e) => e.target === 'self').map((e) => boostKey('self', e.stats))
+      : []
+    if (target.ability === 'shielddust' || behindSub(side, ui, foe, tIdx, a.move)) return selfKeys
+    const targetKeys = chanceBoosts
+      .filter((e) => e.target !== 'self')
+      .map((e) => boostKey('target', e.stats))
+    const out = new Set<string>()
     const chance = (move.effects as MoveEffect[]).filter(
       (e) =>
         (e.type === 'status' || e.type === 'volatile') &&
@@ -3463,13 +3690,43 @@ export function useBattle(mode: BattleMode) {
     if (user.ability === 'poisontouch' && move.flags.includes('contact')) out.add('psn')
     if (user.ability === 'toxicchain') out.add('tox')
     const tm = mon(foe, tIdx)
-    return [...STATUSES, 'flinch', 'confusion'].filter((k) => {
+    const statuses = [...STATUSES, 'flinch', 'confusion'].filter((k) => {
       if (!out.has(k)) return false
       if (k === 'flinch')
         return target.ability !== 'innerfocus' && actsBefore(side, slot, foe, tIdx)
       if (k === 'confusion') return !tm.volatiles.confusion && target.ability !== 'owntempo'
       return !statusBlocked(foe, tIdx, k as Exclude<Status, ''>)
     })
+    return [...statuses, ...targetKeys, ...selfKeys]
+  }
+  // side 의 slot 공격기가 맞으면 반드시 생기는 효과 (확정 효과·확률 100% 부가효과 — 턴 적용 때 자동 반영, 화면은 체크 고정으로 표시).
+  // 랭크 변화(자기 쪽은 주 대상 칸에만)와 상태이상. 인분·대타면 상대 쪽은 없음, 걸 수 없는 상태이상은 제외
+  const sureInflicts = (side: BattleSide, slot: number, tIdx: number | null): string[] => {
+    const s = state.value!
+    const a = s.actions[side][slot]
+    const ui = s.sides[side].active[slot]
+    const foe = foeOf(side)
+    if (!a || a.kind !== 'move' || !a.move || ui == null || tIdx == null) return []
+    const move = gd.move(a.move)
+    const user = resolveAt(side, ui)
+    const target = resolveAt(foe, tIdx)
+    if (!move || move.category === 'status' || !user || !target || isFainted(foe, tIdx)) return []
+    const sheer = user.ability === 'sheerforce'
+    const main = hitTarget(side, slot, turnOrder(), a.target).idx === tIdx
+    const covered = target.ability === 'shielddust' || behindSub(side, ui, foe, tIdx, a.move)
+    const out: string[] = []
+    for (const e of move.effects as MoveEffect[]) {
+      if (e.type !== 'boost' && e.type !== 'status') continue
+      const chance = 'chance' in e ? e.chance : undefined
+      if (chance && (chance < 100 || sheer)) continue
+      if (e.type === 'boost') {
+        if (e.target === 'self') {
+          if (main) out.push(boostKey('self', e.stats))
+        } else if (!covered && !(chance && target.ability === 'shielddust'))
+          out.push(boostKey('target', e.stats))
+      } else if (!covered && !statusBlocked(foe, tIdx, e.status)) out.push(e.status)
+    }
+    return out
   }
   // side 의 slot 기술이 접촉해서, 맞는 상대 tIdx 의 특성으로 공격한 쪽에게 생길 수 있는 효과
   //   (원격(긴 팔)이면 없음, 포자는 풀 타입·방진·방진고글 무효, 대타가 맞으면 없음)
@@ -3613,6 +3870,8 @@ export function useBattle(mode: BattleMode) {
     residualPlan,
     changeBoost,
     setMega,
+    sideMegaUsed,
+    canMegaEvolve,
     setAlt,
     toggleItemGone,
     toggleTransform,
@@ -3625,6 +3884,9 @@ export function useBattle(mode: BattleMode) {
     actionOpts,
     hitTarget,
     formAtHit,
+    turnStateBefore,
+    withTurnState,
+    fieldWithTurnState,
     speedEnvOf,
     pendingSpeedObservation,
     speedRangesOf,
@@ -3656,6 +3918,7 @@ export function useBattle(mode: BattleMode) {
     behindSub,
     drainObservable,
     possibleInflicts,
+    sureInflicts,
     possibleContactInflicts,
     genderOf,
     wakeChance,
