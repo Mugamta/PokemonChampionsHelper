@@ -43,7 +43,7 @@ const gd = useGameData()
 // 레귤레이션별 사용률 통계 (포맷·자료 월·배틀 수)
 const usageRows = computed(() =>
   (['single', 'double'] as const).flatMap((kind) =>
-    Object.entries(gd.data.value?.usage?.[kind] ?? {}).map(([reg, u]) => ({
+    Object.entries(gd.usageMeta(kind)).map(([reg, u]) => ({
       key: kind + reg,
       reg: `${reg} ${t('usage.' + kind)}`,
       format: u.format,

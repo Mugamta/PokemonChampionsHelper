@@ -18,6 +18,7 @@
     "typecheck": "vue-tsc --noEmit -p .nuxt/tsconfig.app.json"
   },
   "dependencies": {
+    "@mdi/js": "^7.4.47",
     "@nuxtjs/i18n": "^10.6.0",
     "nuxt": "^4.4.2",
     "vite-plugin-vuetify": "^2.1.3",

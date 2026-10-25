@@ -10,7 +10,7 @@
 // 배틀 계산(useBattle)도 이 결과로만 상대 실능치 범위를 정한다 (선출 화면의 성격·능력 포인트는 쓰지 않음): bounds
 
 import { toRaw, type Ref } from 'vue'
-import type { BattleSide, BattleState, MonState, StatObservation } from '~/composables/useBattle'
+import type { BattleSide, BattleState, MonState, StatObservation } from '~/utils/battleState'
 import { useTeamCalc, type ResolvedSlot } from '~/composables/useTeamCalc'
 import { calcDamage, effectiveMoveType } from '~/utils/damage'
 import { hpCorrection, hpStepsMatch } from '~/utils/hpDisplay'

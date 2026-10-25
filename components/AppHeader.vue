@@ -121,6 +121,8 @@ onMounted(async () => {
   reg.startClock()
   await gd.load()
   await migrateLegacyTeam(gd, mine)
+  // 현재 레귤레이션의 사용률 표(싱글·더블)는 화면을 먼저 보여 준 뒤 미리 받아 둔다 (자동 배치·통계 추천·첫 화면 TOP 6)
+  for (const kind of ['single', 'double'] as const) void gd.loadUsage(kind, reg.active.value?.id)
 })
 </script>
 

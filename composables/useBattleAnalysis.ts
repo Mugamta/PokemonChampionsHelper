@@ -8,7 +8,8 @@
 //   - 연속기 + 접촉 반격(까칠한피부/철가시/울퉁불퉁멧) 자멸 위험, 턴 종료 상태이상 데미지 예고
 // 문구는 { key, params } 로 반환하고 화면에서 t() 로 번역한다.
 
-import type { useBattle, BattleSide } from '~/composables/useBattle'
+import type { useBattle } from '~/composables/useBattle'
+import type { BattleSide } from '~/utils/battleState'
 import { spanCells, useTeamCalc, type Cell, type CellGuess } from '~/composables/useTeamCalc'
 import {
   hitInfo,

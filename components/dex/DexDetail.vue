@@ -215,8 +215,9 @@ const abilityList = computed(() => [...new Set(self.value.abilities)])
 // 사용률 통계 (현재 레귤레이션, 없으면 가장 최근 달) — 메가는 메가 폼 줄
 const kind = useUsageKind()
 const usageTable = computed(() => {
-  const p = pickUsageTable(gd.data.value?.usage?.[kind.value], reg.active.value?.id)
-  return p ? { reg: p.reg, month: p.table.month, pokemon: p.table.pokemon } : null
+  const p = pickUsageTable(gd.usageMeta(kind.value), reg.active.value?.id)
+  const table = p && gd.usageTable(kind.value, p.reg)
+  return table ? { reg: p.reg, month: table.month, pokemon: table.pokemon } : null
 })
 const usage = computed(() => usageTable.value?.pokemon[props.mon.id] ?? null)
 

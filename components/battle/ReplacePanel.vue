@@ -26,7 +26,8 @@
 </template>
 
 <script setup lang="ts">
-import type { BattleSide, useBattle } from '~/composables/useBattle'
+import type { useBattle } from '~/composables/useBattle'
+import type { BattleSide } from '~/utils/battleState'
 
 const props = defineProps<{ b: ReturnType<typeof useBattle> }>()
 const { t } = useI18n()

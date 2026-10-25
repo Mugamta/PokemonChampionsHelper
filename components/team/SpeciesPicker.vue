@@ -5,7 +5,7 @@
     :dirty="!!model"
     :text="gd.name('pokemon', model)"
     :placeholder="label ?? t('common.pokemon')"
-    prepend-icon="mdi-magnify"
+    :prepend-icon="mdiMagnify"
     clearable
     class="species-picker"
     @activate="activate"
@@ -27,7 +27,7 @@
     hide-details
     clearable
     auto-select-first
-    prepend-inner-icon="mdi-magnify"
+    :prepend-inner-icon="mdiMagnify"
     :menu-props="{ maxHeight: 360 }"
     class="species-picker"
   >
@@ -46,6 +46,7 @@
 </template>
 
 <script setup lang="ts">
+import { mdiMagnify } from '@mdi/js'
 const model = defineModel<string>({ default: '' })
 // 빈 값은 '' 로 저장하지만 Vuetify 에는 null 로 넘긴다 ('' 를 선택된 값으로 봐서 안내 문구가 안 보임)
 const selected = computed({

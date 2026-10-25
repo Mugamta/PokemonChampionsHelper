@@ -229,13 +229,8 @@
 </template>
 
 <script setup lang="ts">
-import {
-  VOLATILE_DURATION,
-  VOLATILE_GROUPS,
-  STATUSES,
-  type BattleSide,
-  type useBattle,
-} from '~/composables/useBattle'
+import type { useBattle } from '~/composables/useBattle'
+import { VOLATILE_DURATION, VOLATILE_GROUPS, STATUSES, type BattleSide } from '~/utils/battleState'
 import type { useBattleAnalysis } from '~/composables/useBattleAnalysis'
 import { spRangeOf } from '~/utils/statInference'
 import { applyBoost } from '~/utils/stats'

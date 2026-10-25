@@ -309,7 +309,10 @@ watch(
     megaOn.value = true
     altOn.value = null
     if (id && props.autoSet) {
-      auto.apply(slot.value, props.excludeItems)
+      const target = slot.value
+      void auto.ready().then(() => {
+        if (target === slot.value && target.species === id) auto.apply(target, props.excludeItems)
+      })
       return
     }
     const p = gd.pokemon(id)

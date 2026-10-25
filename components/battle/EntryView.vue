@@ -229,7 +229,8 @@ const opp = useTeam('opp')
 const entry = useEntry(props.mode)
 const auto = useAutoSet(props.mode)
 // 상대 파티 전체를 자동 배치로 다시 채움 (포켓몬을 고를 때도 자동으로 채워진다)
-const autoSetAll = () => {
+const autoSetAll = async () => {
+  await auto.ready()
   opp.slots.value.forEach((s, i) => {
     if (!s.species) return
     // 도구 중복 금지: 앞 슬롯들이 이미 고른 도구는 피함

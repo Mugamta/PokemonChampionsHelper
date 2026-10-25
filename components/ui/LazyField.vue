@@ -32,10 +32,12 @@
         <div v-if="prependIcon || $slots['prepend-inner']" class="v-field__prepend-inner">
           <i
             v-if="prependIcon"
-            class="mdi v-icon notranslate v-icon--size-default"
-            :class="[prependIcon, themeClass]"
+            class="v-icon notranslate v-icon--size-default"
+            :class="themeClass"
             aria-hidden="true"
-          />
+          >
+            <svg class="v-icon__svg" v-bind="SVG"><path :d="prependIcon" /></svg>
+          </i>
           <slot name="prepend-inner" />
         </div>
         <div class="v-field__field">
@@ -60,18 +62,20 @@
         </div>
         <div v-if="clearable && dirty && !disabled" class="v-field__clearable">
           <i
-            class="mdi-close-circle mdi v-icon notranslate v-icon--size-default v-icon--clickable"
+            class="v-icon notranslate v-icon--size-default v-icon--clickable"
             :class="themeClass"
             role="button"
             :aria-label="vt('$vuetify.input.clear', placeholder ?? '')"
             @mousedown.stop.prevent
             @click.stop="emit('clear')"
-          />
+          >
+            <svg class="v-icon__svg" v-bind="SVG"><path :d="mdiCloseCircle" /></svg>
+          </i>
         </div>
         <div class="v-field__append-inner">
           <slot name="append-inner" />
           <i
-            class="mdi-menu-down mdi v-icon notranslate v-icon--size-default"
+            class="v-icon notranslate v-icon--size-default"
             :class="[
               themeClass,
               kind === 'select'
@@ -79,7 +83,9 @@
                 : 'v-icon--clickable v-autocomplete__menu-icon',
             ]"
             aria-hidden="true"
-          />
+          >
+            <svg class="v-icon__svg" v-bind="SVG"><path :d="mdiMenuDown" /></svg>
+          </i>
         </div>
         <div class="v-field__outline" />
       </div>
@@ -88,14 +94,23 @@
 </template>
 
 <script setup lang="ts">
+import { mdiCloseCircle, mdiMenuDown } from '@mdi/js'
 import { useLocale, useTheme } from 'vuetify'
+
+// Vuetify 의 SVG 아이콘(VSvgIcon)과 같은 속성. 지우기·목록 아이콘은 Vuetify mdi-svg 의 clear·dropdown 과 같은 경로
+const SVG = {
+  xmlns: 'http://www.w3.org/2000/svg',
+  viewBox: '0 0 24 24',
+  role: 'img',
+  'aria-hidden': 'true',
+} as const
 
 const props = defineProps<{
   kind?: 'autocomplete' | 'select'
   text?: string // 선택된 값의 표시 이름 (selection 슬롯이 없을 때)
   dirty: boolean // 값이 있음
   placeholder?: string
-  prependIcon?: string // 'mdi-magnify' 등
+  prependIcon?: string // SVG 경로 (@mdi/js 의 mdiMagnify 등)
   clearable?: boolean
   disabled?: boolean
 }>()

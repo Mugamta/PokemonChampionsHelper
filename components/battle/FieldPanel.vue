@@ -105,7 +105,8 @@
 </template>
 
 <script setup lang="ts">
-import { ROOMS, type BattleSide, type useBattle } from '~/composables/useBattle'
+import type { useBattle } from '~/composables/useBattle'
+import { ROOMS, type BattleSide } from '~/utils/battleState'
 import type { Terrain, Weather } from '~/utils/types'
 
 const props = withDefaults(

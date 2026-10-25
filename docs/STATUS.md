@@ -369,6 +369,15 @@
   성별 미입력 슬롯은 붉은 테두리 + 배틀 시작 버튼 옆 안내 (내 쪽은 시작을 막고, 상대는 경고만)
 - 테스트 399개
 
+### 구조·성능 개선 (2026-10-25)
+
+- 자세한 내용·측정값은 [REFACTOR.md](REFACTOR.md). 기능(화면 결과)은 그대로, 분할 전 빌드와 같은 스모크 결과로 확인
+- `useBattle.ts` → `composables/battle/` 층별 8개 + `utils/battleState.ts`(타입·상수, 컴포넌트도 여기서 import)
+- `ActionPanel.vue` → `ActionSlot.vue`(칸 하나) + `OppConfirm.vue`(상대 도구·특성 확정)
+- 사용률 통계 `usage.json` → `public/data/usage/` (목록 + 종류·레귤레이션별 표, 필요할 때 받음). 로딩 화면이 통계를 기다리지 않음
+- 아이콘 폰트(jsdelivr) → Vuetify SVG 아이콘 (`@mdi/js` 의존성 추가)
+- 테스트 400개
+
 ## 하지 않은 것 (남은 작업)
 
 남은 버그·미구현은 [BUGS.md](BUGS.md) 에 따로 정리 (2026-10-22).

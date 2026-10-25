@@ -689,9 +689,11 @@ for (const L of Object.keys(names)) {
 
 // ── 6.5 사용률 (Smogon 월별 통계) ─────────────
 // 레귤레이션마다 싱글 포맷(gen9championsbssreg<id>)·더블 포맷(gen9championsvgc<연도>reg<id>) 통계 중
-// 가장 최근 달의 chaos JSON (레이팅 가중 1500). usage.json = { single: {레귤레이션: 표}, double: {…} }.
+// 가장 최근 달의 chaos JSON (레이팅 가중 1500). public/data/usage/ 에 종류·레귤레이션마다 따로:
+//   index.json = { single: {레귤레이션: {format, month, battles}}, double: {…} }, {single|double}-{레귤레이션}.json = 표.
+//   (전부 한 파일이면 1MB 넘어서 첫 화면이 늦어짐 — 앱은 현재 레귤레이션 표만 필요할 때 받는다)
 // 포켓몬(폼)별 사용 수 + 가장 많이 쓴 기술 4개·배분(성격+능력 포인트)·특성·도구 → 선출 화면 상대 자동 배치에 사용.
-// 받기 실패(오프라인 등)면 기존 usage.json 을 유지한다. 새 달 반영은 --refresh.
+// 받기 실패(오프라인 등)면 기존 usage/ 를 유지한다. 새 달 반영은 --refresh.
 const STATS = 'https://www.smogon.com/stats'
 const USAGE_CUTOFF = 1500
 const USAGE_MIN = 200 // 사용 수가 이보다 적으면 통계를 쓰지 않음 (표본 부족)
@@ -789,7 +791,7 @@ let usage = null
 try {
   usage = await buildUsage()
 } catch (e) {
-  warn.push(`사용률 통계 받기 실패 (기존 usage.json 유지): ${e.message}`)
+  warn.push(`사용률 통계 받기 실패 (기존 usage/ 유지): ${e.message}`)
 }
 
 // ── 7. 출력 ─────────────
@@ -802,7 +804,20 @@ write('items.json', items)
 write('natures.json', natureOut)
 write('types.json', { types: TYPES, chart: typeChart })
 write('regulations.json', regulations)
-if (usage) write('usage.json', usage)
+if (usage) {
+  const dir = path.join(OUT, 'usage')
+  fs.rmSync(dir, { recursive: true, force: true })
+  fs.mkdirSync(dir, { recursive: true })
+  const index = { single: {}, double: {} }
+  for (const [kind, regs] of Object.entries(usage))
+    for (const [reg, table] of Object.entries(regs)) {
+      const { pokemon: _, ...meta } = table
+      index[kind][reg] = meta
+      write(`usage/${kind}-${reg}.json`, table)
+    }
+  write('usage/index.json', index)
+  fs.rmSync(path.join(OUT, 'usage.json'), { force: true }) // 예전 한 파일 형식
+}
 for (const L of Object.keys(names)) {
   write(`names.${L}.json`, names[L])
   write(`texts.${L}.json`, texts[L])

@@ -12,10 +12,12 @@ components/
   team/                SlotEditor(슬롯 편집), SlotCard(읽기 전용 카드), SpeciesPicker / ItemPicker / MovePicker / NaturePicker,
                        FormToggle(배틀 폼 토글 / 캐스퐁 날씨 버튼), PreviewConditions(결정력 미리보기 조건: 날씨·필드·상태이상·랭크),
                        TypeConsistency(파티 전원에게 1배 이상 들어가는 공격 타입 한 줄)
-  battle/              EntryView(선출), BattleView(배틀) 와 그 하위 패널들 (DamageInput = 데미지 / 체력 전후 입력칸)
+  battle/              EntryView(선출), BattleView(배틀) 와 그 하위 패널들 (DamageInput = 데미지 / 체력 전후 입력칸,
+                       ActionPanel = 이번 턴 행동 → 칸마다 ActionSlot + 상대 확정 OppConfirm)
                        (SpeedPanel = 상대 스피드 구간 막대, EstimatePanel = 상대 배분 추정, SlotMini = 선출 화면의 접은 슬롯 한 줄)
   perf/                포켓몬 성능표: BulkTable / PowerTable / SpeedTable, MonCell(포켓몬 칸)
 composables/           상태 + 계산 연결 (아래 표)
+  battle/              useBattle 의 층별 구현 (index.ts 가 없어 자동 import 대상 아님, 아래 "배틀 상태")
 utils/                 순수 계산 (tests/ 에서 테스트): types.ts, stats.ts, damage.ts, ko.ts, typeCheck.ts(타입 상성 도우미),
                        speedInference.ts(선후공 → 상대 스피드 구간), statInference.ts(데미지 → 상대 배분 격자),
                        perfTable.ts(성능표 내구·결정력·스피드), autoSet.ts(상대 포켓몬 자동 배치), accuracy.ts(명중·급소)
@@ -54,14 +56,14 @@ Nuxt 컴포넌트 이름은 폴더 접두사가 붙는다: `components/team/Slot
 
 | 이름 | 역할 |
 |---|---|
-| `useGameData()` | `public/data` 로드(1회), 현재 언어 이름/설명 로드, `name/text/pokemon/move/learnset/megaFor/pokemonSprite/itemSprite/options` |
+| `useGameData()` | `public/data` 로드(1회), 현재 언어 이름/설명 로드, `name/text/pokemon/move/learnset/megaFor/pokemonSprite/itemSprite/options`. 사용률 통계는 출처 목록 `usageMeta(kind)` + 표 `usageTable(kind, reg)`(없으면 받기 시작, 받으면 다시 계산) / `loadUsage` |
 | `useRegulation()` | 레귤레이션 목록, 현재 시각 자동 선택/수동 선택, `isAllowed(id)`, `selectableSpecies` |
 | `useTeam(side)` | `'mine' | 'opp'` 6슬롯 (`TeamSlot`), 완성 여부 `isComplete`(6마리·기술 1개 이상·내 파티는 성별까지, 성별 미선택 슬롯 `missingGender`), 메가 미리보기 토글(`megaOn`), 배틀 폼 토글(`altOn`, null = 기본값). localStorage `pch-team-mine-v2` / `pch-team-opp-v2` 자동 저장. `migrateLegacyTeam()` 은 예전 한글 저장분 이전 |
 | `useEntry(mode)` | 선출 순서(내 파티 인덱스 배열), 싱글 3 / 더블 4 |
 | `useTeamCalc()` | 슬롯 → `ResolvedSlot`(메가 폼·실능치·특성), `combatant()`, 데미지 표 칸 `cell()`, 결정력 `power()`, 연속기 타수 `hits()` |
 | `useUsageKind()` | 사용률 통계 종류(싱글/더블) 선택, localStorage `pch_usage_kind`. 첫 화면·도감·파티 화면이 공유 (`TeamUsageKindToggle`) |
-| `useAutoSet(kind?)` | 상대 포켓몬 자동 배치: 현재 레귤레이션의 싱글/더블 사용률 통계(`usage.json`, `usageSet`, kind 생략 시 `useUsageKind`)가 있으면 우선, 없으면 `utils/autoSet.ts` 규칙. 슬롯에 적용(`apply`, 같은 파티 도구 중복 피함) |
-| `useBattle(mode)` | 배틀 상태 머신. `useState('battle-{mode}')` 에 저장(화면 이동해도 유지, 선출/상대 구성이 바뀌면 자동 초기화) |
+| `useAutoSet(kind?)` | 상대 포켓몬 자동 배치: 현재 레귤레이션의 싱글/더블 사용률 통계(`public/data/usage/`, `usageSet`, kind 생략 시 `useUsageKind`)가 있으면 우선, 없으면 `utils/autoSet.ts` 규칙. 슬롯에 적용(`apply`, 같은 파티 도구 중복 피함). 표는 따로 받으므로 자동 배치 전에 `ready()` 를 기다린다 |
+| `useBattle(mode)` | 배틀 상태 머신. `useState('battle-{mode}')` 에 저장(화면 이동해도 유지, 선출/상대 구성이 바뀌면 자동 초기화). 구현은 `composables/battle/*` 를 조립, 타입·상수는 `utils/battleState.ts` |
 | `useBattleAnalysis(b)` | 행동 순서, 스피드 구간(`speedBands`), 시나리오 데미지, ①②③ 흐름, 연속기 자멸 위험, 상태이상 예고. 문구는 `{key, params}` |
 | `useOppEstimate(b)` | 상대 배분 추정: 저장된 관측(주고받은 데미지)마다 그 시점 상태로 다시 계산해 내구·공격·도구 후보 범위를 좁힌다 |
 | `usePerfList()` | 성능표 대상 (레귤레이션 출전 가능 + 메가, 계산 폼, "신규"), 이름 검색. 계산용 데이터는 `toRaw` 로 넘김(반응형 추적 비용) |
@@ -72,6 +74,21 @@ Nuxt 컴포넌트 이름은 폴더 접두사가 붙는다: `components/team/Slot
 | `useFitLayout()` | 넓은 화면 한 화면 배치 여부 (`(min-width: 1400px) and (min-height: 700px)`). 배틀 화면의 패널 재배치·표 탭, 파티 6장 한 줄에 사용 |
 
 ## 배틀 상태 (useBattle)
+
+파일 구성 — 아래 층은 위 층을 부르지 않는다 (각 `createX(b)` 가 아래 층 결과를 받아 필요한 함수를 꺼내 쓴다):
+
+| 파일 | 내용 |
+|---|---|
+| `utils/battleState.ts` | 타입(`MonState`·`ActionState`·`BattleState` 등)과 상수(특수 상태 지속 턴, 교체기 목록 등). 컴포넌트·테스트도 여기서 import |
+| `battle/core.ts` | 읽기: 로스터 → 슬롯, 상대 도구·특성·배분 규칙, 실능치(`resolveAt`), `fieldFor`·`combatantOf`, 상태이상 면역, 대타, 되돌리기 스냅샷 |
+| `battle/order.ts` | 스피드·우선도·행동 순서(`turnOrder`)·맞는 포켓몬(`hitTarget`)·공격 보정(`actionOpts`)·이번 턴 앞선 효과(`turnStateBefore`)·상대 스피드 구간·선후공 판정 |
+| `battle/queries.ts` | 교체 후보·쓰러진 뒤 교체·배틀 결과, 흡수 후 HP 입력, 잠듦·앙코르·PP, 입력 검증, 확률 효과 선택지, 교체 가능 여부 |
+| `battle/field.ts` | 날씨·필드·공간·벽·설치기 바꾸기 |
+| `battle/hp.ts` | 랭크 변화(반응 특성·하양허브), HP 증감·회복 열매, 턴 끝 회복·데미지, 흡수, 상태이상·졸음, PP 소모 |
+| `battle/entry.ts` | 내보내기·설치기·변신·위협·등장 특성, 동시 등장 묶음, 상대 도구·특성 확정 |
+| `battle/moves.ts` | 기술 효과 자동 반영, 기술의 HP 효과, 맞은 직후(도구·특성), 공격한 쪽 HP 변화, 배분 추정 관측 기록 |
+| `battle/turn.ts` | `executeTurn`·되돌리기 |
+| `useBattle.ts` | 조립 + 초기화·화면에서 직접 고치는 setter + 반환 API |
 
 - 로스터: 내 쪽 = 선출 순서, 상대 = 상대 파티 6마리. 필드 칸 `active[N]` 이 로스터 인덱스를 가리킨다.
 - 포켓몬별 `MonState`: `hp`(내 쪽 실수치 / 상대 %), `megaOn`, `megaUsed`, `status`, `toxicTurn`, `volatiles{키:경과턴}`, `boosts`,
@@ -101,3 +118,4 @@ Nuxt 컴포넌트 이름은 폴더 접두사가 붙는다: `components/team/Slot
   v-tooltip 을 직접 쓰면 Vuetify 4.1 은 열지 않아도 마운트 직후 내용을 만들어 두므로 내용은 `#default="{ isActive }"` + `v-if="isActive.value"` 로.
   게임 데이터(`useGameData().data`, 이름표)는 `markRaw` — 바뀌지 않는 큰 JSON 을 깊은 반응형으로 만들지 않는다
 - 폰트 Rubik(숫자/제목) + Noto Sans KR/JP
+- 아이콘: Vuetify `mdi-svg` (아이콘 폰트·CDN 없음). 직접 쓸 때는 `@mdi/js` 에서 경로를 import (`:prepend-inner-icon="mdiMagnify"`), 문자열 `mdi-xxx` 는 안 됨

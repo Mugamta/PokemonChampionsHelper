@@ -1,7 +1,5 @@
 // utils/types.ts — public/data/*.json 형식과 계산 로직에서 공유하는 타입
 
-import type { UsageData } from './autoSet'
-
 export type StatKey = 'hp' | 'atk' | 'def' | 'spa' | 'spd' | 'spe'
 export type BoostKey = Exclude<StatKey, 'hp'>
 export type StatTable = Record<StatKey, number>
@@ -127,8 +125,6 @@ export interface GameData {
   natures: Record<string, Nature>
   types: { types: TypeId[]; chart: Record<TypeId, Record<TypeId, number>> }
   regulations: Regulation[]
-  // 사용률 통계 (레귤레이션 id → 표). 파일이 없으면 빈 객체
-  usage?: UsageData
 }
 
 export interface NameTable {

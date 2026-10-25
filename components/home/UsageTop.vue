@@ -73,9 +73,11 @@ const calc = useTeamCalc()
 
 // 현재 레귤레이션의 통계, 없으면 가장 최근 달 자료
 const kind = useUsageKind()
-const picked = computed(() =>
-  pickUsageTable(gd.data.value?.usage?.[kind.value], reg.active.value?.id),
-)
+const picked = computed(() => {
+  const p = pickUsageTable(gd.usageMeta(kind.value), reg.active.value?.id)
+  const table = p && gd.usageTable(kind.value, p.reg)
+  return table ? { reg: p.reg, table } : null
+})
 
 const top = computed(() => {
   const p = picked.value

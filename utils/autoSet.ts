@@ -436,7 +436,8 @@ export function autoSet(input: AutoSetInput): AutoSet {
 }
 
 // ── 사용률 통계 우선 ─────────────
-// public/data/usage.json (scripts/build-data.mjs 가 Smogon 월별 통계에서 생성). 레귤레이션별 싱글 포맷
+// public/data/usage/ (scripts/build-data.mjs 가 Smogon 월별 통계에서 생성): index.json = 종류·레귤레이션별 출처(UsageIndex),
+// {종류}-{레귤레이션}.json = 표(UsageTable). 표는 필요할 때 받는다 (useGameData usageTable)
 export interface UsageSet {
   count: number // 사용 수
   usage?: number // 팀 채용률 (0~1, 레이팅 가중)
@@ -461,6 +462,11 @@ export interface UsageTable {
   battles: number
   pokemon: Record<string, UsageSet> // 폼 id (메가 폼은 메가 id)
 }
+// 표 없이 출처 정보만 (index.json)
+export type UsageMeta = Omit<UsageTable, 'pokemon'>
+export type UsageIndex = Record<UsageKind, Record<string, UsageMeta>>
+// 표 파일 (public/data 기준 경로)
+export const usageFile = (kind: UsageKind, reg: string) => `usage/${kind}-${reg}.json`
 
 // 원종 + 메가 폼을 합친 도구별 채용률 (통계는 메가 폼을 따로 세서 원종 표에는 메가스톤이 없다).
 // 폼별 사용 수로 가중 평균 → 메가스톤 비율 = 메가 폼 사용 수 / 전체. 통계가 없으면 undefined
@@ -525,10 +531,11 @@ export function usageSet(
 
 // ── 사용률 상위 (첫 화면) ─────────────
 // 보여 줄 통계 표: 지정한 레귤레이션(현재)의 표, 없으면 자료 월이 가장 최근인 표 (같으면 뒤에 있는 레귤레이션)
-export function pickUsageTable(
-  tables: Record<string, UsageTable> | undefined,
+// (표 대신 출처 정보 목록 UsageIndex[kind] 을 넘겨 레귤레이션만 고를 수도 있다)
+export function pickUsageTable<T extends { month: string }>(
+  tables: Record<string, T> | undefined,
   regId?: string | null,
-): { reg: string; table: UsageTable } | null {
+): { reg: string; table: T } | null {
   const entries = Object.entries(tables ?? {})
   const own = regId ? entries.find(([id]) => id === regId) : undefined
   const pick =

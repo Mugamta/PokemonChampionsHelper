@@ -11,6 +11,7 @@
 - [docs/BATTLE_MECHANICS.md](docs/BATTLE_MECHANICS.md) — 실능치/데미지 공식, 반영된 특성·도구 목록, 테스트 방법
 - [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) — 확인 필요한 데이터, 미반영 효과, 환경 주의사항
 - [docs/BUGS.md](docs/BUGS.md) — 남은 버그 / 미구현 목록 (main 에서 하나씩 고쳐 나감)
+- [docs/REFACTOR.md](docs/REFACTOR.md) — 구조·성능 개선 작업 목록과 측정 기준 (기능은 바꾸지 않는 작업)
 
 ## 스택 / 명령어
 

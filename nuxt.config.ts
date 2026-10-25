@@ -27,6 +27,8 @@ export default defineNuxtConfig({
 
   vuetify: {
     vuetifyOptions: {
+      // 아이콘은 SVG (@mdi/js 경로를 쓰는 것만 번들). 기본값(mdi 아이콘 폰트)은 CDN CSS·폰트를 받아 첫 화면을 막는다
+      icons: { defaultSet: 'mdi-svg' },
       theme: {
         defaultTheme: 'champions',
         themes: {

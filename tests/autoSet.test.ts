@@ -9,7 +9,9 @@ import {
   pickUsageTable,
   topUsage,
   usageSet,
+  usageFile,
   type UsageData,
+  type UsageIndex,
   type UsageTable,
 } from '../utils/autoSet'
 import type { Move, Nature, Pokemon } from '../utils/types'
@@ -276,8 +278,24 @@ describe('사용률 통계 우선', () => {
     expect(usageSet(pokemon.corviknight!, table, pokemon, build('corviknight'))).toBeNull()
   })
 
-  it('생성된 usage.json: 싱글·더블 모두, 기술은 배우는 것만, 능력 포인트 합 66 이하', () => {
-    const usage = load('usage') as UsageData
+  it('생성된 사용률 통계 (usage/): 싱글·더블 모두, 목록과 표가 맞음, 기술은 배우는 것만, 능력 포인트 합 66 이하', () => {
+    const index = load('usage/index') as UsageIndex
+    const usage = Object.fromEntries(
+      (['single', 'double'] as const).map((kind) => [
+        kind,
+        Object.fromEntries(
+          Object.keys(index[kind]).map((reg) => [
+            reg,
+            load(usageFile(kind, reg).replace(/.json$/, '')) as UsageTable,
+          ]),
+        ),
+      ]),
+    ) as UsageData
+    for (const kind of ['single', 'double'] as const)
+      for (const [reg, meta] of Object.entries(index[kind])) {
+        const { pokemon: _, ...rest } = usage[kind][reg]!
+        expect(rest).toEqual(meta)
+      }
     expect(Object.keys(usage.single).length).toBeGreaterThan(0)
     expect(Object.keys(usage.double).length).toBeGreaterThan(0)
     for (const t of [...Object.values(usage.single), ...Object.values(usage.double)])
