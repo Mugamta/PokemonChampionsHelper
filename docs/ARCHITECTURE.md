@@ -14,13 +14,15 @@ components/
                        TypeConsistency(파티 전원에게 1배 이상 들어가는 공격 타입 한 줄)
   battle/              EntryView(선출), BattleView(배틀) 와 그 하위 패널들 (DamageInput = 데미지 / 체력 전후 입력칸,
                        ActionPanel = 이번 턴 행동 → 칸마다 ActionSlot + 상대 확정 OppConfirm)
-                       (SpeedPanel = 상대 스피드 구간 막대, EstimatePanel = 상대 배분 추정, SlotMini = 선출 화면의 접은 슬롯 한 줄)
+                       (SpeedPanel = 상대 스피드 구간 막대, EstimatePanel = 상대 배분 추정, SlotMini = 선출 화면의 접은 슬롯 한 줄,
+                       RecommendPanel = 추천 플레이 — 싱글만, "계산"을 눌렀을 때만 계산)
   perf/                포켓몬 성능표: BulkTable / PowerTable / SpeedTable, MonCell(포켓몬 칸)
 composables/           상태 + 계산 연결 (아래 표)
   battle/              useBattle 의 층별 구현 (index.ts 가 없어 자동 import 대상 아님, 아래 "배틀 상태")
 utils/                 순수 계산 (tests/ 에서 테스트): types.ts, stats.ts, damage.ts, ko.ts, typeCheck.ts(타입 상성 도우미),
                        speedInference.ts(선후공 → 상대 스피드 구간), statInference.ts(데미지 → 상대 배분 격자),
-                       perfTable.ts(성능표 내구·결정력·스피드), autoSet.ts(상대 포켓몬 자동 배치), accuracy.ts(명중·급소)
+                       perfTable.ts(성능표 내구·결정력·스피드), autoSet.ts(상대 포켓몬 자동 배치), accuracy.ts(명중·급소),
+                       recommend.ts(추천 플레이 이득표·점수)
 plugins/locale.client.ts  언어 선택 (localStorage 'pch_lang' → 브라우저 언어 → en)
 plugins/theme.client.ts   화면 테마 낮/밤/시스템 (localStorage 'pch_theme', 없으면 시스템) → <html data-theme> + Vuetify 테마
 plugins/page-loading.client.ts  페이지 이동 시 로딩 오버레이(UiPageLoading) 를 먼저 그린 뒤 이동, page:finish 에서 끔
@@ -66,6 +68,7 @@ Nuxt 컴포넌트 이름은 폴더 접두사가 붙는다: `components/team/Slot
 | `useAutoSet(kind?)` | 상대 포켓몬 자동 배치: 현재 레귤레이션의 싱글/더블 사용률 통계(`public/data/usage/`, `usageSet`, kind 생략 시 `useUsageKind`)가 있으면 우선, 없으면 `utils/autoSet.ts` 규칙. 슬롯에 적용(`apply`, 같은 파티 도구 중복 피함). 표는 따로 받으므로 자동 배치 전에 `ready()` 를 기다린다 |
 | `useBattle(mode)` | 배틀 상태 머신. `useState('battle-{mode}')` 에 저장(화면 이동해도 유지, 선출/상대 구성이 바뀌면 자동 초기화). 구현은 `composables/battle/*` 를 조립, 타입·상수는 `utils/battleState.ts` |
 | `useBattleAnalysis(b)` | 행동 순서, 스피드 구간(`speedBands`), 시나리오 데미지, ①②③ 흐름, 연속기 자멸 위험, 상태이상 예고. 문구는 `{key, params}` |
+| `useRecommend(b)` | 추천 플레이 (싱글): 배틀 상태로 내 선택지(기술·교체) × 상대 기술 이득표 재료를 만들어 `utils/recommend.ts` 로 순위. `enabled` 가 켜졌을 때만 계산. 쓰러져 교체할 차례면 대기 포켓몬 비교. 가중치는 `useRecWeights()` (`useState` + localStorage `pch_rec_weights`) |
 | `useOppEstimate(b)` | 상대 배분 추정: 저장된 관측(주고받은 데미지)마다 그 시점 상태로 다시 계산해 내구·공격·도구 후보 범위를 좁힌다 |
 | `usePerfList()` | 성능표 대상 (레귤레이션 출전 가능 + 메가, 계산 폼, "신규"), 이름 검색. 계산용 데이터는 `toRaw` 로 넘김(반응형 추적 비용) |
 | `useIncremental(list)` | 긴 목록을 조금씩 그리기 (끝 요소가 화면 근처에 오면 더) |

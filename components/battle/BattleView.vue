@@ -96,6 +96,7 @@
           <BattleReplacePanel :b="b" />
           <BattleActionPanel :b="b" :an="an" />
           <BattleForecastPanel :an="an" />
+          <BattleRecommendPanel :b="b" />
           <BattleSpeedPanel v-if="!fit" :b="b" :an="an" />
           <BattleEstimatePanel v-if="!fit" :b="b" />
           <template v-if="fit">
