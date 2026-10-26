@@ -549,8 +549,6 @@
     "fxSure": "Always happens on hit (applied automatically)",
     "rec": {
       "title": "Recommended play",
-      "show": "Calculate",
-      "hide": "Close",
       "hint": "A recommendation for reference. \"1 turn\" estimates what follows from the matchup outlook; \"2 turns\" also calculates the best play next turn. Only revealed Pokémon are considered as opponent switch-ins.",
       "replaceHint": "Which Pokémon to send in: compared by hazard damage and matchup outlook.",
       "none": "No recommendation in this state (needs active Pokémon and opponent moves).",
@@ -595,7 +593,9 @@
       "depth2": "2 turns",
       "depth1Hint": "Calculate this turn only and estimate the rest from the matchup outlook (fast)",
       "depth2Hint": "Also calculate the best play on the next turn from the resulting state (slower)",
-      "next": "Next turn: {name} {plan}"
+      "next": "Next turn: {name} {plan}",
+      "close": "Close",
+      "openHint": "Calculate the recommended play for this turn in a dialog"
     }
   },
   "help": {

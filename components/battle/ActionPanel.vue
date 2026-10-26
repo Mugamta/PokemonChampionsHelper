@@ -4,8 +4,21 @@
     <h3 class="panel-title">
       {{ t('battle.actions') }}
       <span class="spacer" />
+      <!-- 추천 플레이 (싱글): 다이얼로그로 열고, 열려 있는 동안만 계산 -->
+      <button
+        v-if="b.N === 1 && !b.battleResult.value"
+        type="button"
+        class="btn btn-sm rec-btn"
+        :title="t('battle.rec.openHint')"
+        @click="recOpen = true"
+      >
+        {{ t('battle.rec.title') }}
+      </button>
       <span class="turn num">{{ t('battle.turn', { n: s.turn }) }}</span>
     </h3>
+    <v-dialog v-model="recOpen" max-width="760" scrollable>
+      <BattleRecommendPanel v-if="recOpen" :b="b" @close="recOpen = false" />
+    </v-dialog>
 
     <!-- 배틀 종료: 행동 입력 대신 결과 (이전 턴으로 되돌리면 다시 입력 가능) -->
     <div v-if="b.battleResult.value" class="result" :class="b.battleResult.value">
@@ -94,6 +107,7 @@ const { t } = useI18n()
 const gd = useGameData()
 const line = useLine()
 const s = computed(() => props.b.state.value!)
+const recOpen = ref(false)
 
 const userIdx = (side: BattleSide, slot: number) => s.value.sides[side].active[slot] ?? null
 // 분석 대상 칸의 교체 여부: 한쪽만 교체면 그쪽이 먼저(고정), 둘 다 교체면 교체 순서를 관찰
@@ -220,6 +234,10 @@ const errMax = computed(() => {
 }
 .panel-title {
   margin: 0;
+}
+.rec-btn {
+  border-color: var(--accent);
+  color: var(--accent-text);
 }
 .turn {
   font-size: 13px;

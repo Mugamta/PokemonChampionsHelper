@@ -15,7 +15,7 @@ components/
   battle/              EntryView(선출), BattleView(배틀) 와 그 하위 패널들 (DamageInput = 데미지 / 체력 전후 입력칸,
                        ActionPanel = 이번 턴 행동 → 칸마다 ActionSlot + 상대 확정 OppConfirm)
                        (SpeedPanel = 상대 스피드 구간 막대, EstimatePanel = 상대 배분 추정, SlotMini = 선출 화면의 접은 슬롯 한 줄,
-                       RecommendPanel = 추천 플레이 — 싱글만, "계산"을 눌렀을 때만 계산)
+                       RecommendPanel = 추천 플레이 — 싱글만, 행동 패널 제목 줄의 "추천 플레이" 버튼으로 여는 다이얼로그, 열려 있는 동안만 계산)
   perf/                포켓몬 성능표: BulkTable / PowerTable / SpeedTable, MonCell(포켓몬 칸)
 composables/           상태 + 계산 연결 (아래 표)
   battle/              useBattle 의 층별 구현 (index.ts 가 없어 자동 import 대상 아님, 아래 "배틀 상태")

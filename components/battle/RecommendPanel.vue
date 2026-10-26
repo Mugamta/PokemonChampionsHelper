@@ -1,13 +1,14 @@
 <!--
   추천 플레이 (싱글): 내 기술·교체마다 이번 턴 결과를 점수로 매긴 순위 (composables/useRecommend.ts)
-  계산이 무거워서 "계산"을 눌렀을 때만 계산한다. 가중치는 펼쳐서 바꿀 수 있음, 1턴 / 2턴 앞 선택 (localStorage 저장)
+  행동 패널의 "추천 플레이" 버튼으로 여는 다이얼로그 안의 내용. 열려 있는 동안만 계산한다 (닫으면 v-if 로 내림)
+  가중치는 펼쳐서 바꿀 수 있음, 1턴 / 2턴 앞 선택 (localStorage 저장)
 -->
 <template>
-  <section v-if="b.N === 1" class="panel panel-pad rec">
+  <section class="panel panel-pad rec">
     <h3 class="panel-title">
       {{ t('battle.rec.title') }}
       <span class="spacer" />
-      <span v-if="rec.enabled.value" class="depth" role="group" :aria-label="t('battle.rec.depth')">
+      <span class="depth" role="group" :aria-label="t('battle.rec.depth')">
         <button
           v-for="d in [1, 2] as const"
           :key="d"
@@ -21,7 +22,6 @@
         </button>
       </span>
       <button
-        v-if="rec.enabled.value"
         type="button"
         class="btn btn-sm"
         :class="{ 'btn-on': showWeights }"
@@ -29,11 +29,16 @@
       >
         {{ t('battle.rec.weights') }}
       </button>
-      <button type="button" class="btn btn-sm" @click="rec.enabled.value = !rec.enabled.value">
-        {{ t(rec.enabled.value ? 'battle.rec.hide' : 'battle.rec.show') }}
+      <button
+        type="button"
+        class="btn btn-sm"
+        :aria-label="t('battle.rec.close')"
+        @click="emit('close')"
+      >
+        ✕
       </button>
     </h3>
-    <template v-if="rec.enabled.value">
+    <div class="body-scroll">
       <!-- 가중치 -->
       <div v-if="showWeights" class="weights">
         <label v-for="k in WEIGHT_KEYS" :key="k" class="weight">
@@ -127,7 +132,7 @@
           </li>
         </ol>
       </template>
-    </template>
+    </div>
   </section>
 </template>
 
@@ -143,9 +148,12 @@ import {
 import { WEIGHT_KEYS } from '~/utils/recommend'
 
 const props = defineProps<{ b: ReturnType<typeof useBattle> }>()
+const emit = defineEmits<{ close: [] }>()
 const { t } = useI18n()
 const gd = useGameData()
 const rec = useRecommend(props.b)
+// 다이얼로그가 열려 있는 동안만 이 컴포넌트가 있으므로 바로 계산
+rec.enabled.value = true
 const rw = useRecWeights()
 const r = computed(() => rec.result.value)
 const showWeights = ref(false)
@@ -174,7 +182,7 @@ const planLabel = (o: MineOption) => {
   return o.mega ? t('battle.rec.mega', { move: name }) : name
 }
 const label = (i: number) => planLabel(opt(i))
-// 이번 턴 내 행동 칸에 넣기 (데미지 등 입력은 비움)
+// 이번 턴 내 행동 칸에 넣기 (데미지 등 입력은 비움) 후 닫기
 const action = () => props.b.state.value?.actions.mine[0]
 const apply = (i: number) => {
   const a = action()
@@ -192,6 +200,8 @@ const apply = (i: number) => {
       useMega: o.mega,
       selfSwitch: o.pivotTo ?? null,
     })
+  // 넣은 행동을 바로 볼 수 있게 닫기
+  emit('close')
 }
 // 지금 행동 칸이 이 선택지인가
 const chosen = (i: number) => {
@@ -243,11 +253,22 @@ const details = (x: RankedRow) => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  max-height: min(88vh, 900px);
+  background: var(--panel-solid);
+}
+.body-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  min-height: 0;
 }
 .rec .panel-title {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  margin: 0;
 }
 .spacer {
   flex: 1;
