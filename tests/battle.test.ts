@@ -600,7 +600,7 @@ describe('둔갑 (따라큐)', () => {
     const b = setup(
       'single',
       [slot('mimikyu', { ability: 'disguise' })],
-      [slot('excadrill', { moves: ['ironhead', 'rockblast'] })],
+      [slot('excadrill', { moves: ['ironhead', 'rockblast', '', ''] })],
     )
     b.sendOut('opp', 0, 0)
     const an = useBattleAnalysis(b)

@@ -2,10 +2,12 @@
 // 상대 포켓몬 자동 배치 (선출 화면). 현재 레귤레이션의 사용률 통계(public/data/usage/)가 있으면 그것을 우선,
 // 없으면 utils/autoSet.ts 의 규칙. 여기서는 게임 데이터로 입력을 만들고 슬롯에 넣는다.
 // kind: 싱글 / 더블 통계 (선출 화면은 배틀 모드, 생략하면 사용자가 고른 종류 — useUsageKind)
+// 파티 화면 "통계로 파티 채우기"도 여기 (suggest, 고르는 규칙은 utils/teamSuggest.ts)
 
 import { toValue, type MaybeRefOrGetter } from 'vue'
 import { useUsageKind } from '~/composables/useUsageKind'
 import { autoSet, exclusiveMoves, usageSet, type UsageKind } from '~/utils/autoSet'
+import { slotSpecies, suggestTeam } from '~/utils/teamSuggest'
 import { emptySlot, type Move, type TeamSlot } from '~/utils/types'
 
 export function useAutoSet(kind?: MaybeRefOrGetter<UsageKind | undefined>) {
@@ -47,8 +49,13 @@ export function useAutoSet(kind?: MaybeRefOrGetter<UsageKind | undefined>) {
   }
 
   // 포켓몬 하나의 자동 배치 결과 (데이터가 없으면 null). taken: 같은 파티의 다른 포켓몬 도구
-  // usageOnly: 통계가 없으면 null (규칙 배치를 쓰지 않음)
-  const build = (speciesId: string, taken: readonly string[] = [], usageOnly = false) => {
+  // usageOnly: 통계가 없으면 null (규칙 배치를 쓰지 않음). form: 통계에서 이 폼의 배치를 씀 (메가 폼 등)
+  const build = (
+    speciesId: string,
+    taken: readonly string[] = [],
+    usageOnly = false,
+    form?: string,
+  ) => {
     const base = gd.pokemon(speciesId)
     const data = gd.data.value
     if (!base || !data) return null
@@ -71,14 +78,19 @@ export function useAutoSet(kind?: MaybeRefOrGetter<UsageKind | undefined>) {
       exclusive: exclusive.value.get(base.base || base.id),
     })
     // 사용률 통계가 있으면 우선
-    const fromUsage = usageSet(base, table.value, data.pokemon, rules, taken)
+    const fromUsage = usageSet(base, table.value, data.pokemon, rules, taken, form)
     if (usageOnly) return fromUsage
     return fromUsage ?? { ...rules, source: 'rules' }
   }
 
   // 슬롯에 적용 (포켓몬은 그대로, 특성·도구·성격·능력 포인트·기술을 덮어씀)
-  const apply = (slot: TeamSlot, taken: readonly string[] = [], usageOnly = false) => {
-    const s = slot.species ? build(slot.species, taken, usageOnly) : null
+  const apply = (
+    slot: TeamSlot,
+    taken: readonly string[] = [],
+    usageOnly = false,
+    form?: string,
+  ) => {
+    const s = slot.species ? build(slot.species, taken, usageOnly, form) : null
     if (!s) return
     slot.ability = s.ability
     slot.item = s.item
@@ -87,5 +99,43 @@ export function useAutoSet(kind?: MaybeRefOrGetter<UsageKind | undefined>) {
     slot.moves = [...s.moves]
   }
 
-  return { build, apply, ready, usageInfo, source }
+  // 빈 슬롯에 넣을 포켓몬 (슬롯 → 통계 배치를 넣은 새 슬롯). 통계가 없으면 빈 Map.
+  // 이미 있는 포켓몬은 메가스톤을 지니면 메가 폼, 그 폼이 통계에 없으면 원종·메가 폼 중 많이 쓴 폼 기준
+  const suggest = (slots: readonly TeamSlot[]) => {
+    const out = new Map<number, TeamSlot>()
+    const t = table.value
+    const data = gd.data.value
+    if (!t || !data) return out
+    const members = slots
+      .filter((s) => s.species)
+      .map((s) => {
+        const form = gd.megaFor(s.species, s.item) ?? s.species
+        if (t.pokemon[form]) return form
+        const forms = [s.species, ...(gd.pokemon(s.species)?.megas ?? [])]
+        return (
+          forms
+            .filter((id) => t.pokemon[id])
+            .sort((a, b) => t.pokemon[b]!.count - t.pokemon[a]!.count)[0] ?? form
+        )
+      })
+    const empty = slots.flatMap((s, i) => (s.species ? [] : [i]))
+    const forms = suggestTeam({
+      table: t,
+      pokemon: data.pokemon,
+      members,
+      allowed: reg.isAllowed,
+      count: empty.length,
+    })
+    // 도구 중복 금지: 이미 있는 도구 + 앞에서 채운 슬롯의 도구는 피함
+    const taken = slots.map((s) => s.item).filter(Boolean)
+    forms.forEach((form, k) => {
+      const slot = { ...emptySlot(), species: slotSpecies(data.pokemon, form) }
+      apply(slot, taken, false, form)
+      if (slot.item) taken.push(slot.item)
+      out.set(empty[k]!, slot)
+    })
+    return out
+  }
+
+  return { build, apply, ready, usageInfo, source, suggest }
 }

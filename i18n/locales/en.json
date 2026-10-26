@@ -223,6 +223,8 @@
     "usageApply": "Usage set",
     "usageHint": "Fill with the most used moves, spread, ability and item from Smogon monthly usage stats (Pokémon Showdown \"{format}\", {month} data, used {count} times). Overwrites current input",
     "usageConfirm": "Replace the current ability, item, nature, stat points and moves with the usage-based set?",
+    "usageFill": "Fill from usage",
+    "usageFillHint": "Fill empty slots from usage stats ({format}, {month} data). Picks Pokémon most often used on the same team as your current members one at a time, each with its most used set. This is a combination built from teammate frequency, not an actual team someone used (starts from the #1 Pokémon if your party is empty)",
     "genderMissing": "Choose a gender for: {names}"
   },
   "entry": {

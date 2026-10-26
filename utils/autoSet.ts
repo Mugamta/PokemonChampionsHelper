@@ -452,6 +452,7 @@ export interface UsageSet {
   items: string[] // 많이 쓴 순 (최대 3개)
   itemShare?: number[] // items 와 같은 순서, 각 도구 채용률 (0~1)
   itemUsage?: Record<string, number> // 도구별 채용률 전체 (0.5% 이상, 0~1)
+  teammates?: Record<string, number> // 같은 파티에 함께 쓴 비율 (폼 id → 0~1, 많은 순 20개)
 }
 // 사용률 통계 종류: 싱글(배틀스타디움 싱글) / 더블(VGC)
 export type UsageKind = 'single' | 'double'
@@ -489,17 +490,21 @@ export function formItemUsage(
 // 통계가 있으면 그걸로 배치: 원종·메가 폼 중 사용 수가 많은 쪽, 많이 쓴 기술 4개·배분·특성·도구.
 // 기술이 4개가 안 되면 규칙 배치(fallback)로 채운다. 통계가 없으면 null.
 // taken: 같은 파티의 다른 포켓몬이 지닌 도구 (도구 중복 금지 → 다음으로 많이 쓴 도구)
+// form: 이 폼으로 배치 (통계에 있을 때만, 파티 채우기에서 고른 폼 — 메가 폼이면 메가스톤)
 export function usageSet(
   base: Pokemon,
   table: UsageTable | undefined,
   pokemon: Record<string, Pokemon>,
   fallback: AutoSet,
   taken: readonly string[] = [],
+  form?: string,
 ): AutoSet | null {
   if (!table) return null
-  const formId = [base.id, ...(base.megas ?? [])]
-    .filter((id) => table.pokemon[id])
-    .sort((a, b) => table.pokemon[b]!.count - table.pokemon[a]!.count)[0]
+  const forms = [base.id, ...(base.megas ?? [])].filter((id) => table.pokemon[id])
+  const formId =
+    form && forms.includes(form)
+      ? form
+      : forms.sort((a, b) => table.pokemon[b]!.count - table.pokemon[a]!.count)[0]
   if (!formId) return null
   const u = table.pokemon[formId]!
   const mega = pokemon[formId]?.mega

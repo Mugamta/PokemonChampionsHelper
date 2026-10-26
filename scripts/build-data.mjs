@@ -693,10 +693,12 @@ for (const L of Object.keys(names)) {
 //   index.json = { single: {레귤레이션: {format, month, battles}}, double: {…} }, {single|double}-{레귤레이션}.json = 표.
 //   (전부 한 파일이면 1MB 넘어서 첫 화면이 늦어짐 — 앱은 현재 레귤레이션 표만 필요할 때 받는다)
 // 포켓몬(폼)별 사용 수 + 가장 많이 쓴 기술 4개·배분(성격+능력 포인트)·특성·도구 → 선출 화면 상대 자동 배치에 사용.
+// 동료(같은 파티에 함께 쓴 비율) → 파티 화면 "통계로 파티 채우기".
 // 받기 실패(오프라인 등)면 기존 usage/ 를 유지한다. 새 달 반영은 --refresh.
 const STATS = 'https://www.smogon.com/stats'
 const USAGE_CUTOFF = 1500
 const USAGE_MIN = 200 // 사용 수가 이보다 적으면 통계를 쓰지 않음 (표본 부족)
+const TEAMMATES_MAX = 20 // 포켓몬마다 저장하는 동료 수
 const top = (obj, ok) =>
   Object.entries(obj || {})
     .filter(([k]) => k && k !== 'nothing' && ok(k))
@@ -753,8 +755,19 @@ function summarizeUsage(json, month, format) {
           .map((i) => [i, round4(d.Items[i] / weight)])
           .filter(([, v]) => v >= 0.005),
       ),
+      // 같은 파티에 함께 들어간 비율 (폼 id → 0~1, 많은 순 TEAMMATES_MAX 개. 파티 화면 "통계로 파티 채우기")
+      teammates: Object.entries(d.Teammates || {}).map(([k, v]) => [toID(k), v / weight]),
     }
   }
+  // 동료는 통계를 쓰는 포켓몬만 (사용 수 USAGE_MIN 이상)
+  for (const u of Object.values(out))
+    u.teammates = Object.fromEntries(
+      u.teammates
+        .filter(([k, v]) => out[k] && v > 0)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, TEAMMATES_MAX)
+        .map(([k, v]) => [k, round4(v)]),
+    )
   return { format, month, battles: json.info['number of battles'], pokemon: out }
 }
 async function buildUsage() {

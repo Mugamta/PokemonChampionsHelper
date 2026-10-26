@@ -26,6 +26,21 @@
       <div class="head-actions">
         <span class="muted small" :title="t('usage.kindHint')">{{ t('usage.kind') }}</span>
         <TeamUsageKindToggle />
+        <!-- 빈 슬롯을 사용률 통계(함께 쓴 비율)로 채움 -->
+        <button
+          type="button"
+          class="btn btn-sm"
+          :disabled="!auto.source.value || mine.filled.value >= 6"
+          :title="
+            t('party.usageFillHint', {
+              format: auto.source.value?.format ?? '',
+              month: auto.source.value?.month ?? '',
+            })
+          "
+          @click="fillByUsage"
+        >
+          {{ t('party.usageFill') }}
+        </button>
         <span class="muted small">✓ {{ t('party.saved') }}</span>
         <button type="button" class="btn btn-sm btn-danger" @click="onReset">
           {{ t('common.reset') }}
@@ -79,6 +94,7 @@ const reg = useRegulation()
 const mine = useTeam('mine')
 const gd = useGameData()
 const fit = useFitLayout()
+const auto = useAutoSet()
 
 // 같은 파티 안에서 포켓몬/도구 중복 금지 (다른 슬롯에서 쓴 값 제외)
 const others = (i: number, key: 'species' | 'item') =>
@@ -133,6 +149,16 @@ onBeforeUnmount(() => {
   ro?.disconnect()
   cancelAnimationFrame(raf)
 })
+
+// 빈 슬롯을 통계로 채움 (슬롯 객체를 통째로 바꿈 → SlotEditor 가 포켓몬 변경으로 보고 초기화하지 않음)
+const fillByUsage = async () => {
+  await auto.ready()
+  for (const [i, slot] of auto.suggest(mine.slots.value)) {
+    mine.slots.value[i] = slot
+    mine.megaOn.value[i] = true
+    mine.altOn.value[i] = null
+  }
+}
 
 const onReset = () => {
   if (window.confirm(t('party.resetConfirm'))) mine.reset()

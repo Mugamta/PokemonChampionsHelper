@@ -223,6 +223,8 @@
     "usageApply": "통계 추천",
     "usageHint": "Smogon 월별 사용률 통계(Pokémon Showdown 「{format}」 {month} 자료, 사용 {count}회)에서 가장 많이 쓴 기술·배분·특성·도구로 채웁니다 (지금 입력은 덮어씀)",
     "usageConfirm": "지금 입력한 특성·도구·성격·능력 포인트·기술을 통계 추천 배치로 바꿀까요?",
+    "usageFill": "통계로 채우기",
+    "usageFillHint": "빈 슬롯을 사용률 통계({format} · {month} 자료)로 채웁니다. 지금 파티의 포켓몬과 같은 파티에 자주 함께 쓰인 포켓몬을 한 마리씩 고르고, 각자 가장 많이 쓴 배치를 넣습니다. 실제로 누가 쓴 파티가 아니라 함께 쓴 빈도로 만든 조합입니다 (파티가 비어 있으면 사용률 1위부터)",
     "genderMissing": "성별을 골라 주세요: {names}"
   },
   "entry": {
