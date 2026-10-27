@@ -573,7 +573,7 @@ describe('배틀 구성이 바뀌면', () => {
   })
 })
 
-describe('둔갑 (따라큐)', () => {
+describe('탈 (따라큐)', () => {
   it('첫 공격은 최대 HP 1/8 고정, 맞으면 풀림, 틀깨기는 무시', () => {
     const b = setup('single', [slot('garchomp')], [slot('mimikyu', { ability: 'disguise' })])
     b.sendOut('opp', 0, 0)
@@ -1437,7 +1437,7 @@ describe('상대 도구 확정', () => {
   })
 })
 
-describe('바톤터치', () => {
+describe('배턴터치', () => {
   it('랭크 변화와 일부 특수 상태(기충전·아쿠아링 등)를 나오는 포켓몬에게 넘김', () => {
     const b = setup('single', [slot('garchomp')], [slot('polteageist'), slot('gyarados')])
     b.sendOut('opp', 0, 0)
@@ -1526,7 +1526,7 @@ describe('대타출동 / 꼬리자르기', () => {
   })
 })
 
-describe('바톤터치로 넘기는 것', () => {
+describe('배턴터치로 넘기는 것', () => {
   it('대타(상대는 최대 HP 비율로 환산)·멸망의노래 카운트·전자부유', () => {
     const b = setup('single', [slot('garchomp')], [slot('gengar'), slot('snorlax')])
     b.sendOut('opp', 0, 0)

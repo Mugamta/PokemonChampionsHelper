@@ -48,7 +48,7 @@ const { t } = useI18n()
 const gd = useGameData()
 const s = computed(() => props.b.state.value!)
 
-// 상대 도구 확정 대상: 필드에 있는 상대 + 이번 턴 교체로 들어오는 상대 (교체 / 유턴·바톤터치 등 / 내가 강제 교체)
+// 상대 도구 확정 대상: 필드에 있는 상대 + 이번 턴 교체로 들어오는 상대 (교체 / 유턴·배턴터치 등 / 내가 강제 교체)
 const oppActive = computed(() => {
   const ids: (number | null)[] = [...s.value.sides.opp.active]
   for (const a of s.value.actions.opp) {

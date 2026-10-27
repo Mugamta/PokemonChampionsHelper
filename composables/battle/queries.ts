@@ -231,7 +231,7 @@ export function createQueries(b: BattleCore & BattleOrder) {
         ? ['attract']
         : []
     const sheer = user.ability === 'sheerforce'
-    // 랭크 변화 확률 효과 (100% 미만, 우격다짐이면 없음): 자기 쪽(원석의힘·코멧펀치 등)은 주 대상 칸에만,
+    // 랭크 변화 확률 효과 (100% 미만, 우격다짐이면 없음): 자기 쪽(원시의힘·코멧펀치 등)은 주 대상 칸에만,
     // 상대 쪽(섀도볼 특방 −1 등)은 인분·대타면 없음
     const chanceBoosts = sheer
       ? []

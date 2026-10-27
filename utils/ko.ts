@@ -127,7 +127,7 @@ export function hpRemainderHint(
 }
 
 // ── 실전 KO 확률 (명중·급소·무작위 위력 포함) ─────────────
-// 연속기·둔갑: 한 번 쓸 때의 누적 데미지 분포를 만들고 (attackDistribution) 여러 번 쓴 합으로 KO 확률 (koProbUses)
+// 연속기·탈: 한 번 쓸 때의 누적 데미지 분포를 만들고 (attackDistribution) 여러 번 쓴 합으로 KO 확률 (koProbUses)
 
 // 히트 하나의 보통 / 급소 난수 16개
 export interface HitRolls {
@@ -137,7 +137,7 @@ export interface HitRolls {
 
 // 한 번 쓸 때의 누적 데미지 분포 (데미지 → 확률, 합 1). 첫 명중 판정에서 빗나가면 0.
 //   counts: 첫 타가 맞았을 때의 타수 분포 (perfTable.hitsUsed), 히트마다 급소·난수는 따로
-//   first.holdOn: 만피에서 본체가 처음 맞는 히트는 최대 hp−1 까지 (기합의띠·옹골참) / first.fixed: 첫 히트는 고정 데미지 (둔갑)
+//   first.holdOn: 만피에서 본체가 처음 맞는 히트는 최대 hp−1 까지 (기합의띠·옹골참) / first.fixed: 첫 히트는 고정 데미지 (탈)
 //   first.sub: 대타 HP — 대타가 먼저 받고(넘긴 데미지는 버려짐) 깨진 다음 히트부터 본체. 대타가 남은 상태는 음수 키(−남은 대타 HP)
 //   hp 이상은 hp 로 묶는다 (쓰러지면 남은 히트는 의미 없음)
 export function attackDistribution(

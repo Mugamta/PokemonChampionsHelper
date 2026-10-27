@@ -388,7 +388,7 @@ export const newAction = (): ActionState => ({
   inflicts2: [],
   contactInflicts: [],
 })
-// 바톤터치로 넘어가는 특수 상태
+// 배턴터치로 넘어가는 특수 상태
 // 상대를 노리는 기술 대상 (프레셔 PP 판정). foeSide(설치기)는 필드의 상대 모두
 export const FOE_TARGETS = new Set([
   'normal',

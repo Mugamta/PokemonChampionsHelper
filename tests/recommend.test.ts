@@ -503,7 +503,7 @@ describe('useRecommend', () => {
     expect(duel('perishsong')).toBeGreaterThan(duel('shadowball'))
   })
 
-  it('부활의기원: 쓰러진 포켓몬이 있을 때만 HP 1/2 + 쓰러짐 하나만큼 가치', () => {
+  it('회생의기도: 쓰러진 포켓몬이 있을 때만 HP 1/2 + 쓰러짐 하나만큼 가치', () => {
     const b = setup(
       [
         slot('pawmot', { moves: moves('revivalblessing', 'nuzzle') }),

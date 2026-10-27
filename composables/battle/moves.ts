@@ -489,7 +489,7 @@ export function createMoves(b: BattleCore & BattleQueries & BattleField & Battle
 
     const ab = r.ability
     const physical = move.category === 'physical'
-    // 둔갑(따라큐): 공격을 한 번 받으면 풀린 모습으로 (틀깨기 공격이면 둔갑은 그대로)
+    // 탈(따라큐): 공격을 한 번 받으면 풀린 모습으로 (틀깨기 공격이면 탈은 그대로)
     if (ab === 'disguise' && !t.alt && atk?.ability !== 'moldbreaker') t.alt = true
     if (alive) {
       if (
@@ -570,7 +570,7 @@ export function createMoves(b: BattleCore & BattleQueries & BattleField & Battle
     // 연속기는 맞은 횟수를 알 수 없어 제외
     const atkC = combatantOf(side, userIdx, undefined, true)
     if (!atkC || hitInfo(move, atkC, !!opts.spread).max > 1) return
-    // 둔갑이 막은 공격은 최대 HP 1/8 고정이라 실능치와 무관
+    // 탈이 막은 공격은 최대 HP 1/8 고정이라 실능치와 무관
     const tm = mon(foe, targetIdx)
     if (
       resolveAt(foe, targetIdx)?.ability === 'disguise' &&

@@ -493,7 +493,7 @@ export function createTurn(
             const t = mon(foe, targetIdx)
             if (resolveAt(foe, targetIdx)?.slot.item === 'redcard' && !t.itemGone) t.itemGone = true
           }
-          // 바톤터치: 랭크 변화와 일부 특수 상태(대타·멸망의노래 카운트 등)를 나오는 포켓몬에게 넘김
+          // 배턴터치: 랭크 변화와 일부 특수 상태(대타·멸망의노래 카운트 등)를 나오는 포켓몬에게 넘김
           // (교체로 초기화되기 전에 복사). 꼬리자르기: 대타만 넘김
           const passed =
             a.move === 'batonpass'

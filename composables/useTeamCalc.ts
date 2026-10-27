@@ -54,7 +54,7 @@ export interface Cell {
   type: TypeId
   immune: boolean
   holdOn: boolean // 기합의띠/옹골참으로 한 번에는 쓰러지지 않음 (KO 판정에 반영)
-  disguise: boolean // 둔갑(따라큐): 첫 공격은 막고 최대 HP 1/8 만 (KO 판정에 반영)
+  disguise: boolean // 탈(따라큐): 첫 공격은 막고 최대 HP 1/8 만 (KO 판정에 반영)
   hitChance: number // 명중 확률 (0~1, 특성·도구·날씨·중력 반영)
   critChance: number // 급소 확률 (0~1)
   // 실전 KO 확률(%): ko.hits 번 안에 쓰러뜨릴 확률 — 명중·급소·변덕레이저(30% 위력 2배) 포함.
@@ -214,7 +214,7 @@ export function useTeamCalc() {
       atk.ability !== 'infiltrator'
         ? def.sub
         : 0
-    // 둔갑(따라큐, 둔갑이 풀리기 전): 첫 공격은 막고 최대 HP 1/8 데미지. 틀깨기면 무시 (대타가 있으면 대타가 먼저)
+    // 탈(따라큐, 탈이 풀리기 전): 첫 공격은 막고 최대 HP 1/8 데미지. 틀깨기면 무시 (대타가 있으면 대타가 먼저)
     const disguise =
       !subHp &&
       def.ability === 'disguise' &&
@@ -272,7 +272,7 @@ export function useTeamCalc() {
     let koRealUses = ko?.hits ?? 1
     let subBreak: number | null = null
     if ((multi || disguise || subHp) && !fickle && one.effectiveness > 0) {
-      // 연속기·둔갑·대타: 한 번 쓸 때의 누적 데미지 분포 (히트마다 난수·급소, 타수 분포) → 여러 번 쓴 합.
+      // 연속기·탈·대타: 한 번 쓸 때의 누적 데미지 분포 (히트마다 난수·급소, 타수 분포) → 여러 번 쓴 합.
       // 대타 뒤: 이번 한 번으로 대타가 깨질 확률 + (연속기면) 깨진 뒤 남은 히트로 본체까지 쓰러뜨릴 확률. 단타는 KO 확률 없음
       const rollsOf = (crit: boolean) =>
         multi

@@ -1,4 +1,4 @@
-// tests/ko.test.ts — 연속기·둔갑 실전 KO 확률 (utils/ko.ts attackDistribution / koProbUses)
+// tests/ko.test.ts — 연속기·탈 실전 KO 확률 (utils/ko.ts attackDistribution / koProbUses)
 
 import { describe, expect, it } from 'vitest'
 import { attackDistribution, koProbUses, koProbWithin, subBreakProb } from '../utils/ko'
@@ -47,7 +47,7 @@ describe('attackDistribution / koProbUses', () => {
     expect(koProbUses(single, later, 100, 2)).toBe(100)
   })
 
-  it('둔갑: 첫 히트는 고정 데미지, 다음 히트부터 보통', () => {
+  it('탈: 첫 히트는 고정 데미지, 다음 히트부터 보통', () => {
     const first = attackDistribution([hit(60), hit(60)], [{ hits: 2, p: 1 }], 1, 0, 70, {
       fixed: 8,
     })

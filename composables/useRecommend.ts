@@ -128,7 +128,7 @@ const YAWN_SLEEP = 0.7
 const DEPTH_MIN_P = 0.05
 // 상대 선출 수 (싱글)
 const OPP_PICK = 3
-// 날씨에 따라 회복량이 바뀌는 회복기 (쾌청 2/3, 비·모래바람·설경 1/4, 그 외 1/2). 해수스파우팅은 모래바람 2/3
+// 날씨에 따라 회복량이 바뀌는 회복기 (쾌청 2/3, 비·모래바람·설경 1/4, 그 외 1/2). 모래모으기는 모래바람 2/3
 const SUN_HEAL = new Set(['moonlight', 'synthesis', 'morningsun'])
 const WEAK_HEAL_WEATHER = new Set(['rain', 'heavyrain', 'sand', 'snow'])
 // 맞는 쪽을 강제로 교체시키는 기술
@@ -303,7 +303,7 @@ interface Special {
   phaze: number // 맞는 쪽을 강제로 교체시킬 확률 (울부짖기·드래곤테일)
   utility: number // 설치기를 치운 가치 (안개제거·고속스핀)
   fails: boolean
-  revive: number | null // 부활의기원으로 되살릴 쓰러진 포켓몬 (HP 1/2)
+  revive: number | null // 회생의기도으로 되살릴 쓰러진 포켓몬 (HP 1/2)
 }
 // 한 칸 + 다음 턴을 만들 재료. cases: 교체기로 바뀌었는지(내 쪽·상대 쪽)별 턴 뒤 경우 (pivotKey)
 interface Cell2 {
@@ -1422,7 +1422,7 @@ export function useRecommend(b: Battle) {
     const oppField = oppIn ? oo.to : oo.kind === 'move' ? (oo.pivotTo ?? oi) : oi
     // 다음 턴의 설치기 (이번 턴에 깔거나 치운 것) — 분기마다 정함
     let hzEnd = hz0
-    // 부활의기원으로 되살린 포켓몬 (다음 턴 HP 1/2) — 분기마다 정함
+    // 회생의기도으로 되살린 포켓몬 (다음 턴 HP 1/2) — 분기마다 정함
     let revMine: number | null = null
     let revOpp: number | null = null
     const oppAtk = oppCs(c.ov, true)[0]

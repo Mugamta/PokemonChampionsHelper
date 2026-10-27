@@ -98,7 +98,7 @@ export interface Exchange {
   oppHeal?: number
   mySelf?: SelfEffect // 반동·흡수·생명의구슬
   oppSelf?: SelfEffect
-  // 부활의기원: 기술이 나가면 쓰러진 포켓몬이 이 HP 비율로 돌아옴 (그 HP + 쓰러짐 하나를 되돌린 가치 ko)
+  // 회생의기도: 기술이 나가면 쓰러진 포켓몬이 이 HP 비율로 돌아옴 (그 HP + 쓰러짐 하나를 되돌린 가치 ko)
   myRevive?: number
   oppRevive?: number
   // 멸망의노래: 이번 턴 끝에 카운트가 0 → 필드에 남아 있으면 쓰러짐 (교체·교체기로 물러났으면 아님)
@@ -137,7 +137,7 @@ export interface Outcome {
   oppKo: number
   duel: number // 턴 뒤 맞대결 전망 기대값 (둘 다 살아 있을 때만, 아니면 0)
   utility: number
-  revive: number // 부활의기원으로 되살린 몫 (내 쪽 − 상대 쪽, 포켓몬 수)
+  revive: number // 회생의기도으로 되살린 몫 (내 쪽 − 상대 쪽, 포켓몬 수)
   pFirst: number // 내가 먼저 움직일 확률 (교체는 1)
   immediate: number // 이번 턴 몫 (score 에서 맞대결 전망을 뺀 것) — 두 턴 앞을 볼 때 맞대결 전망 대신 다음 턴 값을 더한다
   score: number
