@@ -549,7 +549,7 @@
     "fxSure": "Always happens on hit (applied automatically)",
     "rec": {
       "title": "Recommended play",
-      "hint": "A recommendation for reference. \"1 turn\" estimates what follows from the matchup outlook; \"2 turns\" also calculates the best play next turn. Only revealed Pokémon are considered as opponent switch-ins.",
+      "hint": "A recommendation for reference. \"1 turn\" estimates what follows from the matchup outlook; \"2 turns\" also calculates the best play next turn. Opponent switch-ins: revealed Pokémon, plus unrevealed team members (this turn only).",
       "replaceHint": "Which Pokémon to send in: compared by hazard damage and matchup outlook.",
       "none": "No recommendation in this state (needs active Pokémon and opponent moves).",
       "oppExpect": "Expected opponent moves",
@@ -569,6 +569,9 @@
       "worst": "Worst: opponent {move} → {score}",
       "weights": "Weights",
       "pivot": "{move} → {name}",
+      "more": "+{n} more",
+      "less": "Less",
+      "unseen": "{name} (unseen)",
       "utility": "Hazards {p}",
       "w": {
         "ko": "KO",

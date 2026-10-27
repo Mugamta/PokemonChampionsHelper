@@ -67,13 +67,21 @@
         <p v-if="r.mode === 'turn'" class="opp-line">
           <span class="section-label">{{ t('battle.rec.oppExpect') }}</span>
           <span
-            v-for="(o, i) in oppSorted"
+            v-for="(o, i) in oppShown"
             :key="i"
             class="opp-move"
             :class="{ sw: o.kind === 'switch' }"
           >
             {{ oppLabel(o) }} {{ Math.round(o.weight * 100) }}%
           </span>
+          <button
+            v-if="oppHidden"
+            type="button"
+            class="btn btn-sm more"
+            @click="showAllOpp = !showAllOpp"
+          >
+            {{ showAllOpp ? t('battle.rec.less') : t('battle.rec.more', { n: oppHidden }) }}
+          </button>
         </p>
         <ol class="list">
           <li
@@ -161,14 +169,27 @@ const showWeights = ref(false)
 type RankedRow = Recommendation['ranked'][number]
 
 const oppSorted = computed(() => [...(r.value?.opp ?? [])].sort((a, b) => b.weight - a.weight))
+// 비중이 낮은 상대 선택지는 접어 둔다 (펼치기 버튼)
+const OPP_MIN_SHOWN = 0.03
+const showAllOpp = ref(false)
+const oppShown = computed(() =>
+  showAllOpp.value ? oppSorted.value : oppSorted.value.filter((o) => o.weight >= OPP_MIN_SHOWN),
+)
+const oppHidden = computed(() => oppSorted.value.filter((o) => o.weight < OPP_MIN_SHOWN).length)
 const opt = (i: number) => r.value!.options[i]!
 const mineName = (idx: number) => gd.name('pokemon', props.b.resolveAt('mine', idx)?.species.id)
-const oppLabel = (o: OppOption) =>
-  o.kind === 'switch'
-    ? t('battle.rec.switchTo', {
-        name: gd.name('pokemon', props.b.resolveAt('opp', o.to)?.species.id),
-      })
-    : gd.name('moves', o.move)
+// 상대 포켓몬 이름 (아직 안 나온 포켓몬이면 "미공개" 표시)
+const oppName = (idx: number) => {
+  const name = gd.name('pokemon', props.b.resolveAt('opp', idx)?.species.id)
+  return props.b.state.value?.sides.opp.revealed.includes(idx)
+    ? name
+    : t('battle.rec.unseen', { name })
+}
+const oppLabel = (o: OppOption) => {
+  if (o.kind === 'switch') return t('battle.rec.switchTo', { name: oppName(o.to) })
+  const name = gd.name('moves', o.move)
+  return o.pivotTo != null ? t('battle.rec.pivot', { move: name, name: oppName(o.pivotTo) }) : name
+}
 // 교체·교체기면 들어가는 포켓몬 그림
 const spriteOf = (i: number) => {
   const o = opt(i)
@@ -322,6 +343,10 @@ const details = (x: RankedRow) => {
 }
 .opp-move.sw {
   border-style: dashed;
+}
+.more {
+  padding: 0 8px;
+  font-size: 11px;
 }
 .list {
   list-style: none;

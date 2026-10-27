@@ -51,6 +51,27 @@ describe('utils/recommend', () => {
     expect(duelValue({ mine: 0, opp: 0, pFirst: 0.5 }, 1, 1)).toBe(0)
   })
 
+  it('맞대결: 기합의띠·옹골참이면 HP 가 가득일 때 한 번 더 맞아야 쓰러짐', () => {
+    const d = { mine: 1.2, opp: 0.6, pFirst: 1 }
+    expect(duelValue(d, 1, 1)).toBeGreaterThan(0) // 한 방
+    // 상대가 버티면 2타 → 그 사이 상대도 2타를 침 (내가 먼저라 이기긴 하지만 HP 가 깎임)
+    expect(duelValue({ ...d, holdOpp: true }, 1, 1)).toBeCloseTo(0.5 + 0.5 * 0.4)
+    // 가득이 아니면 효과 없음
+    expect(duelValue({ ...d, holdOpp: true }, 1, 0.9)).toBeCloseTo(duelValue(d, 1, 0.9))
+  })
+
+  it('맞대결: 멸망의노래로 둘 다 먼저 쓰러지면 0, 내 카운트가 먼저 끝나면 짐', () => {
+    const lose = { mine: 0.2, opp: 0.2, pFirst: 0 }
+    expect(duelValue(lose, 1, 1)).toBeLessThan(0)
+    expect(duelValue({ ...lose, perishMine: 2, perishOpp: 2 }, 1, 1)).toBe(0)
+    expect(duelValue({ ...lose, perishMine: 1, perishOpp: 3 }, 1, 1)).toBeLessThan(-0.5)
+    // 쓰러뜨리는 게 먼저면 그대로
+    const win = { mine: 1, opp: 0.2, pFirst: 1 }
+    expect(duelValue({ ...win, perishMine: 2, perishOpp: 2 }, 1, 1)).toBeCloseTo(
+      duelValue(win, 1, 1),
+    )
+  })
+
   it('맞대결: 상대가 잠들어 있으면 느려도 이김', () => {
     const d = { mine: 0.6, opp: 0.6, pFirst: 0 }
     expect(duelValue({ ...d, skipOpp: [{ turns: 2, p: 1 }] }, 1, 1)).toBeCloseTo(1)
@@ -145,6 +166,56 @@ describe('utils/recommend', () => {
     const second = evaluate({ ...x, pFirst: 0 })
     expect(second.myLoss).toBeCloseTo(0.5)
     expect(second.duel).toBeGreaterThan(0) // 맞고 나서 교체해도 들어온 포켓몬 기준
+  })
+
+  it('상대 교체기: 상대가 먼저 쓰면 내 공격은 들어온 포켓몬이 받고, 맞대결도 그 포켓몬 기준', () => {
+    const good = { mine: 0.6, opp: 0.1, pFirst: 1 }
+    const bad = { mine: 0.1, opp: 0.6, pFirst: 0 }
+    const x = ex({
+      pFirst: 0,
+      mine: hit(0.5, 0.5),
+      opp: hit(0.2, 0.2),
+      oppPivot: { oppHp: 1, entryChip: 0.125, mine: hit(0.1, 0.1) },
+      after: [{ p: 1, duel: good }],
+      afterOppPivot: [{ p: 1, duel: bad }],
+    })
+    const o = evaluate(x)
+    // 상대 쪽: 설치기 0.125 + 들어온 포켓몬이 받은 0.1
+    expect(o.oppLoss).toBeCloseTo(0.225)
+    expect(o.duel).toBeLessThan(0)
+    expect(o.ends).toEqual([
+      { pivoted: false, oppPivoted: true, p: 1, myHp: 0.8, oppHp: expect.closeTo(0.775) },
+    ])
+    // 내가 먼저면 원래 포켓몬이 맞고 나서 물러남
+    const first = evaluate({ ...x, pFirst: 1 })
+    expect(first.oppLoss).toBeCloseTo(0.625)
+    // 먼저 쓰러뜨리면 물러나지 못함
+    const ko = evaluate({ ...x, pFirst: 1, mine: hit(1, 1, 1) })
+    expect(ko.oppKo).toBeCloseTo(1)
+    expect(ko.ends).toEqual([])
+  })
+
+  it('교체기로 들어오는 포켓몬: 상대가 먼저 설치기를 깔았을 때만 그 데미지', () => {
+    const x = ex({
+      mine: null,
+      opp: null,
+      pivot: { myHp: 1, entryChip: 0, lateChip: 0.25, opp: null },
+    })
+    expect(evaluate({ ...x, pFirst: 1 }).myLoss).toBeCloseTo(0)
+    expect(evaluate({ ...x, pFirst: 0 }).myLoss).toBeCloseTo(0.25)
+  })
+
+  it('되돌려 주는 기술: 나중에 움직여 받은 데미지 × 배율, 먼저면 실패', () => {
+    const x = ex({ pFirst: 0, opp: hit(0.4, 0.4), mineRevenge: 2 })
+    const o = evaluate(x)
+    expect(o.myLoss).toBeCloseTo(0.4)
+    expect(o.oppLoss).toBeCloseTo(0.8)
+    // 받은 데미지 × 2 가 상대 HP 이상이면 쓰러뜨림
+    expect(evaluate({ ...x, oppHp: 0.7 }).oppKo).toBeCloseTo(1)
+    // 먼저 움직이면 받은 게 없어서 실패
+    expect(evaluate({ ...x, pFirst: 1 }).oppLoss).toBe(0)
+    // 상대가 공격하지 않으면 실패
+    expect(evaluate({ ...x, opp: null }).oppLoss).toBe(0)
   })
 
   it('설치기 가치: 기술이 나갔을 때만, 가중치를 곱함', () => {
@@ -299,6 +370,212 @@ describe('useRecommend', () => {
     expect(pivots.map((o) => (o.kind === 'move' ? o.pivotTo : -1))).toEqual([1, 2])
   })
 
+  it('스텔스록: 먼저 교체하면 들어간 포켓몬은 밟지 않고, 설치기 손해도 그 포켓몬을 뺀 앞으로 들어올 포켓몬 기준', () => {
+    const b = setup(
+      [
+        slot('garchomp', { moves: moves('earthquake', 'dragonclaw') }),
+        slot('charizard', { moves: moves('flamethrower') }),
+        slot('rotomwash', { moves: moves('hydropump') }),
+      ],
+      [slot('glimmora', { moves: moves('stealthrock') })],
+    )
+    const r = open(b)
+    const row = (to: number) =>
+      r.ranked.find((x) => {
+        const o = r.options[x.index]!
+        return o.kind === 'switch' && o.to === to
+      })!.outcomes[0]!
+    // 리자몽(바위 4배)으로 교체: 리자몽은 이미 들어갔으므로 한카리아스(1/16)·워시로토무(1/8) 몫만
+    expect(row(1).myLoss).toBe(0)
+    expect(row(1).utility).toBeCloseTo(-0.7 * (1 / 16 + 1 / 8))
+    // 워시로토무로 교체: 물러난 한카리아스와 리자몽이 앞으로 밟음
+    expect(row(2).utility).toBeCloseTo(-0.7 * (1 / 16 + 1 / 2))
+  })
+
+  it('두 턴 앞: 이번 턴 깐 설치기는 계산 안에서만 반영하고 배틀 상태는 그대로', () => {
+    const b = setup(
+      [
+        slot('garchomp', { moves: moves('dragonclaw') }),
+        slot('charizard', { moves: moves('flamethrower') }),
+      ],
+      [slot('glimmora', { moves: moves('stealthrock', 'sludgebomb') })],
+    )
+    useRecWeights().setDepth(2)
+    const r = open(b)
+    expect(r.ranked.length).toBeGreaterThan(0)
+    // 실제 상태는 바뀌지 않음
+    expect(b.state.value!.sides.mine.hazards.stealthrock || 0).toBe(0)
+  })
+
+  it('역린: 두 턴 앞에서 다음 턴은 역린 고정·교체 불가', () => {
+    const b = setup(
+      [
+        slot('garchomp', { moves: moves('outrage', 'earthquake') }),
+        slot('incineroar', { moves: moves('flareblitz') }),
+      ],
+      [slot('gholdengo', { moves: moves('shadowball') })],
+    )
+    useRecWeights().setDepth(2)
+    const r = open(b)
+    const row = r.ranked.find((x) => isMove(r.options[x.index]!, 'outrage'))!
+    const next = row.summary.next!
+    // 강철에 반감인 역린이지만 고정 (안 고정되면 지진·교체를 고름)
+    expect(next.option).toMatchObject({ kind: 'move', move: 'outrage' })
+    const eq = r.ranked.find((x) => isMove(r.options[x.index]!, 'earthquake'))!
+    expect(eq.summary.next!.option).not.toMatchObject({ move: 'outrage' })
+  })
+
+  it('배턴터치: 들어가는 포켓몬이 랭크를 넘겨받아 맞대결이 나아짐', () => {
+    const duelAfter = (atk: number) => {
+      resetNuxtState()
+      const b = setup(
+        [
+          slot('garchomp', { moves: moves('batonpass', 'earthquake') }),
+          slot('gholdengo', { moves: moves('makeitrain', 'shadowball') }),
+        ],
+        [slot('snorlax', { moves: moves('crunch') })],
+      )
+      b.state.value!.sides.mine.mons[0]!.boosts.spa = atk
+      const r = open(b)
+      const bp = r.ranked.find((x) => isMove(r.options[x.index]!, 'batonpass'))!
+      return bp.outcomes[0]!.duel
+    }
+    expect(duelAfter(2)).toBeGreaterThan(duelAfter(0))
+  })
+
+  it('카운터: 물리 공격을 받으면 되돌려 주고, 특수 공격이면 실패', () => {
+    const dealt = (oppMove: string) => {
+      resetNuxtState()
+      const b = setup(
+        [slot('snorlax', { moves: moves('counter', 'bodyslam') })],
+        [slot('garchomp', { moves: moves(oppMove) })],
+      )
+      const r = open(b)
+      return r.ranked.find((x) => isMove(r.options[x.index]!, 'counter'))!.summary.oppLoss
+    }
+    expect(dealt('earthquake')).toBeGreaterThan(0.3)
+    expect(dealt('dracometeor')).toBe(0)
+  })
+
+  it('이번 턴 끝나는 트릭룸은 턴 뒤 맞대결에서 빼고 봄', () => {
+    const duel = (left: number) => {
+      resetNuxtState()
+      const b = setup(
+        [slot('snorlax', { moves: moves('bodyslam') })],
+        [slot('garchomp', { moves: moves('dragonclaw') })],
+      )
+      b.state.value!.rooms.trickroom = { cur: 5 - left, total: 5 }
+      const r = open(b)
+      return r.ranked.find((x) => isMove(r.options[x.index]!, 'bodyslam'))!.summary.duel
+    }
+    // 트릭룸이 남으면 느린 잠만보가 먼저 → 끝나면 한카리아스가 먼저라 전망이 나빠짐
+    expect(duel(1)).toBeLessThan(duel(3))
+  })
+
+  it('멸망의노래: 카운트 1 이면 기술을 쓰면 쓰러지고 교체하면 살아남음', () => {
+    const b = setup(
+      [
+        slot('garchomp', { moves: moves('dragonclaw') }),
+        slot('gholdengo', { moves: moves('makeitrain') }),
+      ],
+      [slot('snorlax', { moves: moves('bodyslam') })],
+    )
+    b.state.value!.sides.mine.mons[0]!.volatiles.perishsong = 1
+    const r = open(b)
+    const dc = r.ranked.find((x) => isMove(r.options[x.index]!, 'dragonclaw'))!
+    expect(dc.summary.myKo).toBeCloseTo(1)
+    const sw = r.ranked.find((x) => r.options[x.index]!.kind === 'switch')!
+    expect(sw.summary.myKo).toBe(0)
+    expect(r.best).toBe(sw.index)
+  })
+
+  it('멸망의노래: 지는 맞대결이면 무승부로 끌고 감', () => {
+    const b = setup(
+      [slot('gengar', { moves: moves('perishsong', 'shadowball') })],
+      [slot('tyranitar', { moves: moves('icebeam') })],
+    )
+    // 서로 오래 걸리는 맞대결 (내 쪽이 조금 느리게 짐)
+    b.state.value!.sides.mine.mons[0]!.boosts.spa = -6
+    b.state.value!.sides.opp.mons[0]!.boosts.spa = -2
+    const r = open(b)
+    const duel = (m: string) =>
+      r.ranked.find((x) => isMove(r.options[x.index]!, m))!.outcomes[0]!.duel
+    expect(duel('perishsong')).toBeGreaterThan(duel('shadowball'))
+  })
+
+  it('부활의기원: 쓰러진 포켓몬이 있을 때만 HP 1/2 + 쓰러짐 하나만큼 가치', () => {
+    const b = setup(
+      [
+        slot('pawmot', { moves: moves('revivalblessing', 'nuzzle') }),
+        slot('garchomp', { moves: moves('earthquake') }),
+        slot('gholdengo', { moves: moves('makeitrain') }),
+      ],
+      [slot('snorlax', { moves: moves('bodyslam') })],
+    )
+    const rb = () => {
+      const r = open(b)
+      return r.ranked.find((x) => isMove(r.options[x.index]!, 'revivalblessing'))!.outcomes[0]!
+    }
+    expect(rb().revive).toBe(0)
+    b.state.value!.sides.mine.mons[1]!.hp = 0
+    const o = rb()
+    expect(o.revive).toBeGreaterThan(0.5)
+    // 두 턴 앞에서도 계산됨 (되살린 포켓몬이 다음 턴 교체 후보)
+    useRecWeights().setDepth(2)
+    expect(open(b).ranked.length).toBeGreaterThan(0)
+  })
+
+  it('아직 안 나온 상대 파티: 남은 선출 수만큼 나눈 비중으로 교체 후보, 교체기는 들어올 포켓몬마다', () => {
+    const b = setup(
+      [slot('garchomp', { moves: moves('earthquake', 'dragonclaw') })],
+      [
+        slot('incineroar', { moves: moves('flareblitz', 'uturn') }),
+        slot('corviknight', { moves: moves('bravebird') }),
+        slot('gholdengo', { moves: moves('makeitrain') }),
+        slot('rotomwash', { moves: moves('hydropump') }),
+      ],
+    )
+    const r = open(b)
+    // 선두만 공개 → 남은 선출 2 / 후보 3
+    const sw = r.opp
+      .filter((o) => o.kind === 'switch')
+      .map((o) => (o.kind === 'switch' ? o.to : -1))
+    expect(sw).toEqual([1, 2, 3])
+    const uturn = r.opp.filter((o) => o.kind === 'move' && o.move === 'uturn')
+    expect(uturn.map((o) => (o.kind === 'move' ? o.pivotTo : -1))).toEqual([1, 2, 3])
+    expect(r.opp.reduce((s, o) => s + o.weight, 0)).toBeCloseTo(1)
+    // 선출 3 마리가 다 공개되면 나머지는 후보가 아님
+    b.sendOut('opp', 0, 1)
+    b.sendOut('opp', 0, 2)
+    b.sendOut('opp', 0, 0)
+    const r2 = open(b)
+    expect(
+      r2.opp.filter((o) => o.kind === 'switch').map((o) => (o.kind === 'switch' ? o.to : -1)),
+    ).toEqual([1, 2])
+    // 두 턴 앞도 계산됨
+    useRecWeights().setDepth(2)
+    expect(open(b).ranked.length).toBeGreaterThan(0)
+  })
+
+  it('상대 교체기로 들어오는 포켓몬이 위협이면 턴 뒤 맞대결이 더 나쁨', () => {
+    const duelAgainst = (ability: string) => {
+      resetNuxtState()
+      const b = setup(
+        [slot('garchomp', { moves: moves('earthquake', 'dragonclaw') })],
+        [
+          slot('corviknight', { moves: moves('uturn', 'bodypress') }),
+          slot('snorlax', { ability, moves: moves('bodyslam') }),
+        ],
+      )
+      const r = open(b)
+      const j = r.opp.findIndex((o) => o.kind === 'move' && o.move === 'uturn' && o.pivotTo === 1)
+      const dc = r.ranked.find((x) => isMove(r.options[x.index]!, 'earthquake'))!
+      expect(dc.outcomes[j]!.ends.some((e) => e.oppPivoted)).toBe(true)
+      return dc.outcomes[j]!.duel
+    }
+    expect(duelAgainst('intimidate')).toBeLessThan(duelAgainst('thickfat'))
+  })
+
   it('공개된 상대 대기 포켓몬: 불리하면 교체도 상대 선택지', () => {
     const b = setup(
       [slot('garchomp', { moves: moves('earthquake', 'dragonclaw') })],
@@ -421,7 +698,9 @@ describe('utils/recommend — 다음 턴', () => {
 
   it('결과에 둘 다 살아 있는 경우의 HP 와 이번 턴 몫', () => {
     const o = evaluate(ex({ mine: hit(0.3, 0.3), opp: hit(0.2, 0.2) }))
-    expect(o.ends).toEqual([{ pivoted: false, p: 1, myHp: 0.8, oppHp: expect.closeTo(0.7) }])
+    expect(o.ends).toEqual([
+      { pivoted: false, oppPivoted: false, p: 1, myHp: 0.8, oppHp: expect.closeTo(0.7) },
+    ])
     expect(o.immediate).toBeCloseTo(0.1)
   })
 })

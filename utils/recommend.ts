@@ -59,6 +59,10 @@ export interface Duel {
   skipOpp?: Skip
   absorbMine?: number // 내 대타가 막아 주는 상대 공격 횟수
   absorbOpp?: number
+  holdMine?: boolean // 기합의띠·옹골참: HP 가 가득이면 한 번에 쓰러지지 않음
+  holdOpp?: boolean
+  perishMine?: number // 멸망의노래: 이 턴 수째 끝에 쓰러짐
+  perishOpp?: number
 }
 // myHp / oppHp: 강제 교체(울부짖기 등)로 바뀐 포켓몬의 HP — 없으면 이번 턴이 끝난 HP
 export type AfterCases = { p: number; duel: Duel; myHp?: number; oppHp?: number }[]
@@ -94,13 +98,36 @@ export interface Exchange {
   oppHeal?: number
   mySelf?: SelfEffect // 반동·흡수·생명의구슬
   oppSelf?: SelfEffect
+  // 부활의기원: 기술이 나가면 쓰러진 포켓몬이 이 HP 비율로 돌아옴 (그 HP + 쓰러짐 하나를 되돌린 가치 ko)
+  myRevive?: number
+  oppRevive?: number
+  // 멸망의노래: 이번 턴 끝에 카운트가 0 → 필드에 남아 있으면 쓰러짐 (교체·교체기로 물러났으면 아님)
+  myPerish?: boolean
+  oppPerish?: boolean
+  // 카운터·미러코트·메탈버스트: 이번 턴 상대 공격으로 받은 데미지 × 배율 (상대 최대 HP 대비로 바꾼 배율, mine 대신).
+  //   상대가 먼저 맞히지 않았으면 실패
+  mineRevenge?: number
+  oppRevenge?: number
   myUtility?: number // 내 기술이 나가면 얻는 가치 (설치기, HP 비율 단위 — 가중치는 composable 에서 곱함)
   oppUtility?: number // 상대 기술이 나가면 내가 잃는 가치
   // 교체기(유턴 등): 내가 행동한 뒤 들어오는 포켓몬. 내가 먼저였으면 상대 공격은 이 포켓몬이 받는다
-  pivot?: { myHp: number; entryChip: number; opp: Hit | null }
+  //   lateChip: 상대가 먼저 행동했을 때의 설치기 데미지 (상대가 이번 턴 깔거나 치운 뒤)
+  pivot?: { myHp: number; entryChip: number; lateChip?: number; opp: Hit | null }
+  // 상대 교체기: 상대가 행동한 뒤 들어오는 포켓몬. 상대가 먼저였으면 내 공격은 이 포켓몬이 받는다
+  oppPivot?: { oppHp: number; entryChip: number; lateChip?: number; mine: Hit | null }
   // 턴 뒤 맞대결 (랭크·상태이상·벽 변화 반영). 변화기가 걸리는지에 따라 갈리면 경우마다 확률과 함께 (합 1)
   after: AfterCases
   afterPivot?: AfterCases // 교체기로 바뀐 뒤
+  afterOppPivot?: AfterCases // 상대 교체기로 바뀐 뒤
+  afterBothPivot?: AfterCases // 둘 다 교체기로 바뀐 뒤
+}
+
+// 교체기로 바뀌었는지에 따른 턴 뒤 맞대결 재료
+export function afterFor(x: Exchange, pivoted: boolean, oppPivoted: boolean): AfterCases {
+  if (pivoted && oppPivoted) return x.afterBothPivot ?? x.afterPivot ?? x.after
+  if (pivoted) return x.afterPivot ?? x.after
+  if (oppPivoted) return x.afterOppPivot ?? x.after
+  return x.after
 }
 
 export interface Outcome {
@@ -110,14 +137,16 @@ export interface Outcome {
   oppKo: number
   duel: number // 턴 뒤 맞대결 전망 기대값 (둘 다 살아 있을 때만, 아니면 0)
   utility: number
+  revive: number // 부활의기원으로 되살린 몫 (내 쪽 − 상대 쪽, 포켓몬 수)
   pFirst: number // 내가 먼저 움직일 확률 (교체는 1)
   immediate: number // 이번 턴 몫 (score 에서 맞대결 전망을 뺀 것) — 두 턴 앞을 볼 때 맞대결 전망 대신 다음 턴 값을 더한다
   score: number
-  // 둘 다 살아서 턴이 끝나는 경우 (교체기로 바뀌었는지별): 확률, 그때의 기대 HP
+  // 둘 다 살아서 턴이 끝나는 경우 (양쪽 교체기로 바뀌었는지별): 확률, 그때의 기대 HP
   ends: TurnEnd[]
 }
 export interface TurnEnd {
   pivoted: boolean
+  oppPivoted: boolean
   p: number
   myHp: number
   oppHp: number
@@ -171,14 +200,25 @@ export function advanceSkip(skip: Skip | undefined): { acts: number; rest: Skip 
 export function duelValue(d: Duel, myHp: number, oppHp: number): number {
   if (myHp <= 0 || oppHp <= 0) return 0
   const turns = (hp: number, dmg: number) => (dmg > 0.001 ? Math.ceil(hp / dmg - 1e-9) : Infinity)
-  // 내가 쓰러뜨리는 데 필요한 공격 횟수 (대타가 막는 만큼 더)
-  const nMine = turns(oppHp, d.mine) + (d.absorbOpp || 0)
-  const nOpp = turns(myHp, d.opp) + (d.absorbMine || 0)
-  if (nMine === Infinity && nOpp === Infinity) return 0
+  // 내가 쓰러뜨리는 데 필요한 공격 횟수 (대타가 막는 만큼 더, 기합의띠·옹골참으로 버티면 한 번 더)
+  const held = (hold: boolean | undefined, hp: number, n: number) =>
+    hold && hp >= 0.999 && n === 1 ? 2 : n
+  const nMine = held(d.holdOpp, oppHp, turns(oppHp, d.mine)) + (d.absorbOpp || 0)
+  const nOpp = held(d.holdMine, myHp, turns(myHp, d.opp)) + (d.absorbMine || 0)
+  if (nMine === Infinity && nOpp === Infinity && !d.perishMine && !d.perishOpp) return 0
+  const dieMine = d.perishMine || Infinity
+  const dieOpp = d.perishOpp || Infinity
   const one = (first: boolean, sm: number, so: number) => {
     // 쓰러뜨리는 턴 (행동하지 못하는 턴 뒤로 밀림)
     const tMine = sm + nMine
     const tOpp = so + nOpp
+    // 멸망의노래로 먼저 쓰러짐 (쓰러뜨리는 턴이 같으면 공격이 먼저). 같이 쓰러지면 0
+    const die = Math.min(dieMine, dieOpp)
+    if (Math.min(tMine, tOpp) > die) {
+      if (dieMine === dieOpp) return 0
+      if (dieOpp < dieMine) return 0.5 + 0.5 * Math.max(0, myHp - Math.max(0, dieOpp - so) * d.opp)
+      return -(0.5 + 0.5 * Math.max(0, oppHp - Math.max(0, dieMine - sm) * d.mine))
+    }
     const win = first ? tMine <= tOpp : tMine < tOpp
     if (win) {
       // 내가 쓰러뜨리는 턴까지 상대가 행동한 횟수 (그 턴에 상대가 먼저면 포함)
@@ -221,7 +261,7 @@ export function firstChance(
 }
 
 // ── 한 칸 결과 ─────────────
-// 경우(leaf)마다: 확률, 내 쪽 맞는 포켓몬 HP(교체기면 들어온 포켓몬), 상대 HP, 누적 손실
+// 경우(leaf)마다: 확률, 내 쪽 맞는 포켓몬 HP(교체기면 들어온 포켓몬), 상대 HP(상대 교체기도 마찬가지), 누적 손실
 interface Leaf {
   p: number
   myHp: number
@@ -229,11 +269,15 @@ interface Leaf {
   myLoss: number
   oppLoss: number
   myKo: number // 쓰러진 내 포켓몬 수 (교체기면 둘 다 가능)
+  oppKo: number
   pivoted: boolean
+  oppPivoted: boolean
   mineActed: boolean
   oppActed: boolean
   oppStopped: boolean
   myStopped: boolean
+  myTaken: number // 이번 턴 상대 공격으로 지금 포켓몬이 받은 데미지 (되돌려 주는 기술용)
+  oppTaken: number
 }
 
 export function evaluate(x: Exchange, w: RecWeights = DEFAULT_WEIGHTS): Outcome {
@@ -247,11 +291,15 @@ export function evaluate(x: Exchange, w: RecWeights = DEFAULT_WEIGHTS): Outcome 
       myLoss: chip,
       oppLoss: oppChip,
       myKo: x.myHp > 0 && x.myHp - chip <= 0 ? 1 : 0,
+      oppKo: x.oppHp > 0 && x.oppHp - oppChip <= 0 ? 1 : 0,
       pivoted: false,
+      oppPivoted: false,
       mineActed: false,
       oppActed: false,
       oppStopped: false,
       myStopped: false,
+      myTaken: 0,
+      oppTaken: 0,
     },
   ]
   const split = (fn: (l: Leaf) => { p: number; l: Partial<Leaf> }[]) => {
@@ -259,6 +307,12 @@ export function evaluate(x: Exchange, w: RecWeights = DEFAULT_WEIGHTS): Outcome 
     for (const l of leaves)
       for (const o of fn(l)) if (o.p > 1e-9) next.push({ ...l, ...o.l, p: l.p * o.p })
     leaves = next
+  }
+  // 되돌려 주는 기술: 받은 데미지 × 배율 (고정 데미지). 받지 않았으면 실패
+  const revenge = (factor: number, taken: number, hp: number): Hit | null => {
+    if (taken <= 0) return null
+    const d = taken * factor
+    return { min: d, max: d, acc: 1, ko: d >= hp ? 1 : 0 }
   }
   // 공격한 쪽 HP 변화 (반동·흡수·생명의구슬·대타). 회복은 잃은 만큼까지. acc: 맞힐 확률 (변화기는 1)
   const selfDelta = (e: SelfEffect | undefined, dealt: number, acc: number, hp: number) => {
@@ -273,16 +327,34 @@ export function evaluate(x: Exchange, w: RecWeights = DEFAULT_WEIGHTS): Outcome 
       if (x.switchIn || l.myHp <= 0 || l.myStopped) return [{ p: 1, l: {} }]
       const acts = x.myActs ?? 1
       const out: { p: number; l: Partial<Leaf> }[] = [{ p: 1 - acts, l: {} }]
-      const hit = x.oppProtect || (x.oppShieldFirst && l.oppActed) ? null : x.mine
+      // 상대가 교체기로 먼저 물러났으면 들어온 포켓몬을 맞힘
+      const hit = l.oppPivoted
+        ? x.mineRevenge != null
+          ? null
+          : (x.oppPivot?.mine ?? null)
+        : x.oppProtect || (x.oppShieldFirst && l.oppActed)
+          ? null
+          : x.mineRevenge != null
+            ? revenge(x.mineRevenge, l.myTaken, l.oppHp)
+            : x.mine
       const stops = x.oppProtect || l.oppActed || x.oppSwitchIn ? 0 : x.mineStops || 0
       const after = (oppHp: number, oppLoss: number, dealt: number): Partial<Leaf>[] => {
         // 막힌 공격은 생명의구슬도 없음
         const sd = selfDelta(x.mySelf, dealt, hit ? hit.acc : x.mine ? 0 : 1, l.myHp)
         const myHp = l.myHp - sd
-        const base = { oppHp, oppLoss, myHp, myLoss: l.myLoss + sd, mineActed: true }
+        const base = {
+          oppHp,
+          oppLoss,
+          oppTaken: dealt,
+          oppKo: l.oppKo + (l.oppHp > 0 && oppHp <= 0 ? 1 : 0),
+          myHp,
+          myLoss: l.myLoss + sd,
+          mineActed: true,
+        }
         // 교체기: 살아 있으면 들어오는 포켓몬으로
         if (x.pivot && myHp > 0) {
-          const pc = Math.min(x.pivot.myHp, x.pivot.entryChip)
+          const chip = l.oppActed ? (x.pivot.lateChip ?? x.pivot.entryChip) : x.pivot.entryChip
+          const pc = Math.min(x.pivot.myHp, chip)
           return [
             {
               ...base,
@@ -297,7 +369,7 @@ export function evaluate(x: Exchange, w: RecWeights = DEFAULT_WEIGHTS): Outcome 
       }
       // 상대가 먼저 길동무를 썼으면 쓰러뜨린 내 포켓몬도 쓰러짐 (교체기로 물러나지 못함)
       const bond = (parts: Partial<Leaf>[]): Partial<Leaf>[] =>
-        x.oppDestinyBond && l.oppActed
+        x.oppDestinyBond && l.oppActed && !l.oppPivoted
           ? parts.map((part) => ({
               ...part,
               pivoted: false,
@@ -333,21 +405,42 @@ export function evaluate(x: Exchange, w: RecWeights = DEFAULT_WEIGHTS): Outcome 
       const acts = x.oppActs ?? 1
       const out: { p: number; l: Partial<Leaf> }[] = [{ p: 1 - acts, l: {} }]
       const hit = l.pivoted
-        ? (x.pivot?.opp ?? null)
+        ? x.oppRevenge != null
+          ? null
+          : (x.pivot?.opp ?? null)
         : x.myProtect || (x.myShieldFirst && l.mineActed)
           ? null
-          : x.opp
+          : x.oppRevenge != null
+            ? revenge(x.oppRevenge, l.oppTaken, l.myHp)
+            : x.opp
       const stops = x.myProtect || l.mineActed || x.switchIn ? 0 : x.oppStops || 0
       const after = (myHp: number, myLoss: number, dealt: number, ko: boolean): Partial<Leaf> => {
         const sd = selfDelta(x.oppSelf, dealt, hit ? hit.acc : x.opp ? 0 : 1, l.oppHp)
-        return {
+        const oppHp = l.oppHp - sd
+        const base = {
           myHp,
           myLoss,
+          myTaken: dealt,
           myKo: l.myKo + (ko ? 1 : 0),
-          oppHp: l.oppHp - sd,
+          oppHp,
           oppLoss: l.oppLoss + sd,
           oppActed: true,
         }
+        // 상대 교체기: 살아 있으면 들어오는 포켓몬으로
+        if (x.oppPivot && oppHp > 0) {
+          const chip = l.mineActed
+            ? (x.oppPivot.lateChip ?? x.oppPivot.entryChip)
+            : x.oppPivot.entryChip
+          const pc = Math.min(x.oppPivot.oppHp, chip)
+          return {
+            ...base,
+            oppHp: x.oppPivot.oppHp - pc,
+            oppLoss: base.oppLoss + pc,
+            oppKo: l.oppKo + (x.oppPivot.oppHp - pc <= 0 ? 1 : 0),
+            oppPivoted: true,
+          }
+        }
+        return { ...base, oppKo: l.oppKo + (oppHp <= 0 ? 1 : 0) }
       }
       const withStop = (p: number, part: Partial<Leaf>) =>
         stops > 0 && (part.myHp ?? l.myHp) > 0
@@ -362,8 +455,15 @@ export function evaluate(x: Exchange, w: RecWeights = DEFAULT_WEIGHTS): Outcome 
         out.push(
           ...withStop(acts * hit.ko, {
             ...after(0, l.myLoss + l.myHp, l.myHp, true),
-            // 내가 먼저 길동무를 썼으면 상대도 쓰러짐
-            ...(x.myDestinyBond && l.mineActed ? { oppHp: 0, oppLoss: l.oppLoss + l.oppHp } : {}),
+            // 내가 먼저 길동무를 썼으면 상대도 쓰러짐 (교체기로 물러나지 못함)
+            ...(x.myDestinyBond && l.mineActed && !l.pivoted
+              ? {
+                  oppHp: 0,
+                  oppLoss: l.oppLoss + l.oppHp,
+                  oppKo: l.oppKo + 1,
+                  oppPivoted: false,
+                }
+              : {}),
           }),
           ...withStop(acts * (1 - hit.ko), after(l.myHp - surv, l.myLoss + surv, surv, false)),
         )
@@ -398,14 +498,16 @@ export function evaluate(x: Exchange, w: RecWeights = DEFAULT_WEIGHTS): Outcome 
     oppKo: 0,
     duel: 0,
     utility: 0,
+    revive: 0,
     pFirst: 0,
     immediate: 0,
     score: 0,
     ends: [],
   }
-  const ends = new Map<boolean, TurnEnd>()
+  const ends = new Map<string, TurnEnd>()
+  let revHp = 0
   for (const l of result) {
-    let { myHp, oppHp, myLoss, oppLoss } = l
+    let { myHp, oppHp, myLoss, oppLoss, myKo, oppKo } = l
     if (x.myHeal && myHp > 0 && l.mineActed && !l.pivoted) {
       const h = Math.min(x.myHeal, 1 - myHp)
       myHp += h
@@ -416,28 +518,53 @@ export function evaluate(x: Exchange, w: RecWeights = DEFAULT_WEIGHTS): Outcome 
       oppHp += h
       oppLoss -= h
     }
-    const cases = l.pivoted ? (x.afterPivot ?? x.after) : x.after
+    if (x.myPerish && !x.switchIn && !l.pivoted && myHp > 0) {
+      myLoss += myHp
+      myHp = 0
+      myKo += 1
+    }
+    if (x.oppPerish && !x.oppSwitchIn && !l.oppPivoted && oppHp > 0) {
+      oppLoss += oppHp
+      oppHp = 0
+      oppKo += 1
+    }
+    const cases = afterFor(x, l.pivoted, l.oppPivoted)
     const duel =
       myHp > 0 && oppHp > 0
         ? cases.reduce((s, a) => s + a.p * duelValue(a.duel, a.myHp ?? myHp, a.oppHp ?? oppHp), 0)
         : 0
     out.myLoss += l.p * myLoss
     out.oppLoss += l.p * oppLoss
-    out.myKo += l.p * Math.min(1, l.myKo)
-    out.oppKo += l.p * (x.oppHp > 0 && oppHp <= 0 ? 1 : 0)
+    out.myKo += l.p * Math.min(1, myKo)
+    out.oppKo += l.p * Math.min(1, oppKo)
     out.duel += l.p * duel
     if (myHp > 0 && oppHp > 0) {
-      const e = ends.get(l.pivoted) ?? { pivoted: l.pivoted, p: 0, myHp: 0, oppHp: 0 }
+      const key = `${l.pivoted}${l.oppPivoted}`
+      const e = ends.get(key) ?? {
+        pivoted: l.pivoted,
+        oppPivoted: l.oppPivoted,
+        p: 0,
+        myHp: 0,
+        oppHp: 0,
+      }
       e.p += l.p
       e.myHp += l.p * myHp
       e.oppHp += l.p * oppHp
-      ends.set(l.pivoted, e)
+      ends.set(key, e)
     }
     out.utility +=
       l.p * ((l.mineActed ? x.myUtility || 0 : 0) - (l.oppActed ? x.oppUtility || 0 : 0))
+    out.revive += l.p * ((l.mineActed && x.myRevive ? 1 : 0) - (l.oppActed && x.oppRevive ? 1 : 0))
+    revHp += l.p * ((l.mineActed ? x.myRevive || 0 : 0) - (l.oppActed ? x.oppRevive || 0 : 0))
   }
   out.pFirst = f
-  out.immediate = out.oppLoss - out.myLoss + w.ko * (out.oppKo - out.myKo) + w.hazard * out.utility
+  out.immediate =
+    out.oppLoss -
+    out.myLoss +
+    w.ko * (out.oppKo - out.myKo) +
+    w.hazard * out.utility +
+    revHp +
+    w.ko * out.revive
   out.score = out.immediate + w.duel * out.duel
   out.ends = [...ends.values()].map((e) => ({ ...e, myHp: e.myHp / e.p, oppHp: e.oppHp / e.p }))
   return out

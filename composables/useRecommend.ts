@@ -2,7 +2,8 @@
 // 추천 플레이 (싱글): 지금 배틀 상태로 내 선택지(기술·교체기 × 들어갈 포켓몬·교체) × 상대 선택지(기술·교체) 이득표를 만들어
 // utils/recommend.ts 로 순위를 매긴다.
 //   - 상대 기술 후보: 쓴 기술(확정) + 선출 화면 기술. 사전 비중 = 확정 1 / 사용률 통계의 채용률 (없으면 0.5)
-//   - 상대 교체 후보: 공개된 대기 포켓몬 (사전 비중 oppSwitch)
+//   - 상대 교체 후보: 공개된 대기 포켓몬 (사전 비중 oppSwitch) + 선출 수가 다 공개되지 않았으면 아직 안 나온 파티 (남은 선출 수로 나눠서)
+//   - 상대 교체기(유턴 등)는 들어올 포켓몬마다 따로 (기술의 사전 비중을 교체 후보 비중대로 나눔)
 //   - 상대 선택지 비중 = 사전 비중 × exp(smart × 상대에게 유리한 정도) (responseWeights, 1턴 결과표 기준)
 //   - 상대 배분은 추정 범위의 양 끝, 도구는 확정 전이면 선출 화면 도구(추측)로 계산
 //   - 메가진화할 수 있으면 메가진화한다고 보고 계산 (상대도 마찬가지)
@@ -24,6 +25,7 @@ import {
   hitInfo,
   isGrounded,
   perHitDamage,
+  REVENGE_MOVES,
   type Combatant,
   type DamageOptions,
   type FieldState,
@@ -44,6 +46,7 @@ import {
 import {
   DEFAULT_WEIGHTS,
   advanceSkip,
+  afterFor,
   duelValue,
   evaluate,
   firstChance,
@@ -85,6 +88,10 @@ const PROTECT_MOVES = new Set([
   'obstruct',
 ])
 const CHOICE_ITEMS = new Set(['choiceband', 'choicespecs', 'choicescarf'])
+// 2~3턴 같은 기술로 고정되고 교체도 못 하는 기술 (역린류)
+const RAMPAGE_MOVES = new Set(['outrage', 'petaldance', 'thrash', 'ragingfury'])
+// 역린류 고정 중인 쪽의 맞대결 공격 효율: 고정이 끝나면 혼란(2~5턴, 자해 1/3)이라 평균으로 어림
+const RAMPAGE_DUEL = 0.85
 // 나온 첫 턴에만 성공하는 기술
 const FIRST_TURN_MOVES = new Set(['fakeout', 'firstimpression'])
 // 상대가 공격기를 쓸 때만 성공하는 기술
@@ -107,6 +114,8 @@ const TERRAIN_SPEED: Record<string, string> = { surgesurfer: 'electric' }
 const SAND_IMMUNE = new Set(['sandveil', 'sandrush', 'sandforce', 'overcoat', 'magicguard'])
 // 위협을 받지 않는 특성 (INTIMIDATE_IMMUNE 외 능력 하락 자체를 막는 특성)
 const NO_DROP = new Set(['clearbody', 'whitesmoke', 'fullmetalbody', 'hypercutter'])
+// 상대 특성을 무시하는 특성
+const MOLD_BREAKER = new Set(['moldbreaker', 'teravolt', 'turboblaze'])
 // 도발이 안 걸리는 특성
 const TAUNT_IMMUNE = new Set(['oblivious', 'aromaveil'])
 // 설치기를 밟는 포켓몬이 실제로 들어오는 정도 (전원이 한 번씩은 들어온다고 보되, 배틀이 먼저 끝날 수 있어서 조금 깎음)
@@ -126,6 +135,13 @@ const WEAK_HEAL_WEATHER = new Set(['rain', 'heavyrain', 'sand', 'snow'])
 const PHAZE_MOVES = new Set(['roar', 'whirlwind', 'dragontail', 'circlethrow'])
 // 설치기를 치우는 기술 (안개제거는 양쪽, 나머지는 자기 쪽)
 const HAZARD_CLEAR = new Set(['defog', 'rapidspin', 'mortalspin', 'tidyup'])
+// 설치기 최대 겹수
+const HAZARD_MAX: Record<string, number> = {
+  stealthrock: 1,
+  spikes: 3,
+  toxicspikes: 2,
+  stickyweb: 1,
+}
 
 const WEIGHTS_KEY = 'pch_rec_weights'
 const DEPTH_KEY = 'pch_rec_depth'
@@ -173,7 +189,9 @@ export function useRecWeights() {
 export type MineOption =
   | { kind: 'move'; move: string; mega: boolean; pivotTo?: number }
   | { kind: 'switch'; to: number }
-export type OppOption = { kind: 'move'; move: string } | { kind: 'switch'; to: number }
+export type OppOption =
+  | { kind: 'move'; move: string; pivotTo?: number }
+  | { kind: 'switch'; to: number }
 
 export interface OptionSummary {
   oppLoss: number
@@ -204,7 +222,9 @@ interface View {
   boosts: BoostTable
   status: Status
   screens?: ScreenKey[] // 이번 턴 새로 친 벽 (그 진영이 맞을 때)
-  locked?: string // 구애 도구·앙코르로 고정된 기술
+  locked?: string // 구애 도구·앙코르·역린류로 고정된 기술
+  rampage?: boolean // 역린류로 고정: 교체도 못 함
+  perish?: number // 멸망의노래 카운트 (배틀 상태와 같은 값: 턴 끝마다 1 줄고 0 이면 쓰러짐)
   skip?: Skip // 처음 몇 턴 행동 불가 (잠듦·반동·앙코르로 변화기 고정)
   tailwind?: boolean // 새로 분 순풍
   itemGone?: boolean // 도구를 잃음
@@ -220,10 +240,12 @@ interface Env {
   weather: Weather
   terrain: Terrain
   trickRoom: boolean
+  gone?: string[] // 턴이 끝나 사라진 진영 효과 ('mine:reflect', 'opp:tailwind' 등)
 }
 // 한 턴을 계산하는 시점의 상태. root = 실제 배틀 상태 (PP·앙코르·특수 상태 등은 배틀 상태에서 직접 본다)
 interface Ctx {
   root: boolean
+  age: number // 실제 배틀 상태로부터 몇 턴 뒤인가 (남은 턴 수 계산용)
   mi: number
   oi: number
   mv: View
@@ -238,7 +260,9 @@ interface Ctx {
   oppActs: number
   megaMine: boolean // 그 진영이 아직 메가진화할 수 있음
   megaOpp: boolean
+  hz?: Hazards // 진영별 설치기 (없으면 배틀 상태) — 두 턴 앞에서 이번 턴에 깔거나 치운 것
 }
+type Hazards = Record<BattleSide, Record<string, number>>
 
 // 기술의 확정 효과 (확률 효과는 제외)
 interface MoveFx {
@@ -279,14 +303,17 @@ interface Special {
   phaze: number // 맞는 쪽을 강제로 교체시킬 확률 (울부짖기·드래곤테일)
   utility: number // 설치기를 치운 가치 (안개제거·고속스핀)
   fails: boolean
+  revive: number | null // 부활의기원으로 되살릴 쓰러진 포켓몬 (HP 1/2)
 }
-// 한 칸 + 다음 턴을 만들 재료
+// 한 칸 + 다음 턴을 만들 재료. cases: 교체기로 바뀌었는지(내 쪽·상대 쪽)별 턴 뒤 경우 (pivotKey)
 interface Cell2 {
   ex: Exchange
-  cases: NextCase[]
-  casesPivot?: NextCase[]
-  next: (pivoted: boolean, c: NextCase, myHp: number, oppHp: number) => Ctx
+  cases: Partial<Record<PivotKey, NextCase[]>>
+  next: (pivoted: boolean, oppPivoted: boolean, c: NextCase, myHp: number, oppHp: number) => Ctx
 }
+type PivotKey = '00' | '10' | '01' | '11'
+const pivotKey = (pivoted: boolean, oppPivoted: boolean): PivotKey =>
+  `${pivoted ? 1 : 0}${oppPivoted ? 1 : 0}` as PivotKey
 
 export function useRecommend(b: Battle) {
   const gd = useGameData()
@@ -427,13 +454,38 @@ export function useRecommend(b: Battle) {
     const phys = move.category === 'physical' || ['psyshock', 'psystrike'].includes(move.id)
     return phys !== !!field.wonderRoom ? 'def' : 'spd'
   }
-  // 맞는 쪽 필드 + 그 시점 날씨·필드 + 새로 친 벽
-  const fieldWith = (f: FieldState, env: Env, screens?: ScreenKey[]): FieldState => ({
-    ...f,
-    weather: env.weather,
-    terrain: env.terrain,
-    ...(screens?.length ? Object.fromEntries(screens.map((k) => [SCREEN_FIELD[k], true])) : {}),
-  })
+  // 맞는 쪽(side) 필드 + 그 시점 날씨·필드 + 새로 친 벽 (끝난 벽은 뺌)
+  const fieldWith = (
+    f: FieldState,
+    env: Env,
+    screens: ScreenKey[] | undefined,
+    side: BattleSide,
+  ): FieldState => {
+    const out: FieldState = { ...f, weather: env.weather, terrain: env.terrain }
+    for (const g of env.gone ?? []) {
+      const [sd, k] = g.split(':')
+      if (sd === side && k! in SCREEN_FIELD) out[SCREEN_FIELD[k as ScreenKey]] = false
+    }
+    for (const k of screens ?? []) out[SCREEN_FIELD[k]] = true
+    return out
+  }
+  // 이번 턴이 끝날 때 남은 턴이 다 된 날씨·필드·트릭룸·벽·순풍 (이번 턴에 새로 바뀐 것은 그대로)
+  const expire = (c: Ctx, e: Env): Env => {
+    const s = S()
+    const ends = (x: { cur: number; total: number } | undefined) =>
+      !!x && x.cur + c.age + 1 >= x.total
+    const out: Env = { ...e }
+    if (!s.weather.permanent && e.weather && e.weather === s.weather.key && ends(s.weather))
+      out.weather = ''
+    if (e.terrain && e.terrain === s.terrain.key && ends(s.terrain)) out.terrain = ''
+    if (e.trickRoom && ends(s.rooms.trickroom)) out.trickRoom = false
+    const gone = new Set(e.gone)
+    for (const side of ['mine', 'opp'] as const)
+      for (const [k, x] of Object.entries(s.sides[side].screens))
+        if (ends(x)) gone.add(`${side}:${k}`)
+    if (gone.size) out.gone = [...gone].sort()
+    return out
+  }
 
   // 이번 한 번의 공격 (배분 범위 양 끝 → 데미지는 합친 범위, KO 확률은 평균)
   const koP = (c: Cell) =>
@@ -475,7 +527,7 @@ export function useRecommend(b: Battle) {
       const move = gd.move(moveId)
       const atk = mineC(mv, true)
       if (!move || !atk) return null
-      const field = fieldWith(fieldFor('opp', ov.idx), env, ov.screens)
+      const field = fieldWith(fieldFor('opp', ov.idx), env, ov.screens, 'opp')
       return hitOf(
         moveId,
         [atk],
@@ -493,7 +545,7 @@ export function useRecommend(b: Battle) {
         moveId,
         oppCs(ov, true),
         [def],
-        fieldWith(fieldFor('mine', mv.idx), env, mv.screens),
+        fieldWith(fieldFor('mine', mv.idx), env, mv.screens, 'mine'),
         attackOpts('opp', ov.idx, moveId),
       )
     })
@@ -537,7 +589,7 @@ export function useRecommend(b: Battle) {
       const move = gd.move(moveId)
       const atk = mineC(mv, true)
       if (!move || !atk) return 0
-      const field = fieldWith(fieldFor('opp', ov.idx), env, ov.screens)
+      const field = fieldWith(fieldFor('opp', ov.idx), env, ov.screens, 'opp')
       return avgDamage(
         moveId,
         [atk],
@@ -554,7 +606,7 @@ export function useRecommend(b: Battle) {
         moveId,
         oppCs(ov, true),
         [def],
-        fieldWith(fieldFor('mine', mv.idx), env, mv.screens),
+        fieldWith(fieldFor('mine', mv.idx), env, mv.screens, 'mine'),
         attackOpts('opp', ov.idx, moveId),
       )
     })
@@ -745,6 +797,9 @@ export function useRecommend(b: Battle) {
     return out
   }
 
+  // 턴 끝: 멸망의노래 카운트가 1 줄어듦 (0 = 이번 턴 끝에 쓰러짐)
+  const tickPerish = (v: View): View => (v.perish ? { ...v, perish: v.perish - 1 } : v)
+
   // ── 반동 · 흡수 · 생명의구슬 ─────────────
   const selfOf = (
     moveId: string,
@@ -804,9 +859,22 @@ export function useRecommend(b: Battle) {
   }
 
   // ── 설치기 ─────────────
-  // side 의 idx 가 들어올 때 받는 데미지 (지금 깔린 것)
-  const hazardChip = (side: BattleSide, idx: number) => {
-    const hz = S().sides[side].hazards
+  const hazardsOf = (c: Ctx): Hazards =>
+    c.hz ?? { mine: S().sides.mine.hazards, opp: S().sides.opp.hazards }
+  // 기술로 설치기를 깔거나 치운 뒤 (user = 기술을 쓴 진영). 안개제거는 양쪽, 고속스핀류는 자기 쪽을 치움
+  const hazardsAfter = (hz: Hazards, moveId: string, user: BattleSide): Hazards => {
+    if (!moveId) return hz
+    const foe: BattleSide = user === 'mine' ? 'opp' : 'mine'
+    if (HAZARD_CLEAR.has(moveId))
+      return moveId === 'defog' ? { mine: {}, opp: {} } : { ...hz, [user]: {} }
+    const e = gd.move(moveId)?.effects.find((x) => x.type === 'side' && x.side === 'foe')
+    if (!e || e.type !== 'side' || !(e.key in HAZARD_MAX)) return hz
+    const n = hz[foe][e.key] || 0
+    if (n >= HAZARD_MAX[e.key]!) return hz
+    return { ...hz, [foe]: { ...hz[foe], [e.key]: n + 1 } }
+  }
+  // side 의 idx 가 들어올 때 받는 데미지 (hz: 그때 깔려 있는 것)
+  const hazardChip = (side: BattleSide, idx: number, hz: Record<string, number>) => {
     const c = combatantOf(side, idx)
     if (!c || !gd.data.value || c.ability === 'magicguard' || c.item === 'heavydutyboots') return 0
     let f = 0
@@ -818,19 +886,32 @@ export function useRecommend(b: Battle) {
       f += 1 / [8, 8, 6, 4][Math.min(3, hz.spikes)]!
     return f
   }
-  // 설치기를 foe 진영에 깔면 앞으로 들어올 포켓몬이 받을 데미지 합 (HP 비율 단위)
+  // 앞으로 foe 진영에 들어올 포켓몬: 턴이 끝났을 때 필드에 있을 포켓몬(onField)을 뺀 살아 있는 포켓몬
+  //   (이번 턴 교체로 들어간 포켓몬은 이미 들어갔으므로 빼고, 물러난 포켓몬은 다시 들어올 수 있으므로 넣는다).
+  //   상대는 공개된 포켓몬 + 아직 안 나온 선출 수
+  const futureEntries = (c: Ctx, foe: BattleSide, onField: number) => {
+    const sd = S().sides[foe]
+    const bench = sd.mons
+      .map((_, i) => i)
+      .filter(
+        (i) =>
+          i !== onField &&
+          hpIn(c, foe, i) > 0 &&
+          (foe === 'mine' || (sd.revealed.includes(i) && !!b.oppSlots.value[i]?.species)),
+      )
+    const seen = foe === 'opp' ? new Set([...sd.revealed, onField]).size : 0
+    return { bench, unknown: foe === 'opp' ? Math.max(0, OPP_PICK - seen) : 0 }
+  }
+  // 설치기를 foe 진영에 깔면 앞으로 들어올 포켓몬이 받을 데미지 합 (HP 비율 단위). onField: 턴 뒤 foe 필드의 포켓몬
   const SPIKES = [0, 1 / 8, 1 / 6, 1 / 4]
-  const hazardValue = (moveId: string, foe: BattleSide) => {
+  const hazardValue = (c: Ctx, moveId: string, foe: BattleSide, onField: number) => {
     const move = gd.move(moveId)
     const e = move?.effects.find((x) => x.type === 'side' && x.side === 'foe')
     if (!e || e.type !== 'side' || !gd.data.value) return 0
-    const sd = S().sides[foe]
-    const layers = sd.hazards[e.key] || 0
-    if (layers >= (e.key === 'spikes' ? 3 : e.key === 'toxicspikes' ? 2 : 1)) return 0
+    const layers = hazardsOf(c)[foe][e.key] || 0
+    if (layers >= (HAZARD_MAX[e.key] ?? 1)) return 0
     // 상대는 아직 안 나온 선출도 들어온다 (종을 모르면 바위 등배·땅에 있음으로)
-    const bench = b.benchOf(foe).filter((i) => foe === 'mine' || sd.revealed.includes(i))
-    const fainted = sd.mons.filter((_, i) => b.isFainted(foe, i)).length
-    const unknown = foe === 'opp' ? Math.max(0, OPP_PICK - fainted - 1 - bench.length) : 0
+    const { bench, unknown } = futureEntries(c, foe, onField)
     const rock = gd.data.value.types.chart.rock || {}
     const per = (c: Combatant | null) => {
       if (c && (c.ability === 'magicguard' || c.item === 'heavydutyboots')) return 0
@@ -878,6 +959,10 @@ export function useRecommend(b: Battle) {
       (boostMultiplier(v.boosts.spe) / boostMultiplier(active ? m.boosts.spe : 0)) *
       (v.status === 'par' && m.status !== 'par' ? 0.5 : 1) *
       (v.tailwind ? 2 : 1) *
+      // 지금 부는 순풍이 끝남
+      (!v.tailwind && S().sides[side].screens.tailwind && env.gone?.includes(`${side}:tailwind`)
+        ? 0.5
+        : 1) *
       (wx(env) / wx(now))
     )
   }
@@ -894,6 +979,12 @@ export function useRecommend(b: Battle) {
   }
 
   // ── 턴 뒤 맞대결 ─────────────
+  // 기합의띠·옹골참 (공격하는 쪽이 틀깨기류면 옹골참 무시)
+  const holdsOn = (side: BattleSide, v: View, foe: BattleSide, fv: View) => {
+    if (itemOf(side, v) === 'focussash') return true
+    if (oneC(side, v)?.ability !== 'sturdy') return false
+    return !MOLD_BREAKER.has(oneC(foe, fv, true)?.ability || '')
+  }
   const duelCache = new Map<string, Duel>()
   const duelOf = (mv: View, ov: View, mi0: number, env: Env): Duel => {
     const key = JSON.stringify([mv, ov, env])
@@ -904,8 +995,10 @@ export function useRecommend(b: Battle) {
     const o = { ...ov, duel: true }
     const myMoves = mv.locked ? [mv.locked] : movesOf('mine', mv.idx)
     const opMoves = ov.locked ? [ov.locked] : oppMoves(ov.idx).moves
-    const mine = Math.max(0, ...myMoves.map((x) => mineAvg(x, m, o, env)))
-    const opp = Math.max(0, ...opMoves.map((x) => oppAvg(x, o, m, env)))
+    // 역린류로 고정이면 끝난 뒤 혼란으로 자해하는 턴이 있어서 조금 깎는다
+    const rage = (v: View) => (v.rampage ? RAMPAGE_DUEL : 1)
+    const mine = rage(mv) * Math.max(0, ...myMoves.map((x) => mineAvg(x, m, o, env)))
+    const opp = rage(ov) * Math.max(0, ...opMoves.map((x) => oppAvg(x, o, m, env)))
     // 하품으로 졸고 있으면 곧 잠드는 것으로 (교체로 피할 수 있어서 일부만)
     const drowsySkip = (v: View): Skip | undefined =>
       v.drowsy && !v.status
@@ -914,14 +1007,21 @@ export function useRecommend(b: Battle) {
             ...skipDist(WAKE_CHANCE.slp, 0).map((s) => ({ ...s, p: s.p * YAWN_SLEEP })),
           ]
         : v.skip
+    const residOpp = residOf('opp', ov, mv, env)
+    const residMine = residOf('mine', mv, ov, env)
     const d: Duel = {
-      mine: Math.max(0, mine + residOf('opp', ov, mv, env)),
-      opp: Math.max(0, opp + residOf('mine', mv, ov, env)),
+      mine: Math.max(0, mine + residOpp),
+      opp: Math.max(0, opp + residMine),
       pFirst: firstOf(mv, ov, mi0, env),
       skipMine: drowsySkip(mv),
       skipOpp: drowsySkip(ov),
       absorbMine: mv.absorb,
       absorbOpp: ov.absorb,
+      // 턴 끝 데미지를 받으면 가득 찬 HP 를 지키지 못해서 빼고 본다
+      perishMine: mv.perish,
+      perishOpp: ov.perish,
+      holdMine: residMine <= 0 && holdsOn('mine', mv, 'opp', ov),
+      holdOpp: residOpp <= 0 && holdsOn('opp', ov, 'mine', mv),
     }
     duelCache.set(key, d)
     return d
@@ -965,6 +1065,7 @@ export function useRecommend(b: Battle) {
       if (m.volatiles.leechseed) v.seeded = true
       if (m.volatiles.taunt) v.taunted = true
       if (m.volatiles.yawn) v.drowsy = true
+      if (m.volatiles.perishsong) v.perish = m.volatiles.perishsong
       const locked = lockedMove(side, idx)
       if (locked) v.locked = locked
     }
@@ -978,6 +1079,7 @@ export function useRecommend(b: Battle) {
     s.sides.opp.mons.forEach((_, i) => (hp.opp[i] = hpFrac('opp', i)))
     return {
       root: true,
+      age: 0,
       mi,
       oi,
       mv: viewOf('mine', mi, canMegaEvolve('mine', mi), true),
@@ -1015,15 +1117,14 @@ export function useRecommend(b: Battle) {
   // ── 데이터에 효과가 없는 기술 ─────────────
   // 설치기 부담: side 에 깔린 설치기를 앞으로 들어올 포켓몬이 밟는 데미지 합 (상대는 아직 안 나온 선출 포함)
   const burden = (c: Ctx, side: BattleSide) => {
-    const hz = S().sides[side].hazards
+    const hz = hazardsOf(c)[side]
     if (!hz.stealthrock && !hz.spikes) return 0
-    const sd = S().sides[side]
-    const bench = benchIn(c, side)
-    const fainted = sd.mons.filter((_, i) => hpIn(c, side, i) <= 0).length
-    const unknown = side === 'opp' ? Math.max(0, OPP_PICK - fainted - 1 - bench.length) : 0
+    const { bench, unknown } = futureEntries(c, side, side === 'mine' ? c.mi : c.oi)
     const generic =
       (hz.stealthrock ? 1 / 8 : 0) + (hz.spikes ? 1 / [8, 8, 6, 4][Math.min(3, hz.spikes)]! : 0)
-    return HAZARD_ENTRY * (bench.reduce((a, i) => a + hazardChip(side, i), 0) + unknown * generic)
+    return (
+      HAZARD_ENTRY * (bench.reduce((a, i) => a + hazardChip(side, i, hz), 0) + unknown * generic)
+    )
   }
   // side 의 uv 가 moveId 를 tv 에게 쓸 때. targetMove: 맞는 쪽이 이번 턴 쓰는 기술 (트릭으로 고정)
   const specialOf = (
@@ -1050,6 +1151,7 @@ export function useRecommend(b: Battle) {
       phaze: 0,
       utility: 0,
       fails: false,
+      revive: null,
     }
     if (!moveId) return sp
     const foe: BattleSide = side === 'mine' ? 'opp' : 'mine'
@@ -1096,6 +1198,20 @@ export function useRecommend(b: Battle) {
         sp.heal = Math.min(1, (t.stats.atk * boostMultiplier(tv.boosts.atk)) / Math.max(1, uMax))
         sp.target = { p: 1, patch: { boosts: addBoosts(tv.boosts, { atk: -1 }) } }
       }
+    } else if (moveId === 'revivalblessing') {
+      // 쓰러진 포켓몬 하나를 HP 1/2 로 (상대는 공개된 포켓몬 중). 고르는 것은 남은 HP 가 가장 큰 쪽 대신 첫 번째로 어림
+      const sd = S().sides[side]
+      const k = sd.mons.findIndex(
+        (_, i) => hpIn(c, side, i) <= 0 && (side === 'mine' || sd.revealed.includes(i)),
+      )
+      if (k < 0) sp.fails = true
+      else sp.revive = k
+    } else if (moveId === 'perishsong') {
+      // 필드의 양쪽 다 (방음은 맞는 쪽만 무효). 이미 카운트가 있으면 그대로. 맞는 쪽은 턴 끝 뒤 값(3)으로 붙음
+      if (!uv.perish) sp.selfPatch = { perish: 4 }
+      if (!tv.perish && oneC(foe, tv)?.ability !== 'soundproof')
+        sp.target = { p: 1, patch: { perish: 3 } }
+      if (uv.perish && (tv.perish || oneC(foe, tv)?.ability === 'soundproof')) sp.fails = true
     } else if (moveId === 'haze') sp.resetBoosts = true
     else if (moveId === 'destinybond') sp.destinyBond = last !== 'destinybond'
     else if (PHAZE_MOVES.has(moveId)) {
@@ -1141,7 +1257,7 @@ export function useRecommend(b: Battle) {
     for (const k of cases)
       for (const j of bench) {
         const v = benchView(c, foe, j)
-        const hp = Math.max(0.01, hpIn(c, foe, j) - hazardChip(foe, j))
+        const hp = Math.max(0.01, hpIn(c, foe, j) - hazardChip(foe, j, S().sides[foe].hazards))
         out.push(
           foe === 'opp'
             ? { ...k, p: (k.p * p) / bench.length, ov: v, oi: j, oppHp: hp }
@@ -1152,24 +1268,53 @@ export function useRecommend(b: Battle) {
   }
 
   // ── 한 턴 ─────────────
-  // 상대 선택지와 비중: 기술 = 확정 1 / 채용률 × 지금 내 포켓몬에게 주는 위협, 교체 = 지금 맞대결이 불리할수록
-  // 상대 선택지와 사전 비중: 기술 = 확정 1 / 채용률 (없으면 0.5), 교체(공개된 대기 포켓몬) = oppSwitch.
+  // 상대 선택지와 사전 비중: 기술 = 확정 1 / 채용률 (없으면 0.5), 교체 = oppSwitch × 들어올 포켓몬 몫.
   // 실제 비중은 결과표를 만든 뒤 상대에게 유리한 정도로 정한다 (responseWeights)
+  // 상대가 들어올 수 있는 포켓몬과 그 몫: 공개된 대기 포켓몬 1, 아직 안 나온 파티는 남은 선출 수 / 후보 수
+  // (안 나온 파티는 이번 턴만 — 다음 턴 계산까지 넣으면 계산이 너무 커짐)
+  const oppSwitchTargets = (c: Ctx) => {
+    const sd = S().sides.opp
+    const out = benchIn(c, 'opp').map((to) => ({ to, share: 1 }))
+    const left = OPP_PICK - sd.revealed.length
+    if (left > 0 && c.root) {
+      const unseen = b.oppSlots.value
+        .map((_, i) => i)
+        .filter(
+          (i) =>
+            i !== c.oi &&
+            !sd.revealed.includes(i) &&
+            !!b.oppSlots.value[i]?.species &&
+            hpIn(c, 'opp', i) > 0,
+        )
+      const share = Math.min(1, left / Math.max(1, unseen.length))
+      out.push(...unseen.map((to) => ({ to, share })))
+    }
+    return out
+  }
   const oppOptionsOf = (c: Ctx, w: RecWeights) => {
     const { moves, known } = oppMoves(c.oi, c)
     const table = gd.usageTable('single', reg.active.value?.id)
     const r = resolveAt('opp', c.oi, c.ov.mega || undefined)
     const usage =
       table?.pokemon[r?.species.id ?? '']?.moveUsage ?? table?.pokemon[r?.base.id ?? '']?.moveUsage
-    const bench = c.root && b.switchBlocked('opp', 0) ? [] : benchIn(c, 'opp')
+    const targets = oppSwitchTargets(c)
+    const total = targets.reduce((a, x) => a + x.share, 0)
+    // 교체기(유턴 등)는 교체를 막는 상태에서도 쓸 수 있다
+    const bench = (c.root && b.switchBlocked('opp', 0)) || c.ov.rampage ? [] : targets
     return [
-      ...moves.map((move) => ({
-        kind: 'move' as const,
-        move,
-        prior: known.has(move) ? 1 : (usage?.[move] ?? 0.5),
-      })),
+      ...moves.flatMap((move) => {
+        const prior = known.has(move) ? 1 : (usage?.[move] ?? 0.5)
+        return PIVOT_MOVES.has(move) && targets.length
+          ? targets.map((x) => ({
+              kind: 'move' as const,
+              move,
+              pivotTo: x.to,
+              prior: (prior * x.share) / total,
+            }))
+          : [{ kind: 'move' as const, move, prior }]
+      }),
       ...(w.oppSwitch > 0
-        ? bench.map((to) => ({ kind: 'switch' as const, to, prior: w.oppSwitch }))
+        ? bench.map((x) => ({ kind: 'switch' as const, to: x.to, prior: w.oppSwitch * x.share }))
         : []),
     ]
   }
@@ -1183,11 +1328,48 @@ export function useRecommend(b: Battle) {
           ? bench.map((pivotTo) => ({ kind: 'move', move, mega, pivotTo }))
           : [{ kind: 'move', move, mega }],
       ),
-      ...(c.root && b.switchBlocked('mine', 0)
+      ...((c.root && b.switchBlocked('mine', 0)) || c.mv.rampage
         ? []
         : bench.map((to) => ({ kind: 'switch' as const, to }))),
     ]
   }
+
+  // 되돌려 주는 기술의 배율 (받은 데미지 → 맞는 쪽 최대 HP 대비). 상대 기술 분류가 안 맞거나 타입 무효면 0, 아니면 undefined
+  //   카운터 = 물리 × 2 (고스트 무효), 미러코트 = 특수 × 2 (악 무효), 메탈버스트·앙갚음 = 공격기 × 1.5
+  const revengeOf = (
+    moveId: string,
+    foeMove: string,
+    foe: BattleSide,
+    fv: View,
+    userIdx: number,
+    foeIdx: number,
+  ) => {
+    if (!REVENGE_MOVES.has(moveId)) return undefined
+    const cat = gd.move(foeMove)?.category
+    const types: readonly string[] = oneC(foe, fv)?.species.types ?? []
+    const mult =
+      moveId === 'counter'
+        ? cat === 'physical' && !types.includes('ghost')
+          ? 2
+          : 0
+        : moveId === 'mirrorcoat'
+          ? cat === 'special' && !types.includes('dark')
+            ? 2
+            : 0
+          : cat && cat !== 'status'
+            ? 1.5
+            : 0
+    const user: BattleSide = foe === 'mine' ? 'opp' : 'mine'
+    return (mult * maxHp(user, userIdx)) / Math.max(1, maxHp(foe, foeIdx))
+  }
+  // 배턴터치로 넘어가는 상태
+  const passedOf = (v: View): Partial<View> => ({
+    boosts: v.boosts,
+    ...(v.absorb ? { absorb: v.absorb } : {}),
+    ...(v.seeded ? { seeded: true } : {}),
+    ...(v.cursed ? { cursed: true } : {}),
+    ...(v.perish ? { perish: v.perish } : {}),
+  })
 
   // 내 선택지 × 상대 선택지 한 칸 + 다음 턴 재료
   const cellOf = (c: Ctx, opt: MineOption, oo: OppOption): Cell2 => {
@@ -1231,16 +1413,28 @@ export function useRecommend(b: Battle) {
       oppInAb === 'intimidate' ? { ...v, boosts: addBoosts(v.boosts, intimidateDelta(ab)) } : v
     const om = oo.kind === 'move' ? oo.move : ''
     const fo = fxOf(om)
+    // 설치기: 지금 깔린 것, 턴이 끝났을 때 양쪽 필드에 있을 포켓몬 (설치기 가치는 그 포켓몬을 빼고 앞으로 들어올 포켓몬 기준)
+    const hz0 = hazardsOf(c)
+    // 들어올 때 밟는 데미지는 실제 배틀 상태의 설치기 기준 — 계산 안에서 새로 깐 설치기는 깐 턴의 설치기 가치로 이미 셌다
+    //   (앞으로 들어올 포켓몬 몫이라 다음 턴 교체에서 또 세면 두 번이 됨). 이번 턴 안의 변화(lateChip)는 그 위에
+    const hzChip: Hazards = { mine: S().sides.mine.hazards, opp: S().sides.opp.hazards }
+    const myField = opt.kind === 'switch' ? opt.to : (opt.pivotTo ?? mi)
+    const oppField = oppIn ? oo.to : oo.kind === 'move' ? (oo.pivotTo ?? oi) : oi
+    // 다음 턴의 설치기 (이번 턴에 깔거나 치운 것) — 분기마다 정함
+    let hzEnd = hz0
+    // 부활의기원으로 되살린 포켓몬 (다음 턴 HP 1/2) — 분기마다 정함
+    let revMine: number | null = null
+    let revOpp: number | null = null
     const oppAtk = oppCs(c.ov, true)[0]
     const oppChoice = CHOICE_ITEMS.has(itemOf('opp', c.ov))
     const oppCommon = {
       oppHp: hpIn(c, 'opp', ovIdx),
       oppSwitchIn: oppIn,
-      oppEntryChip: oppIn ? hazardChip('opp', oo.to) : 0,
+      oppEntryChip: oppIn ? hazardChip('opp', oo.to, hzChip.opp) : 0,
       oppActs: c.oppActs,
       oppProtect: !oppIn && PROTECT_MOVES.has(om) && !PROTECT_MOVES.has(c.oppLast),
       oppHeal: fo.heal,
-      oppUtility: om ? hazardValue(om, 'mine') : 0,
+      oppUtility: om ? hazardValue(c, om, 'mine', myField) : 0,
     }
     // 상대 기술이 나간 뒤의 상대 (랭크·벽·순풍·구애 고정·반동)
     const oppAfter = (env: Env, base: View): View =>
@@ -1252,6 +1446,7 @@ export function useRecommend(b: Battle) {
             screens: newScreens('opp', fo, env),
             ...newTailwind('opp', fo),
             ...(oppChoice && om ? { locked: om } : {}),
+            ...(RAMPAGE_MOVES.has(om) ? { locked: om, rampage: true } : {}),
             ...(fo.recharge ? { skip: [{ turns: 1, p: 1 }] } : {}),
           })
     // 특수 기술의 자기 쪽 변화 (랭크·잠자기·트릭). reset: 흑안개로 랭크 0
@@ -1264,8 +1459,9 @@ export function useRecommend(b: Battle) {
     const costed = (e: SelfEffect | undefined, cost: number): SelfEffect | undefined =>
       cost ? { perDealt: e?.perDealt ?? 0, onHit: (e?.onHit ?? 0) + cost } : e
     // 다음 턴 상태
+    // p.oi: 상대 교체기로 들어온 포켓몬 (없으면 이번 턴 맞은 포켓몬)
     const nextCtx = (
-      p: { mi: number; mv: View; ov: View; myHp: number; oppHp: number; env: Env },
+      p: { mi: number; oi?: number; mv: View; ov: View; myHp: number; oppHp: number; env: Env },
       myLast: string,
       myFresh: boolean,
       megaUsed: boolean,
@@ -1276,56 +1472,137 @@ export function useRecommend(b: Battle) {
       const nm = nextTurnView(p.mv)
       const no = nextTurnView(p.ov)
       // 강제 교체로 바뀐 쪽: 원래 포켓몬은 이번 턴이 끝난 HP 로 대기
+      const oiEnd = p.oi ?? ovIdx
       const mi2 = cs?.mi ?? p.mi
-      const oi2 = cs?.oi ?? ovIdx
+      const oi2 = cs?.oi ?? oiEnd
       const mineHp = { ...c.hp.mine, [p.mi]: q(p.myHp) }
-      const oppHp = { ...c.hp.opp, [ovIdx]: q(p.oppHp) }
+      const oppHp = { ...c.hp.opp, [oiEnd]: q(p.oppHp) }
+      if (revMine != null) mineHp[revMine] = 0.5
+      if (revOpp != null) oppHp[revOpp] = 0.5
       if (cs?.mi != null) mineHp[cs.mi] = q(cs.myHp ?? hpIn(c, 'mine', cs.mi))
       if (cs?.oi != null) oppHp[cs.oi] = q(cs.oppHp ?? hpIn(c, 'opp', cs.oi))
       return {
         root: false,
+        age: c.age + 1,
         mi: mi2,
         oi: oi2,
         mv: nm.view,
         ov: no.view,
         hp: { mine: mineHp, opp: oppHp },
-        env: p.env,
+        env: expire(c, p.env),
         myLast: cs?.mi != null ? '' : myLast,
-        oppLast: oppIn || cs?.oi != null ? '' : om,
+        oppLast: oppIn || p.oi != null || cs?.oi != null ? '' : om,
         myFresh: myFresh || cs?.mi != null,
-        oppFresh: oppIn || cs?.oi != null,
+        oppFresh: oppIn || p.oi != null || cs?.oi != null,
         myActs: nm.acts,
         oppActs: no.acts,
         megaMine: c.megaMine && !megaUsed,
         megaOpp: c.megaOpp && !c.ov.mega,
+        hz: hzEnd,
       }
+    }
+
+    // 상대 교체기: 상대가 행동한 뒤 들어오는 포켓몬 (이번 턴 메가진화했으면 메가진화 못 함). 등장 특성(위협·날씨) 반영
+    //   my / myPivot: 턴 뒤 내 쪽 (내 교체기로 바뀌지 않은 경우 / 바뀐 경우)
+    //   hitIn: 상대가 먼저 물러났을 때 내 기술이 들어온 포켓몬에게 주는 데미지, onIn: 그때 생기는 효과
+    interface MySide {
+      mi: number
+      mv: View
+      onMine: Effect
+      env: Env
+      last: string
+      fresh: boolean
+      mega: boolean
+    }
+    const withOppPivot = (
+      cell: Cell2,
+      my: MySide,
+      myPivot: MySide | null,
+      hitIn: (v: View) => Hit | null,
+      onIn: (v: View) => Effect,
+      myMove: string,
+      oppEnd: View, // 턴 뒤 원래 상대 (배턴터치로 넘기는 상태)
+    ): Cell2 => {
+      if (oo.kind !== 'move' || oo.pivotTo == null) return cell
+      const k = oo.pivotTo
+      const kAb = abilityOf('opp', k)
+      const vk: View = {
+        ...viewOf('opp', k, false, false),
+        ...(om === 'batonpass' ? passedOf(oppEnd) : {}),
+      }
+      const vkNext: View = {
+        ...vk,
+        mega: !c.ov.mega && canMega(c, 'opp', k),
+        ...newTailwind('opp', fo),
+      }
+      const onK = onIn(vk)
+      const branch = (m: MySide) => {
+        const mv =
+          kAb === 'intimidate'
+            ? {
+                ...m.mv,
+                boosts: addBoosts(m.mv.boosts, intimidateDelta(abilityOf('mine', m.mi))),
+              }
+            : m.mv
+        const env = envWith(m.env, kAb)
+        const cases = casesOf(mv, vkNext, onK, m.onMine)
+        return { cases, after: afterOf(cases, m.mi, expire(c, env)), env }
+      }
+      cell.ex.oppPivot = {
+        oppHp: hpIn(c, 'opp', k),
+        entryChip: hazardChip('opp', k, hzChip.opp),
+        // 내 기술이 먼저 나갔으면 내가 깔거나 치운 설치기를 밟음
+        lateChip: hazardChip('opp', k, hazardsAfter(hzChip, myMove, 'mine').opp),
+        mine: hitIn(vk),
+      }
+      const a = branch(my)
+      cell.ex.afterOppPivot = a.after
+      cell.cases['01'] = a.cases
+      const both = myPivot ? branch(myPivot) : null
+      if (both) {
+        cell.ex.afterBothPivot = both.after
+        cell.cases['11'] = both.cases
+      }
+      const plain = cell.next
+      cell.next = (pivoted, oppPivoted, cs, mh, oh) => {
+        if (!oppPivoted) return plain(pivoted, oppPivoted, cs, mh, oh)
+        const m = pivoted && myPivot ? myPivot : my
+        const env = pivoted && both ? both.env : a.env
+        return nextCtx(
+          { mi: m.mi, oi: k, mv: cs.mv, ov: cs.ov, myHp: mh, oppHp: oh, env },
+          m.last,
+          m.fresh,
+          m.mega,
+          cs,
+        )
+      }
+      return cell
     }
 
     if (opt.kind === 'switch') {
       const inHp = hpIn(c, 'mine', opt.to)
       const mvIn = mvBase(viewOf('mine', opt.to, false, false), inAb)
       const env = envWith(envIn, '', om)
+      hzEnd = hazardsAfter(hz0, om, 'opp')
       const so = specialOf(c, 'opp', om, c.ov, oppCommon.oppHp, mvIn, inHp, env, c.oppLast, '')
-      const ovNext = withSpecial(oppAfter(env, ovT), so, false)
+      const ovNext = tickPerish(withSpecial(oppAfter(env, ovT), so, false))
+      revOpp = so.revive
       const mvNext: View = {
         ...mvIn,
         mega: canMega(c, 'mine', opt.to),
         boosts: addBoosts(mvIn.boosts, fo.target),
         ...(so.resetBoosts ? { boosts: zeroBoosts() } : {}),
       }
-      const cases = casesOf(
-        mvNext,
-        ovNext,
-        NO_EFFECT,
-        om
-          ? (so.target ?? effectOn(om, oppAtk, mineC(mvIn, false), 'mine', mvIn, false, ''))
-          : NO_EFFECT,
-      )
+      const onMineIn = om
+        ? (so.target ?? effectOn(om, oppAtk, mineC(mvIn, false), 'mine', mvIn, false, ''))
+        : NO_EFFECT
+      const cases = casesOf(mvNext, ovNext, NO_EFFECT, onMineIn)
       const oppHitIn = om ? oppHit(om, ovT, mvIn, envIn, dh(inHp)) : null
-      return {
+      const cell: Cell2 = {
         ex: {
           ...oppCommon,
           oppHeal: fo.heal + so.heal,
+          oppRevive: so.revive != null ? 0.5 : 0,
           oppUtility: oppCommon.oppUtility + so.utility,
           pFirst: 1,
           myHp: inHp,
@@ -1336,11 +1613,12 @@ export function useRecommend(b: Battle) {
             so.cost,
           ),
           switchIn: true,
-          entryChip: hazardChip('mine', opt.to),
-          after: afterOf(cases, opt.to, env),
+          entryChip: hazardChip('mine', opt.to, hzChip.mine),
+          after: afterOf(cases, opt.to, expire(c, env)),
+          oppPerish: ovNext.perish === 0,
         },
-        cases,
-        next: (_, cs, mh, oh) =>
+        cases: { '00': cases },
+        next: (_, __, cs, mh, oh) =>
           nextCtx(
             { mi: opt.to, mv: cs.mv, ov: cs.ov, myHp: mh, oppHp: oh, env },
             '',
@@ -1349,6 +1627,15 @@ export function useRecommend(b: Battle) {
             cs,
           ),
       }
+      return withOppPivot(
+        cell,
+        { mi: opt.to, mv: mvNext, onMine: onMineIn, env, last: '', fresh: true, mega: false },
+        null,
+        () => null,
+        () => NO_EFFECT,
+        '',
+        ovNext,
+      )
     }
 
     const move = opt.move
@@ -1381,33 +1668,44 @@ export function useRecommend(b: Battle) {
     const sm = specialOf(c, 'mine', move, mvT, myHp, ovT, tHp, env, c.myLast, oppIn ? '' : om)
     const so = specialOf(c, 'opp', om, c.ov, hpIn(c, 'opp', oi), mvT, myHp, env, c.oppLast, move)
     const failsAll = fails || sm.fails
+    // 나중에 움직인 쪽의 설치기 변화가 마지막 (깐 뒤 치움 / 치운 뒤 깖)
+    hzEnd = mineFirst
+      ? hazardsAfter(hazardsAfter(hz0, failsAll ? '' : move, 'mine'), om, 'opp')
+      : hazardsAfter(hazardsAfter(hz0, om, 'opp'), failsAll ? '' : move, 'mine')
     const reset = sm.resetBoosts || so.resetBoosts
+    revMine = failsAll ? null : sm.revive
+    revOpp = so.fails ? null : so.revive
     // 내 기술이 나간 뒤의 나 (랭크·벽·순풍·구애 고정·반동). 지금 대타는 상대가 공격하면 깨진다고 봄
-    const mvAfter: View = endOfTurn(
-      withSpecial(
-        {
-          ...mvT,
-          boosts: addBoosts(mvT.boosts, fm.self, fo.target),
-          screens: newScreens('mine', fm, env),
-          ...newTailwind('mine', fm),
-          ...(myChoice ? { locked: move } : {}),
-          ...(fm.recharge ? { skip: [{ turns: 1, p: 1 }] } : {}),
-          ...(mvT.absorb && om && !isStatus(om) ? { absorb: 0 } : {}),
-        },
-        failsAll ? { ...sm, self: {}, selfPatch: {} } : sm,
-        reset,
+    const mvAfter: View = tickPerish(
+      endOfTurn(
+        withSpecial(
+          {
+            ...mvT,
+            boosts: addBoosts(mvT.boosts, fm.self, fo.target),
+            screens: newScreens('mine', fm, env),
+            ...newTailwind('mine', fm),
+            ...(myChoice ? { locked: move } : {}),
+            ...(RAMPAGE_MOVES.has(move) && !failsAll ? { locked: move, rampage: true } : {}),
+            ...(fm.recharge ? { skip: [{ turns: 1, p: 1 }] } : {}),
+            ...(mvT.absorb && om && !isStatus(om) ? { absorb: 0 } : {}),
+          },
+          failsAll ? { ...sm, self: {}, selfPatch: {} } : sm,
+          reset,
+        ),
       ),
     )
-    const ovAfter: View = withSpecial(
-      oppIn
-        ? { ...ovT, boosts: addBoosts(ovT.boosts, fm.target) }
-        : {
-            ...oppAfter(env, ovT),
-            boosts: addBoosts(ovT.boosts, fo.self, fm.target),
-            ...(ovT.absorb && !isStatus(move) && !fails ? { absorb: 0 } : {}),
-          },
-      oppIn || so.fails ? { ...so, self: {}, selfPatch: {} } : so,
-      reset,
+    const ovAfter: View = tickPerish(
+      withSpecial(
+        oppIn
+          ? { ...ovT, boosts: addBoosts(ovT.boosts, fm.target) }
+          : {
+              ...oppAfter(env, ovT),
+              boosts: addBoosts(ovT.boosts, fo.self, fm.target),
+              ...(ovT.absorb && !isStatus(move) && !fails ? { absorb: 0 } : {}),
+            },
+        oppIn || so.fails ? { ...so, self: {}, selfPatch: {} } : so,
+        reset,
+      ),
     )
     // 맞는 쪽 효과: 앙코르는 맞을 때 마지막 기술 (먼저 움직이면 지난 턴 기술, 나중이면 이번 턴 기술)
     const onOpp = failsAll
@@ -1473,6 +1771,8 @@ export function useRecommend(b: Battle) {
       myDestinyBond: sm.destinyBond,
       oppDestinyBond: so.destinyBond,
       myHeal: failsAll ? 0 : fm.heal + sm.heal,
+      myRevive: !failsAll && sm.revive != null ? 0.5 : 0,
+      oppRevive: !so.fails && so.revive != null ? 0.5 : 0,
       oppHeal: so.fails ? fo.heal : fo.heal + so.heal,
       mySelf: sub
         ? { perDealt: 0, onHit: 0.25 }
@@ -1483,25 +1783,48 @@ export function useRecommend(b: Battle) {
         om ? selfOf(om, oppAtk, maxHp('opp', oi), maxHp('mine', mi)) : undefined,
         so.fails ? 0 : so.cost,
       ),
-      myUtility: failsAll ? 0 : hazardValue(move, 'opp') + sm.utility,
+      myUtility: failsAll ? 0 : hazardValue(c, move, 'opp', oppField) + sm.utility,
       oppUtility: oppCommon.oppUtility + so.utility,
-      after: afterOf(phazed, mi, env),
+      after: afterOf(phazed, mi, expire(c, env)),
     }
+    // 멸망의노래 카운트가 이번 턴 끝에 0
+    ex.myPerish = mvAfter.perish === 0
+    ex.oppPerish = ovAfter.perish === 0
+    // 카운터·미러코트·메탈버스트: 데미지는 이번 턴 받은 만큼으로 (evaluate 에서 경우마다)
+    const myRev = failsAll ? undefined : revengeOf(move, om, 'opp', ovT, mi, ovIdx)
+    if (myRev != null) Object.assign(ex, { mine: null, mineRevenge: myRev, mySelf: undefined })
+    const oppRev = om ? revengeOf(om, move, 'mine', mvT, oi, mi) : undefined
+    if (oppRev != null) Object.assign(ex, { opp: null, oppRevenge: oppRev, oppSelf: undefined })
     const cell: Cell2 = {
       ex,
-      cases: phazed,
-      next: (_, cs, mh, oh) =>
+      cases: { '00': phazed },
+      next: (_, __, cs, mh, oh) =>
         nextCtx({ mi, mv: cs.mv, ov: cs.ov, myHp: mh, oppHp: oh, env }, move, false, opt.mega, cs),
     }
+    const mySide: MySide = {
+      mi,
+      mv: mvAfter,
+      onMine,
+      env,
+      last: move,
+      fresh: false,
+      mega: opt.mega,
+    }
+    let myPivotSide: MySide | null = null
     // 교체기: 행동한 뒤 들어오는 포켓몬 (메가진화는 진영당 한 번이라 이번 턴 메가진화했으면 못 함). 등장 특성 반영
     if (opt.pivotTo != null) {
       const j = opt.pivotTo
       const jAb = abilityOf('mine', j)
-      const vj = viewOf('mine', j, false, false)
+      // 배턴터치: 랭크·대타·씨뿌리기·저주를 넘김 (맞는 시점의 랭크로 맞음)
+      const pass = move === 'batonpass'
+      const vj: View = pass
+        ? { ...viewOf('mine', j, false, false), ...passedOf(mvT) }
+        : viewOf('mine', j, false, false)
       const vjNext: View = {
         ...vj,
+        ...(pass ? passedOf(mvAfter) : {}),
         mega: !opt.mega && canMega(c, 'mine', j),
-        boosts: addBoosts(vj.boosts, fo.target),
+        boosts: pass ? mvAfter.boosts : addBoosts(vj.boosts, fo.target),
         ...newTailwind('mine', fm),
       }
       const ovPivot =
@@ -1512,21 +1835,20 @@ export function useRecommend(b: Battle) {
             }
           : ovAfter
       const envJ = envWith(env, jAb)
-      const casesPivot = casesOf(
-        vjNext,
-        ovPivot,
-        onOpp,
-        om ? effectOn(om, oppAtk, mineC(vj, false), 'mine', vj, false, '') : NO_EFFECT,
-      )
+      const onVj = om ? effectOn(om, oppAtk, mineC(vj, false), 'mine', vj, false, '') : NO_EFFECT
+      const casesPivot = casesOf(vjNext, ovPivot, onOpp, onVj)
       ex.pivot = {
         myHp: hpIn(c, 'mine', j),
-        entryChip: hazardChip('mine', j),
-        opp: om ? oppHit(om, c.ov, vj, envIn, dh(hpIn(c, 'mine', j))) : null,
+        entryChip: hazardChip('mine', j, hzChip.mine),
+        // 상대 기술이 먼저 나갔으면 상대가 깔거나 치운 설치기를 밟음
+        lateChip: hazardChip('mine', j, hazardsAfter(hzChip, om, 'opp').mine),
+        // 넘긴 대타가 있으면 이번 턴 상대 공격은 대타가 받음
+        opp: om && !vj.absorb ? oppHit(om, c.ov, vj, envIn, dh(hpIn(c, 'mine', j))) : null,
       }
-      ex.afterPivot = afterOf(casesPivot, j, envJ)
-      cell.casesPivot = casesPivot
+      ex.afterPivot = afterOf(casesPivot, j, expire(c, envJ))
+      cell.cases['10'] = casesPivot
       const plain = cell.next
-      cell.next = (pivoted, cs, mh, oh) =>
+      cell.next = (pivoted, oppPivoted, cs, mh, oh) =>
         pivoted
           ? nextCtx(
               { mi: j, mv: cs.mv, ov: cs.ov, myHp: mh, oppHp: oh, env: envJ },
@@ -1535,9 +1857,32 @@ export function useRecommend(b: Battle) {
               opt.mega,
               cs,
             )
-          : plain(pivoted, cs, mh, oh)
+          : plain(pivoted, oppPivoted, cs, mh, oh)
+      myPivotSide = {
+        mi: j,
+        mv: vjNext,
+        onMine: onVj,
+        env: envJ,
+        last: '',
+        fresh: true,
+        mega: opt.mega,
+      }
     }
-    return cell
+    // 상대가 먼저 물러났으면 내 기술은 들어온 포켓몬이 맞음 (효과도 그 포켓몬에게, 내가 나중일 때만)
+    return withOppPivot(
+      cell,
+      mySide,
+      myPivotSide,
+      (vk) =>
+        failsAll || sm.dealt ? null : mineHit(move, mvT, vk, envIn, dh(hpIn(c, 'opp', vk.idx))),
+      (vk) => {
+        if (failsAll) return NO_EFFECT
+        const e = effectOn(move, myAtk, oppCs(vk, false)[0], 'opp', vk, false, '')
+        return { ...e, p: e.p * (1 - pFirst) }
+      },
+      failsAll ? '' : move,
+      ovAfter,
+    )
   }
 
   // 한 턴 계산: 선택지 × 상대 선택지 결과. depth 2 면 둘 다 살아 있는 경우마다 다음 턴 최선값을 맞대결 전망 대신 더한다
@@ -1571,15 +1916,18 @@ export function useRecommend(b: Battle) {
           // 다음 턴: 둘 다 살아 있는 경우(교체기로 바뀌었는지별) × 맞는 쪽 효과 경우. 드문 경우는 맞대결 전망으로
           let cont = 0
           for (const e of o.ends) {
-            const cs = e.pivoted ? (cell.casesPivot ?? cell.cases) : cell.cases
-            const after = e.pivoted ? (cell.ex.afterPivot ?? cell.ex.after) : cell.ex.after
+            const cs =
+              cell.cases[pivotKey(e.pivoted, e.oppPivoted)] ??
+              cell.cases[pivotKey(e.pivoted, false)] ??
+              cell.cases['00']!
+            const after = afterFor(cell.ex, e.pivoted, e.oppPivoted)
             cs.forEach((k, ci) => {
               const p = e.p * k.p
               if (p < DEPTH_MIN_P) {
                 cont += p * w.duel * duelValue(after[ci]!.duel, e.myHp, e.oppHp)
                 return
               }
-              const nc = cell.next(e.pivoted, k, e.myHp, e.oppHp)
+              const nc = cell.next(e.pivoted, e.oppPivoted, k, e.myHp, e.oppHp)
               const v = valueOf(nc, w)
               cont += p * v.value
               if (v.best && p * oo.weight > nextP[i]!) {
@@ -1609,6 +1957,7 @@ export function useRecommend(b: Battle) {
       c.oppLast,
       c.myFresh,
       c.oppFresh,
+      c.hz,
       r2(c.myActs),
       r2(c.oppActs),
     ])
@@ -1653,7 +2002,7 @@ export function useRecommend(b: Battle) {
             ? { ...c0.ov, boosts: addBoosts(c0.ov.boosts, intimidateDelta(abilityOf('opp', oi))) }
             : c0.ov
         const env = envWith(c0.env, ab)
-        const chip = Math.min(hpIn(c0, 'mine', j), hazardChip('mine', j))
+        const chip = Math.min(hpIn(c0, 'mine', j), hazardChip('mine', j, hazardsOf(c0).mine))
         const o = evaluate(
           {
             pFirst: 1,
