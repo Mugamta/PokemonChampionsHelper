@@ -213,16 +213,20 @@
             </span>
           </div>
         </div>
-        <!-- 이 기술·도구·특성으로 생긴 부가효과: 확정(100%)은 체크 고정(자동 반영), 확률 효과는 생겼으면 체크 -->
+        <!-- 이 기술·도구·특성으로 생긴 부가효과를 받는 포켓몬별로 나눠 표시:
+             기술을 쓴 쪽(자신 랭크 변화 + 접촉 → 맞은 쪽 특성(정전기 등)) / 맞는 상대.
+             확정(100%)은 체크 고정(자동 반영), 확률 효과는 생겼으면 체크 -->
         <div
-          v-if="inflictOpts(side, slot, a.target).length || sureOpts(side, slot, a.target).length"
+          v-if="
+            selfOf(sureOpts(side, slot, a.target)).length ||
+            selfOf(inflictOpts(side, slot, a.target)).length ||
+            contactOpts(side, slot).length
+          "
           class="fx-row"
         >
-          <span class="section-label">{{
-            t('battle.inflictOnTarget', { name: targetName(side, a.target, slot) })
-          }}</span>
+          <span class="section-label">{{ fxHead(side, userName(side, slot)) }}</span>
           <label
-            v-for="k in sureOpts(side, slot, a.target)"
+            v-for="k in selfOf(sureOpts(side, slot, a.target))"
             :key="'s' + k"
             class="crit sure"
             :title="t('battle.fxSure')"
@@ -230,7 +234,7 @@
             <input type="checkbox" checked disabled />
             {{ fxLabel(k) }}
           </label>
-          <label v-for="k in inflictOpts(side, slot, a.target)" :key="k" class="crit">
+          <label v-for="k in selfOf(inflictOpts(side, slot, a.target))" :key="k" class="crit">
             <input
               type="checkbox"
               :checked="(a.inflicts ?? []).includes(k)"
@@ -238,19 +242,44 @@
             />
             {{ fxLabel(k) }}
           </label>
-        </div>
-        <!-- 접촉 → 맞은 쪽 특성(정전기 등)으로 공격한 쪽에게 생긴 효과 -->
-        <div v-if="contactOpts(side, slot).length" class="fx-row">
-          <span class="section-label">{{
-            t(side === 'opp' ? 'battle.contactInflict' : 'battle.contactInflictMine', {
-              ability: contactAbility(side, slot),
-            })
-          }}</span>
-          <label v-for="k in contactOpts(side, slot)" :key="k" class="crit">
+          <label
+            v-for="k in contactOpts(side, slot)"
+            :key="'c' + k"
+            class="crit"
+            :title="t('battle.contactFxHint')"
+          >
             <input
               type="checkbox"
               :checked="(a.contactInflicts ?? []).includes(k)"
               @change="toggleFx(a, 'contactInflicts', k)"
+            />
+            {{ fxLabel(k) }} ({{ contactAbility(side, slot) }})
+          </label>
+        </div>
+        <div
+          v-if="
+            foeOfFx(sureOpts(side, slot, a.target)).length ||
+            foeOfFx(inflictOpts(side, slot, a.target)).length
+          "
+          class="fx-row"
+        >
+          <span class="section-label">{{
+            fxHead(foeOf(side), targetName(side, a.target, slot))
+          }}</span>
+          <label
+            v-for="k in foeOfFx(sureOpts(side, slot, a.target))"
+            :key="'s' + k"
+            class="crit sure"
+            :title="t('battle.fxSure')"
+          >
+            <input type="checkbox" checked disabled />
+            {{ fxLabel(k) }}
+          </label>
+          <label v-for="k in foeOfFx(inflictOpts(side, slot, a.target))" :key="k" class="crit">
+            <input
+              type="checkbox"
+              :checked="(a.inflicts ?? []).includes(k)"
+              @change="toggleFx(a, 'inflicts', k)"
             />
             {{ fxLabel(k) }}
           </label>
@@ -270,19 +299,20 @@
             {{ warnText(side, slot, 1 - a.target, a.amount2) }}
           </span>
         </div>
+        <!-- 광역기의 다른 상대: 그 포켓몬에게 생긴 효과만 (자신 랭크 변화는 위 줄에서 한 번) -->
         <div
           v-if="
             spreadOther(side, slot) != null &&
-            (inflictOpts(side, slot, 1 - a.target).length ||
-              sureOpts(side, slot, 1 - a.target).length)
+            (foeOfFx(inflictOpts(side, slot, 1 - a.target)).length ||
+              foeOfFx(sureOpts(side, slot, 1 - a.target)).length)
           "
           class="fx-row"
         >
           <span class="section-label">{{
-            t('battle.inflictOnTarget', { name: targetName(side, 1 - a.target, slot) })
+            fxHead(foeOf(side), targetName(side, 1 - a.target, slot))
           }}</span>
           <label
-            v-for="k in sureOpts(side, slot, 1 - a.target)"
+            v-for="k in foeOfFx(sureOpts(side, slot, 1 - a.target))"
             :key="'s' + k"
             class="crit sure"
             :title="t('battle.fxSure')"
@@ -290,7 +320,7 @@
             <input type="checkbox" checked disabled />
             {{ fxLabel(k) }}
           </label>
-          <label v-for="k in inflictOpts(side, slot, 1 - a.target)" :key="k" class="crit">
+          <label v-for="k in foeOfFx(inflictOpts(side, slot, 1 - a.target))" :key="k" class="crit">
             <input
               type="checkbox"
               :checked="(a.inflicts2 ?? []).includes(k)"
@@ -607,15 +637,24 @@ const contactAbility = (side: BattleSide, slot: number) => {
   const r = a ? props.b.resolveAt(foeOf(side), hitIdx(side, slot, a.target)) : null
   return r ? gd.name('abilities', r.ability) : ''
 }
-// 랭크 변화 키는 "특방 −1" / "자신 공격 +1"
+// 효과를 받는 쪽으로 나눔: 자신 랭크 변화('boost:self:…') = 기술을 쓴 포켓몬, 나머지 = 맞는 상대
+const isSelfFx = (k: string) => parseBoostKey(k)?.target === 'self'
+const selfOf = (keys: string[]) => keys.filter(isSelfFx)
+const foeOfFx = (keys: string[]) => keys.filter((k) => !isSelfFx(k))
+const userName = (side: BattleSide, slot: number) => {
+  const r = userOf(side, slot)
+  return r ? gd.name('pokemon', r.species.id) : '—'
+}
+// 줄 제목: "내 ○○에게 생김" / "상대 ○○에게 생김" (who = 효과를 받는 포켓몬의 진영)
+const fxHead = (who: BattleSide, name: string) =>
+  t(who === 'mine' ? 'battle.inflictOnMine' : 'battle.inflictOnOpp', { name })
+// 랭크 변화 키는 "특방 −1" (받는 포켓몬은 줄 제목으로 구분)
 const fxLabel = (k: string) => {
   const bk = parseBoostKey(k)
-  if (bk) {
-    const text = bk.stats
+  if (bk)
+    return bk.stats
       .map(([st, v]) => `${t('stat.' + st)} ${v > 0 ? '+' : '−'}${Math.abs(v)}`)
       .join(' ')
-    return bk.target === 'self' ? `${t('battle.fxSelf')} ${text}` : text
-  }
   return fxStatusLabel(k)
 }
 const fxStatusLabel = (k: string) =>
