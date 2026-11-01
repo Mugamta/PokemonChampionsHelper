@@ -99,6 +99,23 @@ export function createTurn(
     const s = state.value
     if (!s || validationError.value) return
     pushHistory()
+    // 턴 기록: 행동 입력 그대로 (적용 전) + 이번 턴 연 추천 플레이 결과
+    const logged = (side: BattleSide) =>
+      s.actions[side].map((a, slot) => ({
+        idx: s.sides[side].active[slot] ?? null,
+        kind: a.kind,
+        move: a.kind === 'move' ? a.move : '',
+        switchTo: a.kind === 'switch' ? a.switchTo : null,
+        selfSwitch: a.kind === 'move' ? a.selfSwitch : null,
+        mega: a.kind === 'move' && a.useMega,
+        ...(a.kind === 'move' ? { target: a.target } : {}),
+      }))
+    const note = s.recNote?.turn === s.turn ? s.recNote : undefined
+    s.log = [
+      ...(s.log ?? []),
+      { turn: s.turn, mine: logged('mine'), opp: logged('opp'), ...(note ? { rec: note } : {}) },
+    ]
+    s.recNote = null
     // 지난 턴 끝 HP 를 게임 화면 값으로 고쳤으면 관측으로 저장 (HP 실능치 추정)
     for (const m of s.sides.opp.mons) {
       const o = hpCorrection(m.hpCheck, m.hp, s.turn)

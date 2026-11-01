@@ -247,7 +247,14 @@
     "unfold": "Expand",
     "foldAll": "Collapse all",
     "unfoldAll": "Expand all",
-    "oppGenderMissing": "Opponent gender not set: {names} (visible in game)"
+    "oppGenderMissing": "Opponent gender not set: {names} (visible in game)",
+    "rec": {
+      "title": "Suggest picks",
+      "hint": "Combinations chosen from 1-on-1 matchups (best move expected damage and Speed) between your team and the opponent, weighted by opponent usage. For reference — priority, setup and switching are not considered.",
+      "none": "Enter your team (at least the pick count) and the opponent team to get suggestions.",
+      "lead": "Lead",
+      "apply": "Apply"
+    }
   },
   "battle": {
     "titleSingle": "Single Battle",
@@ -549,7 +556,7 @@
     "fxSure": "Always happens on hit (applied automatically)",
     "rec": {
       "title": "Recommended play",
-      "hint": "A recommendation for reference. \"1 turn\" estimates what follows from the matchup outlook; \"2 turns\" also calculates the best play next turn. Opponent switch-ins: revealed Pokémon, plus unrevealed team members (this turn only).",
+      "hint": "For reference only. 1 turn estimates what follows with a matchup outlook; 2–3 turns search the best play for each later turn. Opponent switches include revealed Pokémon plus the unrevealed team.",
       "replaceHint": "Which Pokémon to send in: compared by hazard damage and matchup outlook.",
       "none": "No recommendation in this state (needs active Pokémon and opponent moves).",
       "oppExpect": "Expected opponent moves",
@@ -586,7 +593,19 @@
         "oppSwitchHint": "Prior weight of opponent switches (same scale as move usage, 0 = never)",
         "plausible": "Safe threshold",
         "plausibleHint": "Minimum weight of opponent options checked for the safe pick (0–1)",
-        "reset": "Defaults"
+        "reset": "Defaults",
+        "bench": "Bench",
+        "benchHint": "Weight of switching in a better answer in the outlook (0 = only the two on the field)",
+        "preset": "Presets",
+        "custom": "Custom",
+        "presets": {
+          "aggressive": "Aggressive",
+          "aggressiveHint": "Weights KOs more and assumes a less clever opponent",
+          "balanced": "Default",
+          "balancedHint": "Default weights",
+          "careful": "Careful",
+          "carefulHint": "Weights outlook and switching room more and assumes the opponent plays its best"
+        }
       },
       "apply": "Use",
       "applied": "Selected",
@@ -598,7 +617,49 @@
       "depth2Hint": "Also calculate the best play on the next turn from the resulting state (slower)",
       "next": "Next turn: {name} {plan}",
       "close": "Close",
-      "openHint": "Calculate the recommended play for this turn in a dialog"
+      "openHint": "Calculate the recommended play for this turn in a dialog",
+      "depth3": "3 turns",
+      "depth3Hint": "Look three turns ahead (slowest — later turns only follow likely cases and top options)",
+      "pending": "Calculating deeper… (showing the 1-turn result for now)",
+      "endgame": "Endgame: few Pokémon left, so this looks {n} turns ahead.",
+      "win": "Win {p}%",
+      "winHint": "Rough win chance: decided when a last Pokémon faints, otherwise from the matchup outlook",
+      "prefHint": "Click to adjust: normal → often (3×) → never (this battle only)",
+      "pref": {
+        "up": "often",
+        "off": "never"
+      },
+      "prefReset": "Reset adjustments",
+      "part": {
+        "damage": "damage",
+        "ko": "KOs",
+        "hazard": "hazards",
+        "future": "later"
+      },
+      "whyBest": "vs #2: {list}",
+      "whyVsBest": "vs #1: {list}",
+      "log": {
+        "title": "Recommendation log",
+        "summary": "Played differently on {k} of {n} turns with a recommendation",
+        "best": "Suggested {plan} ({score})",
+        "chosen": "→ chose {plan} ({score})",
+        "same": "as suggested",
+        "cant": "couldn't move",
+        "other": "action not in the list"
+      },
+      "doublesHint": "Doubles: an approximation that pairs each of your active Pokémon 1:1 with each opposing active Pokémon for this turn and adds them up. Opposing single-target moves are assumed to aim more at whichever of your two Pokémon suits them better. Both-slot combos recheck combined damage when both hit the same target. Ally support effects aren't considered.",
+      "oppVs": "{name} expected",
+      "target": "→ {name}",
+      "worstScore": "Worst case {score}",
+      "help": "About scores",
+      "scoreHelp": "Scores are in HP %. HP the opponent lost − HP you lost, plus KOs (weight \"KO\"), hazards, and the post-turn matchup outlook (1 turn) or the best next-turn value (2–3 turns), averaged over the expected opponent choices. Positive favours you; compare values between options.",
+      "unfold": "Details",
+      "combos": "Both slots",
+      "applyBoth": "Apply both",
+      "applyBothHint": "Put into both slots' actions this turn",
+      "focus": "Focus fire {p}",
+      "allyHit": "Ally damage {p}",
+      "noMega": "{move} (no Mega)"
     }
   },
   "help": {

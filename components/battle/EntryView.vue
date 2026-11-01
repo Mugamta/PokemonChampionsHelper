@@ -51,6 +51,8 @@
             {{ allFolded('mine') ? t('entry.unfoldAll') : t('entry.foldAll') }}
           </button>
         </h2>
+        <!-- 선출·선두 추천 (누를 때 계산) -->
+        <BattlePickRecommend :mode="mode" :field="fieldState" />
         <template v-for="(s, i) in mine.slots.value" :key="i">
           <BattleSlotMini
             v-if="folded.mine[i]"

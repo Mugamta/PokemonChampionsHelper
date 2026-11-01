@@ -3,7 +3,7 @@
 // 이 파일을 다른 import 보다 먼저 import 할 것 (composables 가 호출 시점에 전역을 찾는다).
 
 import { readFileSync } from 'node:fs'
-import { computed, reactive, ref, watch, type Ref } from 'vue'
+import { computed, reactive, ref, shallowRef, watch, type Ref } from 'vue'
 import { isSpreadMove } from '../utils/damage'
 import type { GameData, NameTable, TeamSlot } from '../utils/types'
 import { emptySlot } from '../utils/types'
@@ -18,6 +18,7 @@ const store = new Map<string, Ref>()
 const g = globalThis as Record<string, unknown>
 Object.assign(g, {
   ref,
+  shallowRef,
   computed,
   reactive,
   watch,

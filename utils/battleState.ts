@@ -193,6 +193,41 @@ export interface BattleState {
   focus: { mine: number; opp: number } // 분석 대상 필드 칸
   preview: number | null // 예상 데미지 표의 공격자 (내 로스터 인덱스)
   history: string[]
+  log?: TurnLog[] // 적용한 턴의 행동 기록 (추천 플레이: 상대 행동 경향 · 추천과 비교)
+  recNote?: RecNote | null // 이번 턴 연 추천 플레이 결과 (턴을 적용하면 log 로 옮김)
+}
+
+// ── 턴 기록 ─────────────
+export interface LoggedAction {
+  idx: number | null // 행동한 포켓몬 (로스터 인덱스)
+  kind: ActionState['kind']
+  move: string
+  switchTo: number | null
+  selfSwitch: number | null
+  mega: boolean
+  target?: number // 기술의 대상 칸 (더블)
+}
+// 추천 플레이 선택지 (composables/useRecommend 의 MineOption 과 같은 모양)
+export type RecPick =
+  | { kind: 'move'; move: string; mega: boolean; pivotTo?: number }
+  | { kind: 'switch'; to: number }
+// 내 필드 칸 하나의 추천 (싱글은 칸 0 하나)
+export interface RecSlotNote {
+  slot: number
+  best: number // ranked 안의 번호가 아니라 options 번호
+  safe: number
+  options: { pick: RecPick; target?: number | null; expected: number }[]
+}
+export interface RecNote {
+  turn: number
+  depth: number
+  slots: RecSlotNote[]
+}
+export interface TurnLog {
+  turn: number
+  mine: LoggedAction[]
+  opp: LoggedAction[]
+  rec?: RecNote
 }
 
 // 특수 상태 (지속 턴: null = 무한)

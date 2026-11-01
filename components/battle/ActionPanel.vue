@@ -4,9 +4,9 @@
     <h3 class="panel-title">
       {{ t('battle.actions') }}
       <span class="spacer" />
-      <!-- 추천 플레이 (싱글): 다이얼로그로 열고, 열려 있는 동안만 계산 -->
+      <!-- 추천 플레이: 다이얼로그로 열고, 열려 있는 동안만 계산 (더블은 칸마다 1턴 근사) -->
       <button
-        v-if="b.N === 1 && !b.battleResult.value"
+        v-if="!b.battleResult.value"
         type="button"
         class="btn btn-sm rec-btn"
         :title="t('battle.rec.openHint')"
@@ -17,7 +17,10 @@
       <span class="turn num">{{ t('battle.turn', { n: s.turn }) }}</span>
     </h3>
     <v-dialog v-model="recOpen" max-width="760" scrollable>
-      <BattleRecommendPanel v-if="recOpen" :b="b" @close="recOpen = false" />
+      <template v-if="recOpen">
+        <BattleRecommendPanel v-if="b.N === 1" :b="b" @close="recOpen = false" />
+        <BattleRecommendDoubles v-else :b="b" @close="recOpen = false" />
+      </template>
     </v-dialog>
 
     <!-- 배틀 종료: 행동 입력 대신 결과 (이전 턴으로 되돌리면 다시 입력 가능) -->
@@ -25,6 +28,8 @@
       <strong>{{ t('battle.result.' + b.battleResult.value) }}</strong>
       <span class="muted small">{{ t('battle.result.hint') }}</span>
     </div>
+    <!-- 배틀이 끝나면 추천과 다르게 고른 턴 (추천 플레이를 연 턴만) -->
+    <BattleRecommendLog v-if="b.battleResult.value" :b="b" />
     <template v-else>
       <div class="sides">
         <div v-for="side in ['mine', 'opp'] as const" :key="side" class="side" :class="side">
