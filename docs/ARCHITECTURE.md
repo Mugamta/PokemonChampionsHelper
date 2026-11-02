@@ -6,7 +6,7 @@
 pages/                 라우트 (아래 표)
 layouts/default.vue    AppHeader + 데이터 로딩 대기 + 푸터
 components/
-  AppHeader.vue        로고, 메뉴, 레귤레이션 선택, 시계, 언어 전환. onMounted 에서 데이터 로드 + 예전 파티 이전
+  AppHeader.vue        로고, 메뉴, 레귤레이션 선택(상태·진행 기간), 시계, 통계 수집 기간, 언어 전환. onMounted 에서 데이터 로드 + 예전 파티 이전
   ui/                  PokeSprite, ItemIcon, TypeBadge, CategoryBadge, HpBar, DamageCell, RankControl, LazyField, LazyTooltip,
                        TypeGroup(포켓몬 타입 + 방어 상성 툴팁), TypeTip(상성 툴팁 내용)
   team/                SlotEditor(슬롯 편집), SlotCard(읽기 전용 카드), SpeciesPicker / ItemPicker / MovePicker / NaturePicker,

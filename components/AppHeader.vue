@@ -38,13 +38,22 @@
           >
             <option value="auto">
               {{ t('regulation.auto')
-              }}{{ reg.active.value && !reg.selectedId.value ? ` · ${reg.active.value.id}` : '' }}
+              }}{{
+                reg.active.value && !reg.selectedId.value
+                  ? ` · ${reg.active.value.id} (${regPeriod(reg.active.value)})`
+                  : ''
+              }}
             </option>
             <option v-for="r in reg.list.value" :key="r.id" :value="r.id">
-              {{ r.id }} · {{ t('regulation.' + reg.phase(r)) }}
+              {{ r.id }} · {{ t('regulation.' + reg.phase(r)) }} ({{ regPeriod(r) }})
             </option>
           </select>
-          <span class="clock num">{{ clock }}</span>
+          <div class="times num">
+            <span class="clock">{{ clock }}</span>
+            <span v-if="usagePeriod" class="usage-period" :title="usagePeriod.hint">{{
+              usagePeriod.label
+            }}</span>
+          </div>
         </div>
         <div class="lang theme" role="group" :aria-label="t('theme.label')">
           <button
@@ -92,6 +101,8 @@
 
 <script setup lang="ts">
 import { THEME_MODES, useThemeMode } from '~/composables/useThemeMode'
+import { useUsageKind } from '~/composables/useUsageKind'
+import { usageMonthRange } from '~/utils/autoSet'
 
 const { t, locale, locales, setLocale } = useI18n()
 const route = useRoute()
@@ -99,6 +110,7 @@ const gd = useGameData()
 const reg = useRegulation()
 const mine = useTeam('mine')
 const themeMode = useThemeMode()
+const usageKind = useUsageKind()
 
 const links = [
   { to: '/party', label: 'nav.party' },
@@ -114,6 +126,22 @@ const pad = (n: number) => String(n).padStart(2, '0')
 const clock = computed(() => {
   const d = reg.now.value
   return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+})
+const regPeriod = (r: { start: string; end: string }) =>
+  t('regulation.period', { start: r.start, end: r.end })
+// 현재 레귤레이션 통계의 수집 기간 (Smogon 월별 통계 = 그 달 전체). 통계가 없으면 표시 안 함
+const usagePeriod = computed(() => {
+  const id = reg.active.value?.id
+  const meta = id ? gd.usageMeta(usageKind.value)[id] : undefined
+  if (!meta) return null
+  return {
+    label: t('usage.period', { period: regPeriod(usageMonthRange(meta.month)) }),
+    hint: t('usage.periodHint', {
+      kind: t('usage.' + usageKind.value),
+      format: meta.format,
+      battles: meta.battles.toLocaleString(),
+    }),
+  }
 })
 const onRegChange = (v: string) => (reg.selectedId.value = v === 'auto' ? null : v)
 
@@ -141,7 +169,9 @@ onMounted(async () => {
   padding: 10px 16px;
   display: flex;
   align-items: center;
-  gap: 18px;
+  /* 레귤레이션 선택칸에 기간이 들어가 넓으므로, 한 줄에 안 들어가면 오른쪽 도구를 다음 줄로 */
+  flex-wrap: wrap;
+  gap: 8px 18px;
 }
 .brand {
   display: flex;
@@ -171,6 +201,7 @@ onMounted(async () => {
   font-size: 17px;
   font-weight: 800;
   letter-spacing: 0.04em;
+  white-space: nowrap;
 }
 
 .nav {
@@ -184,6 +215,7 @@ onMounted(async () => {
   font-size: 14px;
   padding: 7px 14px;
   border-radius: 999px;
+  white-space: nowrap;
   transition:
     background 0.15s,
     color 0.15s;
@@ -222,8 +254,19 @@ onMounted(async () => {
 .reg-select option {
   background: var(--panel-solid);
 }
+.times {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  line-height: 1.25;
+  white-space: nowrap;
+}
 .clock {
   font-size: 13px;
+  color: var(--text-3);
+}
+.usage-period {
+  font-size: 11px;
   color: var(--text-3);
 }
 .lang {
@@ -280,7 +323,6 @@ onMounted(async () => {
 
 @media (max-width: 1100px) {
   .bar {
-    flex-wrap: wrap;
     gap: 10px;
   }
   .nav {
@@ -290,6 +332,9 @@ onMounted(async () => {
   }
   .clock {
     display: none;
+  }
+  .reg-select {
+    max-width: 300px;
   }
 }
 @media (max-width: 600px) {
@@ -301,7 +346,11 @@ onMounted(async () => {
     font-size: 14px;
   }
   .tools {
+    flex-wrap: wrap;
     gap: 6px;
+  }
+  .reg {
+    flex-wrap: wrap;
   }
   .reg-select {
     max-width: 150px;

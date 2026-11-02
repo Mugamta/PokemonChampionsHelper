@@ -469,6 +469,13 @@ export type UsageIndex = Record<UsageKind, Record<string, UsageMeta>>
 // 표 파일 (public/data 기준 경로)
 export const usageFile = (kind: UsageKind, reg: string) => `usage/${kind}-${reg}.json`
 
+// 월별 통계의 수집 기간 ('2026-10' → 2026/10/01 ~ 2026/10/31, 그 달 전체)
+export function usageMonthRange(month: string): { start: string; end: string } {
+  const [y, m] = month.split('-')
+  const last = new Date(Date.UTC(Number(y), Number(m), 0)).getUTCDate()
+  return { start: `${y}/${m}/01`, end: `${y}/${m}/${String(last).padStart(2, '0')}` }
+}
+
 // 원종 + 메가 폼을 합친 도구별 채용률 (통계는 메가 폼을 따로 세서 원종 표에는 메가스톤이 없다).
 // 폼별 사용 수로 가중 평균 → 메가스톤 비율 = 메가 폼 사용 수 / 전체. 통계가 없으면 undefined
 export function formItemUsage(

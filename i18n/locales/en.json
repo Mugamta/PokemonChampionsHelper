@@ -821,6 +821,8 @@
     "single": "Singles",
     "double": "Doubles",
     "kind": "Stats",
+    "period": "Stats collected {period}",
+    "periodHint": "{kind} usage stats: Smogon monthly stats \"{format}\" ({battles} battles). Each month is published early the next month",
     "kindHint": "Usage stats type (Singles: Battle Stadium Singles / Doubles: VGC). Shared by the home page, Pokédex and team suggestions; the team preview screen uses its own battle mode",
     "source": "Usage stats ({kind}): Smogon monthly stats · Pokémon Showdown simulator \"{format}\", {month} data (weighted for rating 1500+, {battles} battles). Not in-game ranked stats; auto-fill is a guess ·",
     "none": "No usage stats for the current regulation, so everything is auto-filled by rules (power/bulk ratio) — a guess",

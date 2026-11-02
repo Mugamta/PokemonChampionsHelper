@@ -8,6 +8,7 @@ import {
   formItemUsage,
   pickUsageTable,
   topUsage,
+  usageMonthRange,
   usageSet,
   usageFile,
   type UsageData,
@@ -343,5 +344,13 @@ describe('사용률 상위 (첫 화면)', () => {
       d: set(10, 0.05),
     })
     expect(topUsage(t, 3).map((u) => u.id)).toEqual(['b', 'c', 'a'])
+  })
+})
+
+describe('usageMonthRange', () => {
+  it('그 달의 첫날~마지막 날', () => {
+    expect(usageMonthRange('2026-10')).toEqual({ start: '2026/10/01', end: '2026/10/31' })
+    expect(usageMonthRange('2026-09')).toEqual({ start: '2026/09/01', end: '2026/09/30' })
+    expect(usageMonthRange('2028-02')).toEqual({ start: '2028/02/01', end: '2028/02/29' })
   })
 })
