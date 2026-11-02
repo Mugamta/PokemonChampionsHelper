@@ -176,9 +176,13 @@ const HALF_HP_MOVES = new Set(['superfang', 'ruination'])
 // 틀깨기로 무시되지 않는 방어 측 특성 (Showdown flags.breakable 없음)
 const UNBREAKABLE = new Set(['shadowshield', 'prismarmor', 'cloudnine', 'airlock', 'fairyaura'])
 const CRIT_IMMUNE = new Set(['battlearmor', 'shellarmor'])
-// 셰이크포스 대상: 부가효과가 있는 기술
+// 셰이크포스 대상: 부가효과가 있는 기술 (맞히면 설치기를 까는 암석액스·비검천중파 포함)
 export const hasSecondary = (move: Move) =>
-  move.effects.some((e) => 'chance' in e && e.chance !== undefined)
+  move.effects.some(
+    (e) =>
+      ('chance' in e && e.chance !== undefined) ||
+      (e.type === 'side' && move.category !== 'status'),
+  )
 
 // 부유 / 천정부지(메가저리더프, 챔피언스) = 땅에 있지 않음
 const NOT_GROUNDED_ABILITIES = new Set(['levitate', 'eelevate'])

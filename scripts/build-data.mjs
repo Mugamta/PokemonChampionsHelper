@@ -367,6 +367,8 @@ const TERRAIN = {
   psychicterrain: 'psychic',
 }
 const HAZARD_STACK = { spikes: 3, toxicspikes: 2 }
+// 맞히면 상대 필드에 설치기를 까는 공격기 (Showdown 은 onAfterHit 콜백이라 sideCondition 으로 안 잡힘)
+const HIT_HAZARD = { stoneaxe: 'stealthrock', ceaselessedge: 'spikes' }
 const FLAGS = [
   'contact',
   'punch',
@@ -435,6 +437,14 @@ function moveEffects(m) {
       ...(HAZARD_STACK[m.sideCondition] && { maxStack: HAZARD_STACK[m.sideCondition] }),
     })
   }
+  const hz = HIT_HAZARD[toID(m.name)]
+  if (hz)
+    e.push({
+      type: 'side',
+      side: 'foe',
+      key: hz,
+      ...(HAZARD_STACK[hz] && { maxStack: HAZARD_STACK[hz] }),
+    })
   return e
 }
 

@@ -344,6 +344,8 @@ export function createMoves(b: BattleCore & BattleQueries & BattleField & Battle
       else if (e.type === 'terrain') setTerrain(e.key, user?.slot.item, [side, userIdx])
       else if (e.type === 'room') s.rooms[e.key] = { cur: 0, total: BASE_TURNS }
       else if (e.type === 'side') {
+        // 공격기(암석액스·비검천중파): 하나라도 맞혔을 때만 (대타에 맞아도 깔림), 우격다짐이면 없음
+        if (damaging && (!hitTargets.length || user?.ability === 'sheerforce')) continue
         const sd = s.sides[e.side === 'self' || (e.side === 'foe' && sideBounced) ? side : foe]
         if (SCREENS.has(e.key)) {
           const ext =

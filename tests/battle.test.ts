@@ -1221,6 +1221,35 @@ describe('하품', () => {
     b.executeTurn()
     expect(mon(b, 'opp', 0).status).toBe('par')
   })
+  it('암석액스·비검천중파: 맞히면 상대 필드에 스텔스록·압정뿌리기, 빗나가거나 우격다짐이면 없음', () => {
+    const b = setup(
+      'single',
+      [slot('kleavor'), slot('samurotthisui'), slot('kleavor', { ability: 'sheerforce' })],
+      [slot('garchomp')],
+    )
+    b.sendOut('opp', 0, 0)
+    moveAction(b, 'mine', 0, 'stoneaxe', 10)
+    S(b).actions.mine[0]!.missed = true
+    b.executeTurn()
+    expect(S(b).sides.opp.hazards.stealthrock).toBeUndefined()
+    moveAction(b, 'mine', 0, 'stoneaxe', 10)
+    b.executeTurn()
+    expect(S(b).sides.opp.hazards.stealthrock).toBe(1)
+    expect(S(b).sides.mine.hazards.stealthrock).toBeUndefined()
+    switchAction(b, 'mine', 0, 1)
+    b.executeTurn()
+    for (let i = 0; i < 4; i++) {
+      moveAction(b, 'mine', 0, 'ceaselessedge', 1)
+      b.executeTurn()
+    }
+    expect(S(b).sides.opp.hazards.spikes).toBe(3)
+    delete S(b).sides.opp.hazards.stealthrock
+    switchAction(b, 'mine', 0, 2)
+    b.executeTurn()
+    moveAction(b, 'mine', 0, 'stoneaxe', 10)
+    b.executeTurn()
+    expect(S(b).sides.opp.hazards.stealthrock).toBeUndefined()
+  })
   it('직접 켜면 "이번 턴 끝에 잠듦" 상태', () => {
     const b = setup('single', [slot('hippowdon')], [slot('kingambit')])
     b.sendOut('opp', 0, 0)
