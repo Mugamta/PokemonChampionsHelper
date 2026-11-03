@@ -14,6 +14,7 @@
     "about": "About",
     "contact": "Contact",
     "stats": "Stats",
+    "vs": "VS",
     "dex": "Pokédex"
   },
   "regulation": {
@@ -861,5 +862,26 @@
     "usageCol": "Usage",
     "neverMiss": "Never misses",
     "movesNote": "Accuracy: accuracy stage, Compound Eyes, Hustle and Wide Lens applied (no target evasion). Attack index: power × Atk (SpA) × STAB × ability × item (Atk/SpA stages applied, multi-hit moves use the expected value, status moves —). Usage: share of teams using this Pokémon that ran the move (0.5%+)"
+  },
+  "vs": {
+    "title": "VS Calculator",
+    "sub": "Set each Pokémon's spread and move to see the damage they deal to each other and who moves first. Level 50",
+    "swap": "Swap sides",
+    "resetConfirm": "Clear everything on the VS page?",
+    "hp": "Current HP",
+    "sideState": "Side / attack",
+    "critHint": "Calculate this Pokémon's attack as a critical hit",
+    "shared": "Shared conditions",
+    "format": "Format",
+    "doubleHint": "Spread moves deal 0.75×; Helping Hand and Friend Guard become available",
+    "rolls": "16 damage rolls",
+    "pickBoth": "Choose a Pokémon on both sides",
+    "pickMove": "Choose an attacking move for {name}",
+    "order": {
+      "speed": "{name} moves first",
+      "trickroom": "Trick Room: {name} moves first",
+      "priority": "Priority: {name} moves first",
+      "tie": "Speed tie (random)"
+    }
   }
 }

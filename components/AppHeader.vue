@@ -117,6 +117,7 @@ const links = [
   { to: '/single', label: 'nav.single' },
   { to: '/double', label: 'nav.double' },
   { to: '/stats', label: 'nav.stats' },
+  { to: '/vs', label: 'nav.vs' },
   { to: '/dex', label: 'nav.dex' },
   { to: '/help', label: 'nav.help' },
 ]

@@ -19,12 +19,13 @@ components/
                        RecommendLog = 추천과 실제 행동 비교, RecommendWeights = 가중치 입력(미리 정한 값),
                        RecommendOppChips = 상대 예상 선택지 칩(비중 조정), PickRecommend = 선출 화면 선출·선두 추천)
   perf/                포켓몬 성능표: BulkTable / PowerTable / SpeedTable, MonCell(포켓몬 칸)
+  vs/                  VS 화면: MonPanel(한쪽 포켓몬 입력), ResultCard(공격 → 방어 결과)
 composables/           상태 + 계산 연결 (아래 표)
   battle/              useBattle 의 층별 구현 (index.ts 가 없어 자동 import 대상 아님, 아래 "배틀 상태")
 utils/                 순수 계산 (tests/ 에서 테스트): types.ts, stats.ts, damage.ts, ko.ts, typeCheck.ts(타입 상성 도우미),
                        speedInference.ts(선후공 → 상대 스피드 구간), statInference.ts(데미지 → 상대 배분 격자),
                        perfTable.ts(성능표 내구·결정력·스피드), autoSet.ts(상대 포켓몬 자동 배치), accuracy.ts(명중·급소),
-                       recommend.ts(추천 플레이 이득표·점수), pickRecommend.ts(선출 조합 순위)
+                       recommend.ts(추천 플레이 이득표·점수), pickRecommend.ts(선출 조합 순위), vs.ts(VS 화면 상태·필드·행동 순서)
 plugins/locale.client.ts  언어 선택 (localStorage 'pch_lang' → 브라우저 언어 → en)
 plugins/theme.client.ts   화면 테마 낮/밤/시스템 (localStorage 'pch_theme', 없으면 시스템) → <html data-theme> + Vuetify 테마
 plugins/page-loading.client.ts  페이지 이동 시 로딩 오버레이(UiPageLoading) 를 먼저 그린 뒤 이동, page:finish 에서 끔
@@ -44,6 +45,7 @@ Nuxt 컴포넌트 이름은 폴더 접두사가 붙는다: `components/team/Slot
 /  ──▶ /party ──┬──▶ /single ──▶ /single/battle   (선출 3마리, 1:1)
                 └──▶ /double ──▶ /double/battle   (선출 4마리, 2:2, 광역기 0.75배)
 /stats                                           (포켓몬 성능표)
+/vs                                              (1:1 계산기)
 /dex                                             (포켓몬 도감)
 /help  /about  /contact
 ```
@@ -55,6 +57,7 @@ Nuxt 컴포넌트 이름은 폴더 접두사가 붙는다: `components/team/Slot
 | `/single`, `/double` | BattleEntryView(mode) | 왼쪽 내 파티(눌러서 선출), 가운데 데미지 표(방향 탭), 오른쪽 상대 6마리 입력(compact SlotEditor, 포켓몬을 고르면 자동 배치 + "자동 배치" 버튼) |
 | `/single/battle`, `/double/battle` | BattleView(mode) | 필드 포켓몬 패널, 필드 상태, 행동 입력·턴 적용, 예상 흐름, 스피드 구간, 배분 추정, 데미지 표 2종 |
 | `/stats` | pages/stats.vue → PerfBulkTable / PerfPowerTable / PerfSpeedTable | 포켓몬 성능표. 검색, 탭은 `?tab=bulk|power|speed` |
+| `/vs` | pages/vs.vue → VsMonPanel ×2 / VsResultCard ×2 | 1:1 계산기. 양쪽 포켓몬·특성(그 포켓몬 것만)·도구·성격·능력P·랭크·HP·상태이상·진영 상태 + 기술 1개(배우는 공격 기술만) → 서로에게 주는 데미지·난수·KO·행동 순서. 공용 날씨·필드·공간·싱글/더블. 넓은 화면은 3열, 좁으면 결과 → 포켓몬 → 공용 상태 순 |
 | `/dex` | pages/dex.vue → DexDetail / DexMoves | 포켓몬 도감. 목록은 성능표와 같음(usePerfList), `?id=`. 종족값·실능치(배분·성격·랭크)·스피드(도구)·내구·타입별 실질 내구(반감열매·특성), 배우는 기술 전부의 위력·명중·PP·우선도·결정력·사용률. 처음엔 통계 배분. 계산 utils/dex.ts |
 
 ## composables
@@ -68,6 +71,7 @@ Nuxt 컴포넌트 이름은 폴더 접두사가 붙는다: `components/team/Slot
 | `useTeamCalc()` | 슬롯 → `ResolvedSlot`(메가 폼·실능치·특성), `combatant()`, 데미지 표 칸 `cell()`, 결정력 `power()`, 연속기 타수 `hits()` |
 | `useUsageKind()` | 사용률 통계 종류(싱글/더블) 선택, localStorage `pch_usage_kind`. 첫 화면·도감·파티 화면이 공유 (`TeamUsageKindToggle`) |
 | `useAutoSet(kind?)` | 상대 포켓몬 자동 배치: 현재 레귤레이션의 싱글/더블 사용률 통계(`public/data/usage/`, `usageSet`, kind 생략 시 `useUsageKind`)가 있으면 우선, 없으면 `utils/autoSet.ts` 규칙. 슬롯에 적용(`apply`, 같은 파티 도구 중복 피함). 표는 따로 받으므로 자동 배치 전에 `ready()` 를 기다린다 |
+| `useVs()` | VS 화면 상태(localStorage `pch-vs-v1` 자동 저장), 포켓몬 변경·좌우 교체·초기화, 양방향 결과 `leftToRight` / `rightToLeft`, 행동 순서 `speed`. 상태 형식·필드 변환·순서 계산은 `utils/vs.ts` |
 | `useBattle(mode)` | 배틀 상태 머신. `useState('battle-{mode}')` 에 저장(화면 이동해도 유지, 선출/상대 구성이 바뀌면 자동 초기화). 구현은 `composables/battle/*` 를 조립, 타입·상수는 `utils/battleState.ts` |
 | `useBattleAnalysis(b)` | 행동 순서, 스피드 구간(`speedBands`), 시나리오 데미지, ①②③ 흐름, 연속기 자멸 위험, 상태이상 예고. 문구는 `{key, params}` |
 | `useRecommend(b)` | 추천 플레이 (싱글 + 더블 근사 `doubles`): 배틀 상태로 내 선택지(기술·교체) × 상대 기술 이득표 재료를 만들어 `utils/recommend.ts` 로 순위. `enabled` 가 켜졌을 때만 계산. 쓰러져 교체할 차례면 대기 포켓몬 비교. 가중치는 `useRecWeights()` (`useState` + localStorage `pch_rec_weights`), 상대 비중 조정은 `useRecOppPrefs()` (배틀별 `useState`). 1턴은 `computed`, 2·3턴·더블은 generator 를 40ms 씩 나눠 이어서 (`pending`) |
