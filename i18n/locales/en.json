@@ -1144,7 +1144,6 @@
       ],
       "ice": [
         "Cannot be frozen.",
-        "1.5× Defense in snow.",
         "Immune to Sheer Cold (which is also less accurate when used by non-Ice types)."
       ],
       "fighting": [],
@@ -1153,25 +1152,52 @@
         "Toxic never misses when used by a Poison type.",
         "A grounded Poison type removes Toxic Spikes from its side when it switches in."
       ],
-      "ground": ["Thunder Wave has no effect.", "Takes no sandstorm damage."],
+      "ground": ["Thunder Wave has no effect."],
       "flying": [
-        "Not grounded, so unaffected by terrain, Spikes, Toxic Spikes and Sticky Web.",
+        "Not grounded, so unaffected by Spikes, Toxic Spikes and Sticky Web.",
         "Loses the Flying type on the turn it uses Roost."
       ],
       "psychic": [],
       "bug": [],
-      "rock": ["Takes no sandstorm damage and gets 1.5× Sp. Def in sandstorm."],
+      "rock": [],
       "ghost": [
         "Can switch out despite trapping effects (Shadow Tag, binding moves, Jaw Lock, etc.), except its own Ingrain.",
         "Curse costs 1/2 of its HP and makes the target lose 1/4 each turn (other types: Speed −1, Attack and Defense +1)."
       ],
       "dragon": [],
       "dark": ["Immune to status moves boosted by an opponent’s Prankster."],
-      "steel": [
-        "Cannot be poisoned or badly poisoned.",
-        "Takes no sandstorm damage.",
-        "Salt Cure damage increases to 1/8."
+      "steel": ["Cannot be poisoned or badly poisoned.", "Salt Cure damage increases to 1/8."],
+      "fairy": []
+    },
+    "fieldCol": "Weather · terrain · rooms",
+    "typeField": {
+      "normal": [],
+      "fire": ["Sun: Fire moves 1.5× / Rain: 0.5×."],
+      "water": ["Rain: Water moves 1.5× / Sun: 0.5×."],
+      "electric": [
+        "Electric Terrain: Electric moves used by grounded Pokémon 1.3×.",
+        "Rain: Thunder never misses."
       ],
+      "grass": ["Grassy Terrain: Grass moves used by grounded Pokémon 1.3×."],
+      "ice": ["Snow: 1.5× Defense, Blizzard never misses."],
+      "fighting": [],
+      "poison": [],
+      "ground": [
+        "Takes no sandstorm damage.",
+        "Grassy Terrain: Earthquake and Bulldoze deal 0.5×."
+      ],
+      "flying": [
+        "Not grounded, so unaffected by terrain.",
+        "Gravity: counts as grounded, so Ground moves hit and terrain, Spikes, etc. apply.",
+        "Rain: Hurricane never misses."
+      ],
+      "psychic": ["Psychic Terrain: Psychic moves used by grounded Pokémon 1.3×."],
+      "bug": [],
+      "rock": ["Takes no sandstorm damage and gets 1.5× Sp. Def in sandstorm."],
+      "ghost": [],
+      "dragon": ["Misty Terrain: grounded Pokémon take 0.5× from Dragon moves."],
+      "dark": [],
+      "steel": ["Takes no sandstorm damage."],
       "fairy": []
     }
   }

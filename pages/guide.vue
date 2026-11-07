@@ -1,6 +1,6 @@
 <!--
   도움말 (인게임 규칙): 자속·타입 상성·타입별 특징·상태이상·날씨·필드·급소·랭크·행동 순서·더블·메가진화.
-  문구는 i18n guide.sec.<id>.items (배열), 타입별 특징은 guide.typeNote.<type>.
+  문구는 i18n guide.sec.<id>.items (배열), 타입별 특징은 guide.typeNote.<type> / 날씨·필드·공간은 guide.typeField.<type>.
   상성표·타입 조합 배율·타입별 무효는 게임 데이터의 상성표(types.chart)로 그린다.
   (앱 사용법은 pages/help.vue)
 -->
@@ -85,7 +85,7 @@
         </dl>
       </template>
 
-      <!-- 타입별 특징: 무효(상성표에서) + 문구 -->
+      <!-- 타입별 특징: 무효(상성표에서) + 문구 + 날씨·필드·공간 효과 -->
       <div v-if="id === 'typeNotes' && chart" class="perf-scroll">
         <table class="perf-table notes">
           <thead>
@@ -93,6 +93,7 @@
               <th>{{ t('guide.typeCol') }}</th>
               <th>{{ t('guide.immuneCol') }}</th>
               <th>{{ t('guide.notesCol') }}</th>
+              <th>{{ t('guide.fieldCol') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -107,6 +108,12 @@
               <td>
                 <ul v-if="items('guide.typeNote.' + ty).length" class="note-list">
                   <li v-for="(line, i) in items('guide.typeNote.' + ty)" :key="i">{{ line }}</li>
+                </ul>
+                <span v-else class="muted">—</span>
+              </td>
+              <td>
+                <ul v-if="items('guide.typeField.' + ty).length" class="note-list">
+                  <li v-for="(line, i) in items('guide.typeField.' + ty)" :key="i">{{ line }}</li>
                 </ul>
                 <span v-else class="muted">—</span>
               </td>
