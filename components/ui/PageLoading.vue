@@ -3,14 +3,38 @@
   <div v-if="loading" class="page-loading" role="status" aria-live="polite">
     <div class="box">
       <span class="spinner" />
-      <span>{{ t('app.pageLoading') }}</span>
+      <span>{{ label }}</span>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 const { t } = useI18n()
-const loading = useState('page-loading', () => false)
+// 이동할 경로 (없으면 꺼짐). 이 동안 하는 일: 그 페이지의 코드를 받고 화면을 만든다
+const loading = useState<string | null>('page-loading', () => null)
+
+// ── 경로 → 페이지 이름 ─────
+const TITLES: Record<string, string> = {
+  '/': 'app.home',
+  '/party': 'party.title',
+  '/single': 'entry.titleSingle',
+  '/single/battle': 'battle.titleSingle',
+  '/double': 'entry.titleDouble',
+  '/double/battle': 'battle.titleDouble',
+  '/stats': 'perf.title',
+  '/vs': 'vs.title',
+  '/dex': 'dex.title',
+  '/patch': 'patch.title',
+  '/guide': 'guide.title',
+  '/help': 'help.title',
+  '/about': 'about.title',
+  '/contact': 'contact.title',
+}
+const label = computed(() => {
+  const path = (loading.value ?? '').replace(/(.)\/+$/, '$1') // 끝 슬래시 제거 (/guide/ → /guide)
+  const key = TITLES[path]
+  return key ? t('app.pageLoading', { page: t(key) }) : t('app.pageLoadingAny')
+})
 </script>
 
 <style scoped>

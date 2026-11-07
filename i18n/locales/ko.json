@@ -2,7 +2,9 @@
   "app": {
     "title": "포켓몬 챔피언스 헬퍼",
     "loading": "게임 데이터를 불러오는 중...",
-    "pageLoading": "화면을 여는 중...",
+    "pageLoading": "{page} 화면을 불러오는 중...",
+    "pageLoadingAny": "화면을 불러오는 중...",
+    "home": "홈",
     "language": "언어"
   },
   "nav": {

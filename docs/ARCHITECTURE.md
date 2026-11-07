@@ -28,7 +28,7 @@ utils/                 순수 계산 (tests/ 에서 테스트): types.ts, stats.
                        recommend.ts(추천 플레이 이득표·점수), pickRecommend.ts(선출 조합 순위), vs.ts(VS 화면 상태·필드·행동 순서)
 plugins/locale.client.ts  언어 선택 (localStorage 'pch_lang' → 브라우저 언어 → en)
 plugins/theme.client.ts   화면 테마 낮/밤/시스템 (localStorage 'pch_theme', 없으면 시스템) → <html data-theme> + Vuetify 테마
-plugins/page-loading.client.ts  페이지 이동 시 로딩 오버레이(UiPageLoading) 를 먼저 그린 뒤 이동, page:finish 에서 끔
+plugins/page-loading.client.ts  페이지 이동 시 로딩 오버레이(UiPageLoading, "도감을 불러오는 중") 를 먼저 그린 뒤 이동, page:finish·page:loading:end 에서 끔. 같은 페이지(라우트 레코드) 안의 이동은 제외
 i18n/locales/          화면 문구 ko/en/ja (.json) + Vuetify 문구 병합(.ts)
 public/data/           게임 데이터 (scripts/build-data.mjs 생성물)
 public/sprites/        포켓몬/도구 스프라이트 (생성물)
