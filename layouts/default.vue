@@ -25,7 +25,12 @@
 const { t, locale } = useI18n()
 const { ready } = useGameData()
 const route = useRoute()
-useHead({ htmlAttrs: { lang: locale } })
+const { asset } = usePublicAsset()
+useHead({
+  htmlAttrs: { lang: locale },
+  // 탭 아이콘: 헤더 로고와 같은 몬스터볼 (서브경로 배포라 baseURL 을 붙임)
+  link: [{ rel: 'icon', type: 'image/svg+xml', href: asset('favicon.svg') }],
+})
 </script>
 
 <style scoped>
