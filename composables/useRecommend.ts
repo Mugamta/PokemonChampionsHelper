@@ -1805,6 +1805,18 @@ export function useRecommend(b: Battle) {
     const rate = (sw + 2 * SWITCH_BASE) / (n + 2)
     return Math.max(0.3, Math.min(3, rate / SWITCH_BASE))
   }
+  // 맞대결 교체 경향 (사용률 통계, 싱글): 상대 포켓몬이 지금 내 포켓몬을 만났을 때 교체로 물러나는 정도 ÷ 그 포켓몬의 평균.
+  //   통계에 없는 쌍은 1. 폼(메가)으로 찾고 없으면 원종으로
+  const switchMatchup = (c: Ctx) => {
+    if (b.N > 1) return 1
+    const table = gd.usageTable('single', reg.active.value?.id)
+    if (!table) return 1
+    const o = resolveAt('opp', c.oi, c.ov.mega || undefined)
+    const m = resolveAt('mine', c.mi, c.mv.mega || undefined)
+    if (!o || !m) return 1
+    const vs = table.pokemon[o.species.id]?.switchVs ?? table.pokemon[o.base.id]?.switchVs
+    return vs?.[m.species.id] ?? vs?.[m.base.id] ?? 1
+  }
   // 이번 배틀에서 여러 번 쓴 기술은 또 쓸 가능성이 높다 (한 번 더 쓸 때마다 +0.3, 최대 2배)
   const repeatHabit = (oi: number, move: string) =>
     Math.min(2, 1 + 0.3 * Math.max(0, (b.ppUsedOf('opp', oi)[move] || 0) - 1))
@@ -1826,7 +1838,8 @@ export function useRecommend(b: Battle) {
       table?.pokemon[r?.species.id ?? '']?.moveUsage ?? table?.pokemon[r?.base.id ?? '']?.moveUsage
     const targets = oppSwitchTargets(c)
     const total = targets.reduce((a, x) => a + x.share, 0)
-    const habit = switchHabit()
+    // 이번 배틀 기록 × 맞대결 통계 (합쳐서 0.3 ~ 3배)
+    const habit = Math.max(0.3, Math.min(3, switchHabit() * switchMatchup(c)))
     // 교체기(유턴 등)는 교체를 막는 상태에서도 쓸 수 있다
     const bench = (c.root && b.switchBlocked('opp', c.oppSlot ?? 0)) || c.ov.rampage ? [] : targets
     // 실제 턴에 메가진화할 수 있으면 같은 기술을 "메가 미룸"으로도 (사전 비중 OPP_DELAY_MEGA 배)

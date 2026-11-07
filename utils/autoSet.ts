@@ -453,6 +453,8 @@ export interface UsageSet {
   itemShare?: number[] // items 와 같은 순서, 각 도구 채용률 (0~1)
   itemUsage?: Record<string, number> // 도구별 채용률 전체 (0.5% 이상, 0~1)
   teammates?: Record<string, number> // 같은 파티에 함께 쓴 비율 (폼 id → 0~1, 많은 순 20개)
+  // 싱글만: 이 포켓몬이 그 상대(폼 id)를 만났을 때 교체로 물러나는 정도 ÷ 자기 평균 (0.5~2, 1 과 비슷하면 없음)
+  switchVs?: Record<string, number>
 }
 // 사용률 통계 종류: 싱글(배틀스타디움 싱글) / 더블(VGC)
 export type UsageKind = 'single' | 'double'

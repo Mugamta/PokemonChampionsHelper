@@ -15,7 +15,8 @@
     "contact": "Contact",
     "stats": "Stats",
     "vs": "VS",
-    "dex": "Pokédex"
+    "dex": "Pokédex",
+    "patch": "Patch Notes"
   },
   "regulation": {
     "label": "Regulation",
@@ -590,7 +591,7 @@
         "smart": "Opponent skill",
         "smartHint": "How strongly the opponent picks options that are good for them (0 = usage only)",
         "oppSwitch": "Opponent switching",
-        "oppSwitchHint": "Prior weight of opponent switches (same scale as move usage, 0 = never)",
+        "oppSwitchHint": "Prior weight of opponent switches (same scale as move usage, 0 = never). In singles it is scaled 0.3–3× by usage-stat matchup tendencies (whether that Pokémon often retreats when facing your current Pokémon) and by this battle's history",
         "plausible": "Safe threshold",
         "plausibleHint": "Minimum weight of opponent options checked for the safe pick (0–1)",
         "reset": "Defaults",
@@ -882,6 +883,33 @@
       "trickroom": "Trick Room: {name} moves first",
       "priority": "Priority: {name} moves first",
       "tie": "Speed tie (random)"
+    }
+  },
+  "patch": {
+    "title": "Patch Notes",
+    "sub": "What changed in each regulation compared with the previous one: eligible Pokémon, Mega Evolutions, items, moves and learnsets. Picking a regulation at the top switches the Pokédex, VS, party and battle calculations to that regulation's data.",
+    "view": "View this regulation",
+    "viewing": "Viewing",
+    "first": "First regulation — {pokemon} eligible Pokémon, {megas} Mega Evolutions, {items} items (excluding Mega Stones)",
+    "noChange": "No differences from the previous regulation.",
+    "pokemon": "Eligible Pokémon",
+    "moveChanges": "Move changes",
+    "moves": "Available moves",
+    "learnset": "Learnsets",
+    "pokemonChanges": "Pokémon changes",
+    "note": "Built by comparing Pokémon Showdown's Champions data at each regulation period. Behavior changes to moves, Abilities and items (effects that are not numbers) are not listed. If this differs from the official announcement, the official announcement is correct.",
+    "field": {
+      "type": "Type",
+      "category": "Category",
+      "power": "Power",
+      "accuracy": "Accuracy",
+      "pp": "PP",
+      "priority": "Priority",
+      "target": "Target changed",
+      "effects": "Effect / property changed",
+      "types": "Type",
+      "abilities": "Ability",
+      "weight": "Weight"
     }
   }
 }

@@ -115,6 +115,20 @@ export interface Regulation {
   rules: string
   pokemon: string[]
   newMegaStones?: string[] // 이 레귤레이션에서 새로 쓸 수 있게 된 메가스톤
+  version?: string // 이 레귤레이션과 함께 나온 게임 버전 (Ver.1.1.0 등)
+  showdown?: string // 지난 레귤레이션: 데이터를 만든 Showdown 커밋
+  patch?: RegulationPatch // 기본 데이터(최신)와 다른 부분 (utils/regulationData.ts 가 덮어씀)
+}
+
+export interface RegulationPatch {
+  moves?: Record<string, Move>
+  items?: Record<string, Item>
+  itemsOff?: string[] // 이 레귤레이션에 없는 도구
+  pokemon?: Record<
+    string,
+    Partial<Pick<Pokemon, 'types' | 'stats' | 'abilities' | 'weight' | 'learnset'>>
+  >
+  megasOff?: string[] // 이 레귤레이션에서 못 쓰는 메가 (메가스톤이 없음)
 }
 
 export interface GameData {

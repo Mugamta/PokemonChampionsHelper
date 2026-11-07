@@ -1,6 +1,7 @@
 {
     "period": "2026/04/08 00:00 ~ 2026/06/17 10:59",
     "rules": "Mega Evolution",
+    "showdown_commit": "8d3a9807d08f9a49845dd8d568e6bb0da08c978d",
     "pokemon_list": [
         "0003-000",
         "0006-000",

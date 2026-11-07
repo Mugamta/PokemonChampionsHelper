@@ -1,6 +1,7 @@
 {
     "period": "2026/09/09 11:00 ~ 2026/12/02 10:59",
     "rules": "Mega Evolution",
+    "version": "Ver.1.2.0",
     "new_mega_stones": [
         "absolitez",
         "garchompitez",

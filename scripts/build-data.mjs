@@ -45,9 +45,10 @@ const warn = []
 const SD = 'https://raw.githubusercontent.com/smogon/pokemon-showdown/master/data'
 const PA = 'https://raw.githubusercontent.com/PokeAPI/pokeapi/master/data/v2/csv'
 
-async function cached(url, name) {
+// fixed = 커밋을 고정한 주소 (내용이 바뀌지 않으므로 --refresh 에도 다시 받지 않음)
+async function cached(url, name, fixed = false) {
   const file = path.join(CACHE, name)
-  if (!REFRESH && fs.existsSync(file)) return fs.readFileSync(file, 'utf8')
+  if ((!REFRESH || fixed) && fs.existsSync(file)) return fs.readFileSync(file, 'utf8')
   const res = await fetch(url, { headers: { 'User-Agent': UA } })
   if (!res.ok) throw new Error(`${res.status} ${url}`)
   const text = await res.text()
@@ -56,8 +57,15 @@ async function cached(url, name) {
   return text
 }
 
-async function loadSD(rel) {
-  const src = await cached(`${SD}/${rel}`, `showdown/${rel}`)
+// sha 를 주면 그 커밋 시점의 파일 (지난 레귤레이션 데이터)
+async function loadSD(rel, sha) {
+  const src = sha
+    ? await cached(
+        `https://raw.githubusercontent.com/smogon/pokemon-showdown/${sha}/data/${rel}`,
+        `showdown@${sha.slice(0, 10)}/${rel}`,
+        true,
+      )
+    : await cached(`${SD}/${rel}`, `showdown/${rel}`)
   const js = esbuild.transformSync(src, { loader: 'ts', format: 'cjs' }).code
   const ctx = { exports: {}, module: { exports: {} } }
   ctx.module.exports = ctx.exports
@@ -104,27 +112,46 @@ async function loadCSV(name) {
 
 // ── 1. 소스 로드 ─────────────
 console.log('소스 로드 중...')
-const [
-  dex,
-  baseMoves,
-  champMoves,
-  baseItems,
-  champItems,
-  champFormats,
-  learnsets,
-  natures,
-  typechart,
-] = await Promise.all([
-  loadSD('pokedex.ts'),
-  loadSD('moves.ts'),
-  loadSD('mods/champions/moves.ts'),
-  loadSD('items.ts'),
-  loadSD('mods/champions/items.ts'),
-  loadSD('mods/champions/formats-data.ts'),
-  loadSD('mods/champions/learnsets.ts'),
-  loadSD('natures.ts'),
-  loadSD('typechart.ts'),
-])
+// 포켓몬·기술·도구를 만드는 데 쓰는 Showdown 소스 한 벌 (sha 없으면 최신, 있으면 그 커밋 시점)
+async function loadShowdownSet(sha) {
+  const [dex, baseMoves, champMoves, baseItems, champItems, champFormats, learnsets] =
+    await Promise.all([
+      loadSD('pokedex.ts', sha),
+      loadSD('moves.ts', sha),
+      loadSD('mods/champions/moves.ts', sha),
+      loadSD('items.ts', sha),
+      loadSD('mods/champions/items.ts', sha),
+      loadSD('mods/champions/formats-data.ts', sha),
+      loadSD('mods/champions/learnsets.ts', sha),
+    ])
+  const moveData = (id) => merged(baseMoves, champMoves, id)
+  const itemData = (id) => merged(baseItems, champItems, id)
+  return {
+    dex,
+    champFormats,
+    learnsets,
+    moveData,
+    itemData,
+    baseItems,
+    isLegalMove: (id) => {
+      const m = moveData(id)
+      return !!m && !m.isNonstandard
+    },
+    isLegalItem: (id) => {
+      const m = itemData(id)
+      return !!m && !m.isNonstandard
+    },
+  }
+}
+const merged = (base, mod, id) => {
+  if (!base[id] && !mod[id]) return null
+  const o = { ...(base[id] || {}) }
+  for (const [k, v] of Object.entries(mod[id] || {})) if (k !== 'inherit') o[k] = v
+  return o
+}
+const MASTER = await loadShowdownSet()
+const { dex, moveData, itemData } = MASTER
+const [natures, typechart] = await Promise.all([loadSD('natures.ts'), loadSD('typechart.ts')])
 const baseAbilities = await loadSD('abilities.ts')
 const csv = {}
 for (const n of [
@@ -149,24 +176,6 @@ for (const n of [
   'version_groups',
 ])
   csv[n] = await loadCSV(n)
-
-const merged = (base, mod, id) => {
-  const m = mod[id] || {}
-  if (!base[id] && !m) return null
-  const o = { ...(base[id] || {}) }
-  for (const [k, v] of Object.entries(m)) if (k !== 'inherit') o[k] = v
-  return o
-}
-const moveData = (id) => merged(baseMoves, champMoves, id)
-const itemData = (id) => merged(baseItems, champItems, id)
-const isLegalMove = (id) => {
-  const m = moveData(id)
-  return m && !m.isNonstandard
-}
-const isLegalItem = (id) => {
-  const m = itemData(id)
-  return m && !m.isNonstandard
-}
 
 // PokeAPI identifier → id 맵 + 다국어 이름/설명 헬퍼
 const byLang = (rows, key, nameKey = 'name') => {
@@ -245,58 +254,17 @@ for (const file of regIndex) {
     pokemon: [...new Set(ids)].sort(),
     // 이 레귤레이션에서 처음 쓸 수 있게 된 메가스톤 (원종은 이전부터 있던 경우도 성능표 "신규"로 표시)
     newMegaStones: r.new_mega_stones ?? [],
+    ...(r.version && { version: r.version }),
+    // 지난 레귤레이션: 그 기간 마지막 상태의 Showdown 커밋 (없으면 최신 = 진행 중인 레귤레이션)
+    ...(r.showdown_commit && { showdown: r.showdown_commit }),
   })
 }
 
 // ── 3. 포켓몬 ─────────────
+// 포켓몬·기술·도구는 Showdown 소스 한 벌(src)에서 만든다. 최신 소스로 만든 것이 앱의 기본 데이터이고,
+// 지난 레귤레이션은 그 기간 커밋의 소스로 같은 계산을 해서 기본과 다른 부분만 patch 로 넣는다 (아래 5.5)
 const inReg = new Set(regulations.flatMap((r) => r.pokemon))
-const regNums = new Set([...inReg].map((id) => dex[id].num))
-const isFormatLegal = (id) =>
-  champFormats[id] && !champFormats[id].isNonstandard && champFormats[id].tier !== 'Illegal'
-// 메가: 챔피언스에서 합법 + 원종 도감번호가 어느 레귤레이션에 있음 + 필요한 메가스톤이 도구로 존재
-const megaIds = Object.keys(dex).filter((id) => {
-  const s = dex[id]
-  return (
-    /Mega/.test(s.forme || '') &&
-    isFormatLegal(id) &&
-    regNums.has(s.num) &&
-    (!s.requiredItem || isLegalItem(toID(s.requiredItem)))
-  )
-})
 const STAT = { hp: 'hp', atk: 'atk', def: 'def', spa: 'spa', spd: 'spd', spe: 'spe' }
-const learnsetOf = (id) => {
-  const s = dex[id]
-  for (const k of [id, toID(s.changesFrom), toID(s.baseSpecies)]) {
-    if (k && learnsets[k]?.learnset)
-      return Object.keys(learnsets[k].learnset).filter(isLegalMove).sort()
-  }
-  warn.push(`습득 기술 없음: ${id}`)
-  return []
-}
-const pokemon = {}
-for (const id of [...inReg, ...megaIds].sort()) {
-  const s = dex[id]
-  const isMega = megaIds.includes(id)
-  // 메가의 원종: 메가스톤 데이터에서 이 메가로 바뀌는 종을 찾는다 (메가냐오닉스처럼 성별별 원종이 다른 경우 대비)
-  const stoneMap = isMega && s.requiredItem ? itemData(toID(s.requiredItem))?.megaStone : null
-  const stoneFrom = stoneMap && Object.entries(stoneMap).find(([, to]) => toID(to) === id)?.[0]
-  const base = toID(stoneFrom || s.changesFrom || s.baseSpecies)
-  pokemon[id] = {
-    id,
-    num: s.num,
-    base: s.forme ? base : id,
-    forme: s.forme || '',
-    types: s.types.map(toID),
-    stats: Object.fromEntries(Object.entries(s.baseStats).map(([k, v]) => [STAT[k], v])),
-    abilities: [...new Set(Object.values(s.abilities).map(toID))],
-    weight: s.weightkg,
-    // 성별이 정해진 종만 (M 수컷만 / F 암컷만 / N 무성). 없으면 둘 다 가능 → 슬롯에서 고름
-    ...(s.gender && { gender: s.gender }),
-    ...(isMega
-      ? { mega: { from: base, item: toID(s.requiredItem) } }
-      : { learnset: learnsetOf(id) }),
-  }
-}
 // 배틀 중에만 바뀌는 폼. 슬롯에서는 고를 수 없고 계산과 폼 토글에만 쓴다 (캐스퐁은 날씨로 타입만 바뀌어서 계산에서 처리)
 //   팔라피 마이티폼: 한 번 교체해 들어오면 마이티폼 / 킬가르도 블레이드폼: 공격기를 쓸 때 / 모르페코 배고픈모양
 const BATTLE_FORMS = {
@@ -305,39 +273,112 @@ const BATTLE_FORMS = {
   morpeko: 'morpekohangry', // 배고픈모양: 매 턴 끝에 바뀜, 오라휠 타입만 다름 (종족값 같음)
   mimikyu: 'mimikyubusted', // 둔갑이 풀린 모습: 첫 공격을 막은 뒤 (종족값 같음)
 }
-for (const [from, id] of Object.entries(BATTLE_FORMS)) {
-  if (!pokemon[from]) continue
-  const s = dex[id]
-  if (!s) {
-    warn.push(`배틀 폼 없음: ${id}`)
-    continue
+
+function buildPokemon(src, roster, label) {
+  const { dex, champFormats, learnsets, itemData, isLegalMove, isLegalItem } = src
+  const regNums = new Set([...roster].filter((id) => dex[id]).map((id) => dex[id].num))
+  const isFormatLegal = (id) =>
+    champFormats[id] && !champFormats[id].isNonstandard && champFormats[id].tier !== 'Illegal'
+  // 메가: 챔피언스에서 합법 + 원종 도감번호가 어느 레귤레이션에 있음 + 필요한 메가스톤이 도구로 존재
+  const megaIds = Object.keys(dex).filter((id) => {
+    const s = dex[id]
+    return (
+      /Mega/.test(s.forme || '') &&
+      isFormatLegal(id) &&
+      regNums.has(s.num) &&
+      (!s.requiredItem || isLegalItem(toID(s.requiredItem)))
+    )
+  })
+  // 습득 기술: Showdown 검증기(learnsetParent)와 같은 규칙. 자기 습득표가 없는 폼은 원종 것,
+  // 원종에서 바뀌는 폼(changesFrom: 로토무 가전 폼 등)은 자기 것 + 원종 것
+  const learnsetOf = (id) => {
+    const out = new Set()
+    const seen = new Set()
+    let found = false
+    let cur = dex[id]
+    while (cur && !seen.has(toID(cur.name))) {
+      const k = toID(cur.name)
+      seen.add(k)
+      const ls = learnsets[k]?.learnset
+      if (ls) {
+        found = true
+        for (const m of Object.keys(ls)) out.add(m)
+        if (cur.changesFrom && cur.baseSpecies !== 'Kyurem') {
+          cur = dex[toID(cur.changesFrom)]
+          continue
+        }
+        break
+      }
+      if (!cur.forme) break
+      cur = dex[toID(cur.changesFrom || cur.baseSpecies)]
+    }
+    if (!found) warn.push(`${label}습득 기술 없음: ${id}`)
+    return [...out].filter(isLegalMove).sort()
   }
-  pokemon[id] = {
-    id,
-    num: s.num,
-    base: from,
-    forme: s.forme,
-    types: s.types.map(toID),
-    stats: Object.fromEntries(Object.entries(s.baseStats).map(([k, v]) => [STAT[k], v])),
-    abilities: [...new Set(Object.values(s.abilities).map(toID))],
-    weight: s.weightkg,
-    battleForm: { from },
+  const pokemon = {}
+  for (const id of [...roster, ...megaIds].sort()) {
+    const s = dex[id]
+    if (!s) {
+      warn.push(`${label}포켓몬 데이터 없음: ${id}`)
+      continue
+    }
+    const isMega = megaIds.includes(id)
+    // 메가의 원종: 메가스톤 데이터에서 이 메가로 바뀌는 종을 찾는다 (메가냐오닉스처럼 성별별 원종이 다른 경우 대비)
+    const stoneMap = isMega && s.requiredItem ? itemData(toID(s.requiredItem))?.megaStone : null
+    const stoneFrom = stoneMap && Object.entries(stoneMap).find(([, to]) => toID(to) === id)?.[0]
+    const base = toID(stoneFrom || s.changesFrom || s.baseSpecies)
+    pokemon[id] = {
+      id,
+      num: s.num,
+      base: s.forme ? base : id,
+      forme: s.forme || '',
+      types: s.types.map(toID),
+      stats: Object.fromEntries(Object.entries(s.baseStats).map(([k, v]) => [STAT[k], v])),
+      abilities: [...new Set(Object.values(s.abilities).map(toID))],
+      weight: s.weightkg,
+      // 성별이 정해진 종만 (M 수컷만 / F 암컷만 / N 무성). 없으면 둘 다 가능 → 슬롯에서 고름
+      ...(s.gender && { gender: s.gender }),
+      ...(isMega
+        ? { mega: { from: base, item: toID(s.requiredItem) } }
+        : { learnset: learnsetOf(id) }),
+    }
   }
-  pokemon[from].battleForm = { to: id }
+  for (const [from, id] of Object.entries(BATTLE_FORMS)) {
+    if (!pokemon[from]) continue
+    const s = dex[id]
+    if (!s) {
+      warn.push(`${label}배틀 폼 없음: ${id}`)
+      continue
+    }
+    pokemon[id] = {
+      id,
+      num: s.num,
+      base: from,
+      forme: s.forme,
+      types: s.types.map(toID),
+      stats: Object.fromEntries(Object.entries(s.baseStats).map(([k, v]) => [STAT[k], v])),
+      abilities: [...new Set(Object.values(s.abilities).map(toID))],
+      weight: s.weightkg,
+      battleForm: { from },
+    }
+    pokemon[from].battleForm = { to: id }
+  }
+  for (const id of megaIds) {
+    const from = pokemon[id].mega.from
+    // 원종이 레귤레이션에 직접 없을 수도 있음(예: floette → floetteeternal). 같은 도감번호 폼에 연결
+    const target = pokemon[from]
+      ? from
+      : Object.keys(pokemon).find((k) => pokemon[k].num === pokemon[id].num && !pokemon[k].mega)
+    if (!target) {
+      warn.push(`${label}메가 원종 없음: ${id}`)
+      continue
+    }
+    pokemon[id].mega.from = target
+    ;(pokemon[target].megas ??= []).push(id)
+  }
+  return { pokemon, megaIds }
 }
-for (const id of megaIds) {
-  const from = pokemon[id].mega.from
-  // 원종이 레귤레이션에 직접 없을 수도 있음(예: floette → floetteeternal). 같은 도감번호 폼에 연결
-  const target = pokemon[from]
-    ? from
-    : Object.keys(pokemon).find((k) => pokemon[k].num === pokemon[id].num && !pokemon[k].mega)
-  if (!target) {
-    warn.push(`메가 원종 없음: ${id}`)
-    continue
-  }
-  pokemon[id].mega.from = target
-  ;(pokemon[target].megas ??= []).push(id)
-}
+const { pokemon, megaIds } = buildPokemon(MASTER, inReg, '')
 
 // ── 4. 기술 ─────────────
 // 챔피언스 PP 예외 (보통 비어 있음): scripts/sources/champions-pp.json ({ id: pp } 또는 { id: { pp, estimated: true } })
@@ -448,25 +489,92 @@ function moveEffects(m) {
   return e
 }
 
-const usedMoves = new Set(Object.values(pokemon).flatMap((p) => p.learnset || []))
-const moves = {}
-for (const id of [...usedMoves].sort()) {
-  const m = moveData(id)
-  const pp = champPP[id]
-  moves[id] = {
-    id,
-    num: m.num,
-    type: toID(m.type),
-    category: toID(m.category),
-    power: m.basePower || 0,
-    accuracy: m.accuracy === true ? null : m.accuracy,
-    pp: pp ? pp.pp : championsPP(m.pp),
-    ...(pp?.estimated && { ppEstimated: true }),
-    priority: m.priority || 0,
-    target: m.target,
-    flags: FLAGS.filter((f) => m.flags?.[f]),
-    effects: moveEffects(m),
+function buildMoves(src, pokemon) {
+  const used = new Set(Object.values(pokemon).flatMap((p) => p.learnset || []))
+  const moves = {}
+  for (const id of [...used].sort()) {
+    const m = src.moveData(id)
+    const pp = champPP[id]
+    moves[id] = {
+      id,
+      num: m.num,
+      type: toID(m.type),
+      category: toID(m.category),
+      power: m.basePower || 0,
+      accuracy: m.accuracy === true ? null : m.accuracy,
+      pp: pp ? pp.pp : championsPP(m.pp),
+      ...(pp?.estimated && { ppEstimated: true }),
+      priority: m.priority || 0,
+      target: m.target,
+      flags: FLAGS.filter((f) => m.flags?.[f]),
+      effects: moveEffects(m),
+    }
   }
+  return moves
+}
+const moves = buildMoves(MASTER, pokemon)
+
+function buildItems(src) {
+  const items = {}
+  for (const id of Object.keys(src.baseItems).filter(src.isLegalItem).sort()) {
+    const it = src.itemData(id)
+    items[id] = {
+      id,
+      num: it.num,
+      ...(it.megaStone && {
+        megaStone: Object.fromEntries(
+          Object.entries(it.megaStone).map(([a, b]) => [toID(a), toID(b)]),
+        ),
+      }),
+      ...(it.isBerry && { berry: true }),
+    }
+  }
+  return items
+}
+const items = buildItems(MASTER)
+
+// ── 4.5 레귤레이션별 데이터 ─────────────
+// 지난 레귤레이션(showdown 커밋이 있는 것)은 그 커밋의 소스로 포켓몬·기술·도구를 다시 만들고, 기본 데이터(최신)와
+// 다른 부분만 regulations.json 의 patch 로 넣는다. 앱은 고른 레귤레이션의 patch 를 덮어써서 쓴다 (utils/regulationData.ts)
+//   patch = { moves: {id: 기술 전체}, items: {id: 도구 전체}, itemsOff: [그 레귤레이션에 없는 도구],
+//             pokemon: {id: {types?, stats?, abilities?, weight?, learnset?}}, megasOff: [그 레귤레이션에 없는 메가] }
+// 지난 레귤레이션에만 있던 기술·도구는 기본 데이터에 추가한다 (이름표를 만들고, 최신 레귤레이션에서는 itemsOff 로 뺌)
+const regCores = new Map()
+for (const r of [...regulations].reverse()) {
+  if (!r.showdown) {
+    // 아래에서 기본 데이터에 지난 기술·도구를 더하므로 복사해 둔다
+    regCores.set(r.id, { pokemon, megaIds, moves: { ...moves }, items: { ...items } })
+    continue
+  }
+  const label = `레귤레이션 ${r.id}: `
+  const src = await loadShowdownSet(r.showdown)
+  const p = buildPokemon(src, new Set(r.pokemon), label)
+  const core = { ...p, moves: buildMoves(src, p.pokemon), items: buildItems(src) }
+  regCores.set(r.id, core)
+  for (const [id, m] of Object.entries(core.moves)) moves[id] ??= m
+  for (const [id, it] of Object.entries(core.items)) items[id] ??= it
+  for (const id of p.megaIds)
+    if (!pokemon[id]) warn.push(`${label}최신 데이터에 없는 메가 (반영 안 함): ${id}`)
+}
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
+const POKEMON_FIELDS = ['types', 'stats', 'abilities', 'weight', 'learnset']
+for (const r of regulations) {
+  const core = regCores.get(r.id)
+  const patch = {}
+  const put = (k, id, v) => ((patch[k] ??= {})[id] = v)
+  for (const [id, m] of Object.entries(core.moves)) if (!same(m, moves[id])) put('moves', id, m)
+  for (const [id, it] of Object.entries(core.items)) if (!same(it, items[id])) put('items', id, it)
+  const itemsOff = Object.keys(items).filter((id) => !core.items[id])
+  if (itemsOff.length) patch.itemsOff = itemsOff
+  for (const [id, p] of Object.entries(core.pokemon)) {
+    if (!pokemon[id]) continue
+    const d = {}
+    for (const f of POKEMON_FIELDS) if (p[f] && !same(p[f], pokemon[id][f])) d[f] = p[f]
+    if (Object.keys(d).length) put('pokemon', id, d)
+  }
+  const megasOff = megaIds.filter((id) => !core.megaIds.includes(id))
+  if (megasOff.length) patch.megasOff = megasOff
+  if (Object.keys(patch).length) r.patch = patch
 }
 
 // ── 5. 특성 / 도구 / 성격 / 타입 ─────────────
@@ -475,7 +583,9 @@ const abilityNamesApi = byLang(csv.ability_names, 'ability_id')
 const abilityTextApi = flavorByLang(csv.ability_flavor_text, 'ability_id')
 const abilityById = {}
 for (const [aid, ident] of Object.entries(abilityIdent)) abilityById[toID(ident)] = aid
-const usedAbilities = new Set(Object.values(pokemon).flatMap((p) => p.abilities))
+const usedAbilities = new Set(
+  [...regCores.values()].flatMap((c) => Object.values(c.pokemon).flatMap((p) => p.abilities)),
+)
 const abilities = {}
 for (const id of [...usedAbilities].sort()) abilities[id] = { id, num: baseAbilities[id]?.num ?? 0 }
 
@@ -485,21 +595,6 @@ for (const [iid, ident] of Object.entries(itemIdent)) itemById[toID(ident)] = ii
 Object.assign(itemById, { leek: itemById.stick ?? itemById.leek })
 const itemNamesApi = byLang(csv.item_names, 'item_id')
 const itemTextApi = flavorByLang(csv.item_flavor_text, 'item_id')
-const items = {}
-for (const id of Object.keys(baseItems).filter(isLegalItem).sort()) {
-  const it = itemData(id)
-  items[id] = {
-    id,
-    num: it.num,
-    ...(it.megaStone && {
-      megaStone: Object.fromEntries(
-        Object.entries(it.megaStone).map(([a, b]) => [toID(a), toID(b)]),
-      ),
-    }),
-    ...(it.isBerry && { berry: true }),
-    ...(it.onPlate || it.onMemory ? {} : {}),
-  }
-}
 for (const r of regulations)
   for (const id of r.newMegaStones)
     if (!items[id]?.megaStone) warn.push(`레귤레이션 ${r.id}: 메가스톤 아님 ${id}`)
@@ -780,6 +875,75 @@ function summarizeUsage(json, month, format) {
     )
   return { format, month, battles: json.info['number of battles'], pokemon: out }
 }
+// ── 교체 경향 (싱글) ─────────────
+// Smogon "Checks and Counters": 포켓몬 X 가 Y 와 맞붙은 맞대결 수 n 과, 그 맞대결에서 X 가 쓰러지거나 교체로 물러난 비율 p.
+// 쓰러짐/교체를 나눈 값은 moveset txt 에만 있고 X 마다 상위 10여 개 상대뿐이라, 나머지 쌍은 X 의 평균 교체 몫으로 나눈다.
+// 결과 switchVs = { Y: X 가 Y 를 만났을 때 교체하는 정도 ÷ X 의 평균 } (맞대결이 적으면 1 쪽으로 당김, 0.5~2배).
+// 턴마다의 확률이 아니라 맞대결 단위 통계이므로 추천 플레이는 교체 사전 비중에 배수로만 쓴다
+const SWITCH_SHRINK = 50 // 이 정도 맞대결 수만큼 평균(1배)을 섞음
+const SWITCH_MIN_DIFF = 0.1 // 1배와 이보다 덜 다르면 저장하지 않음 (파일 크기)
+// moveset txt → { X: { Y: 교체 몫 (교체 ÷ (쓰러짐 + 교체)) } }
+function parseSwitchSplit(txt) {
+  const out = {}
+  const lines = txt.split(/\r?\n/)
+  const sep = (l) => /^\s*\+-+\+\s*$/.test(l ?? '')
+  let mon = null
+  let inCC = false
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i]
+    if (sep(lines[i - 1]) && sep(lines[i + 1]) && /^\s*\|/.test(l)) {
+      mon = toID(l.replace(/\|/g, ''))
+      inCC = false
+      continue
+    }
+    if (/\|\s*Checks and Counters\s*\|/.test(l)) {
+      inCC = true
+      continue
+    }
+    if (sep(l)) inCC = false
+    if (!inCC || !mon) continue
+    const head = l.match(/^\s*\|\s*(.+?)\s+[\d.]+\s+\([\d.]+±[\d.]+\)\s*\|/)
+    const split = lines[i + 1]?.match(/\(([\d.]+)% KOed \/ ([\d.]+)% switched out\)/)
+    if (!head || !split) continue
+    const ko = Number(split[1])
+    const sw = Number(split[2])
+    if (ko + sw > 0) (out[mon] ??= {})[toID(head[1])] = sw / (ko + sw)
+  }
+  return out
+}
+function switchTendency(json, split) {
+  const all = Object.values(split).flatMap((m) => Object.values(m))
+  const globalShare = all.length ? all.reduce((a, b) => a + b, 0) / all.length : 0.5
+  const out = {}
+  for (const [name, d] of Object.entries(json.data)) {
+    const x = toID(name)
+    const cc = d['Checks and Counters']
+    if (!pokemon[x] || !cc) continue
+    const sp = split[x] ?? {}
+    const own = Object.values(sp)
+    const share = own.length ? own.reduce((a, b) => a + b, 0) / own.length : globalShare
+    const rows = Object.entries(cc)
+      .map(([yn, v]) => {
+        const y = toID(yn)
+        const [n, p] = Array.isArray(v) ? v : [v.n, v.p]
+        return { y, n, s: p * (sp[y] ?? share) }
+      })
+      .filter((r) => pokemon[r.y] && r.n > 0)
+    const total = rows.reduce((a, r) => a + r.n, 0)
+    if (!total) continue
+    const mean = rows.reduce((a, r) => a + r.n * r.s, 0) / total
+    if (!(mean > 0)) continue
+    const vs = {}
+    for (const r of rows) {
+      const shrunk = (r.n * r.s + SWITCH_SHRINK * mean) / (r.n + SWITCH_SHRINK)
+      const mult = Math.max(0.5, Math.min(2, shrunk / mean))
+      if (Math.abs(mult - 1) >= SWITCH_MIN_DIFF) vs[r.y] = Math.round(mult * 100) / 100
+    }
+    if (Object.keys(vs).length) out[x] = vs
+  }
+  return out
+}
+
 async function buildUsage() {
   const index = await cached(`${STATS}/`, 'smogon/index.html')
   const months = [...index.matchAll(/href="(\d{4}-\d{2})\/"/g)]
@@ -803,6 +967,23 @@ async function buildUsage() {
           await cached(`${STATS}/${month}/chaos/${file}`, `smogon/${month}/${file}`),
         )
         out[kind][r.id] = summarizeUsage(json, month, format)
+        // 교체 경향은 싱글만 (더블은 2:2 라 맞대결 하나로 보기 어려움)
+        if (kind === 'single') {
+          let split = {}
+          try {
+            split = parseSwitchSplit(
+              await cached(
+                `${STATS}/${month}/moveset/${file.replace('.json', '.txt')}`,
+                `smogon/${month}/moveset-${file.replace('.json', '.txt')}`,
+              ),
+            )
+          } catch (e) {
+            warn.push(`교체 통계(moveset) 받기 실패 ${r.id}: ${e.message} — 평균 교체 몫으로 계산`)
+          }
+          const tend = switchTendency(json, split)
+          for (const [x, vs] of Object.entries(tend))
+            if (out[kind][r.id].pokemon[x]) out[kind][r.id].pokemon[x].switchVs = vs
+        }
         break
       }
       if (!out[kind][r.id]) warn.push(`사용률 통계 없음: ${kind} ${r.id}`)

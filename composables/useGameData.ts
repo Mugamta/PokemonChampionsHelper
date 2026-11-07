@@ -2,9 +2,11 @@
 // public/data/*.json (scripts/build-data.mjs 가 생성) 을 앱 전역에서 한 번만 로드해서 공유한다.
 // 키는 전부 영어 id (Showdown id: 'garchompmegaz', 'thunderbolt', 'choicescarf' ...).
 // 화면에 보이는 이름/설명은 현재 언어의 names.{locale}.json / texts.{locale}.json 에서 조회한다.
+// data 는 상단에서 고른 레귤레이션을 덮어쓴 데이터 (utils/regulationData.ts). 파일 그대로의 데이터는 base
 
 import type { GameData, NameTable, TextTable, Pokemon, Move } from '~/utils/types'
 import { usageFile, type UsageIndex, type UsageKind, type UsageTable } from '~/utils/autoSet'
+import { applyRegulation } from '~/utils/regulationData'
 
 type Kind = keyof NameTable
 
@@ -23,6 +25,8 @@ const CORE_FILES = [
 
 export function useGameData() {
   const data = useState<GameData | null>('gd-core', () => null)
+  const base = useState<GameData | null>('gd-base', () => null)
+  const regId = useState<string | null>('gd-reg', () => null)
   const names = useState<Record<string, NameTable>>('gd-names', () => ({}))
   const texts = useState<Record<string, TextTable>>('gd-texts', () => ({}))
   const loading = useState('gd-loading', () => false)
@@ -73,11 +77,23 @@ export function useGameData() {
       await loadLocale(locale.value)
       // 게임 데이터는 바뀌지 않으므로 반응형 프록시로 감싸지 않는다 (깊은 반응형이면 모든 조회가 프록시를 거치고
       // 계산 하나에 의존성 추적이 수천 개씩 걸려 화면 전환이 느려짐). 바뀌는 건 data.value 교체뿐
-      data.value = markRaw(core)
+      base.value = markRaw(core)
+      data.value = markRaw(applyRegulation(core, regOf(regId.value)))
     } finally {
       loading.value = false
     }
   }
+
+  // 레귤레이션을 바꾸면 그 레귤레이션 데이터로 (AppHeader 가 useRegulation().active 를 보고 호출)
+  const regOf = (id: string | null) =>
+    id ? base.value?.regulations.find((r) => r.id === id) : undefined
+  const setRegulation = (id: string | null) => {
+    regId.value = id
+    if (base.value) data.value = markRaw(applyRegulation(base.value, regOf(id)))
+  }
+  // 다른 레귤레이션 데이터 (패치 내역 화면에서 비교용)
+  const dataFor = (id: string): GameData | null =>
+    base.value ? applyRegulation(base.value, regOf(id)) : null
 
   const ready = computed(() => !!data.value && !!names.value[locale.value])
 
@@ -156,6 +172,8 @@ export function useGameData() {
   return {
     data,
     names,
+    setRegulation,
+    dataFor,
     ready,
     loading,
     load,

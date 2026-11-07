@@ -47,8 +47,9 @@ export function useRegulation() {
   const isAllowed = (id: string) => {
     if (!allowed.value) return true
     if (allowed.value.has(id)) return true
+    // 메가: 원종이 출전 가능 + 이 레귤레이션에 그 메가스톤이 있음 (원종의 메가 목록에 남아 있음)
     const from = gd.pokemon(id)?.mega?.from
-    return !!from && allowed.value.has(from)
+    return !!from && allowed.value.has(from) && !!gd.pokemon(from)?.megas?.includes(id)
   }
   // 슬롯에서 고를 수 있는 포켓몬 (메가 폼 제외 — 메가는 도구로 결정)
   const selectableSpecies = computed(() =>

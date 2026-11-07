@@ -119,6 +119,7 @@ const links = [
   { to: '/stats', label: 'nav.stats' },
   { to: '/vs', label: 'nav.vs' },
   { to: '/dex', label: 'nav.dex' },
+  { to: '/patch', label: 'nav.patch' },
   { to: '/help', label: 'nav.help' },
 ]
 const isActive = (to: string) => route.path === to || route.path.startsWith(to + '/')
@@ -145,6 +146,12 @@ const usagePeriod = computed(() => {
   }
 })
 const onRegChange = (v: string) => (reg.selectedId.value = v === 'auto' ? null : v)
+// 고른 레귤레이션의 데이터(습득 기술·기술 수치·도구)로 앱 전체를 바꾼다
+watch(
+  () => reg.active.value?.id ?? null,
+  (id) => gd.setRegulation(id),
+  { immediate: true },
+)
 
 onMounted(async () => {
   reg.startClock()

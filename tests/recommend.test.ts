@@ -32,6 +32,7 @@ import {
   type Hit,
 } from '../utils/recommend'
 import { emptySlot, type TeamSlot } from '../utils/types'
+import { usageFile } from '../utils/autoSet'
 
 const hit = (min: number, max: number, ko = 0, acc = 1): Hit => ({ min, max, acc, ko })
 const ex = (x: Partial<Exchange>): Exchange => ({
@@ -636,6 +637,41 @@ describe('useRecommend', () => {
     // 상대 교체를 0 으로 하면 사라짐
     useRecWeights().set('oppSwitch', 0)
     expect(open(b).opp.some((o) => o.kind === 'switch')).toBe(false)
+  })
+
+  it('맞대결 교체 통계(switchVs): 상대가 내 포켓몬을 만나면 자주 물러나는 쌍이면 교체 비중이 큼', () => {
+    const switchWeight = (mult: number | null) => {
+      resetNuxtState()
+      useState('reg-selected', () => 'M-C')
+      const table = {
+        format: 'test',
+        month: '2026-10',
+        battles: 1,
+        pokemon: {
+          incineroar: {
+            count: 1000,
+            usage: 0.1,
+            moves: [],
+            moveShare: [],
+            ...(mult != null && { switchVs: { garchomp: mult } }),
+          },
+        },
+      }
+      useState('gd-usage', () => ({ [usageFile('single', 'M-C')]: table }))
+      const b = setup(
+        [slot('garchomp', { moves: moves('earthquake', 'dragonclaw') })],
+        [
+          slot('incineroar', { moves: moves('flareblitz') }),
+          slot('corviknight', { moves: moves('bravebird') }),
+        ],
+      )
+      b.sendOut('opp', 0, 1)
+      b.sendOut('opp', 0, 0)
+      return open(b).opp.find((o) => o.kind === 'switch')!.weight
+    }
+    const none = switchWeight(null)
+    expect(switchWeight(2)).toBeGreaterThan(none)
+    expect(switchWeight(0.5)).toBeLessThan(none)
   })
 
   it('내 포켓몬이 쓰러지면 내보낼 포켓몬 추천', () => {

@@ -47,6 +47,7 @@ Nuxt 컴포넌트 이름은 폴더 접두사가 붙는다: `components/team/Slot
 /stats                                           (포켓몬 성능표)
 /vs                                              (1:1 계산기)
 /dex                                             (포켓몬 도감)
+/patch                                           (패치 내역: 레귤레이션별 변경)
 /help  /about  /contact
 ```
 
@@ -59,12 +60,13 @@ Nuxt 컴포넌트 이름은 폴더 접두사가 붙는다: `components/team/Slot
 | `/stats` | pages/stats.vue → PerfBulkTable / PerfPowerTable / PerfSpeedTable | 포켓몬 성능표. 검색, 탭은 `?tab=bulk|power|speed` |
 | `/vs` | pages/vs.vue → VsMonPanel ×2 / VsResultCard ×2 | 1:1 계산기. 양쪽 포켓몬·특성(그 포켓몬 것만)·도구·성격·능력P·랭크·HP·상태이상·진영 상태 + 기술 1개(배우는 공격 기술만) → 서로에게 주는 데미지·난수·KO·행동 순서. 공용 날씨·필드·공간·싱글/더블. 넓은 화면은 3열, 좁으면 결과 → 포켓몬 → 공용 상태 순 |
 | `/dex` | pages/dex.vue → DexDetail / DexMoves | 포켓몬 도감. 목록은 성능표와 같음(usePerfList), `?id=`. 종족값·실능치(배분·성격·랭크)·스피드(도구)·내구·타입별 실질 내구(반감열매·특성), 배우는 기술 전부의 위력·명중·PP·우선도·결정력·사용률. 처음엔 통계 배분. 계산 utils/dex.ts |
+| `/patch` | pages/patch.vue | 패치 내역. 레귤레이션마다 직전 대비 출전 포켓몬·메가·도구·기술 수치·습득 기술·종족값 변경 (utils/regulationData.ts `diffRegulations`), 최신이 위. "이 레귤레이션으로 보기" = 상단 선택 변경 |
 
 ## composables
 
 | 이름 | 역할 |
 |---|---|
-| `useGameData()` | `public/data` 로드(1회), 현재 언어 이름/설명 로드, `name/text/pokemon/move/learnset/megaFor/pokemonSprite/itemSprite/options`. 사용률 통계는 출처 목록 `usageMeta(kind)` + 표 `usageTable(kind, reg)`(없으면 받기 시작, 받으면 다시 계산) / `loadUsage` |
+| `useGameData()` | `public/data` 로드(1회). `data` = 고른 레귤레이션의 patch 를 덮어쓴 데이터(AppHeader 가 `useRegulation().active` 를 보고 `setRegulation`), `dataFor(reg)` = 다른 레귤레이션 데이터(패치 내역), 현재 언어 이름/설명 로드, `name/text/pokemon/move/learnset/megaFor/pokemonSprite/itemSprite/options`. 사용률 통계는 출처 목록 `usageMeta(kind)` + 표 `usageTable(kind, reg)`(없으면 받기 시작, 받으면 다시 계산) / `loadUsage` |
 | `useRegulation()` | 레귤레이션 목록, 현재 시각 자동 선택/수동 선택, `isAllowed(id)`, `selectableSpecies` |
 | `useTeam(side)` | `'mine' | 'opp'` 6슬롯 (`TeamSlot`), 완성 여부 `isComplete`(6마리·기술 1개 이상·내 파티는 성별까지, 성별 미선택 슬롯 `missingGender`), 메가 미리보기 토글(`megaOn`), 배틀 폼 토글(`altOn`, null = 기본값). localStorage `pch-team-mine-v2` / `pch-team-opp-v2` 자동 저장. `migrateLegacyTeam()` 은 예전 한글 저장분 이전 |
 | `useEntry(mode)` | 선출 순서(내 파티 인덱스 배열), 싱글 3 / 더블 4 |
