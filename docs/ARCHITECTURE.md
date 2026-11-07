@@ -48,7 +48,8 @@ Nuxt 컴포넌트 이름은 폴더 접두사가 붙는다: `components/team/Slot
 /vs                                              (1:1 계산기)
 /dex                                             (포켓몬 도감)
 /patch                                           (패치 내역: 레귤레이션별 변경)
-/help  /about  /contact
+/guide                                           (도움말: 인게임 배틀 규칙)
+/help  /about  /contact                          (/help = 상단바 "사용 방법")
 ```
 
 | 라우트 | 컴포넌트 | 내용 |
@@ -60,6 +61,7 @@ Nuxt 컴포넌트 이름은 폴더 접두사가 붙는다: `components/team/Slot
 | `/stats` | pages/stats.vue → PerfBulkTable / PerfPowerTable / PerfSpeedTable | 포켓몬 성능표. 검색, 탭은 `?tab=bulk|power|speed` |
 | `/vs` | pages/vs.vue → VsMonPanel ×2 / VsResultCard ×2 | 1:1 계산기. 양쪽 포켓몬·특성(그 포켓몬 것만)·도구·성격·능력P·랭크·HP·상태이상·진영 상태 + 기술 1개(배우는 공격 기술만) → 서로에게 주는 데미지·난수·KO·행동 순서. 공용 날씨·필드·공간·싱글/더블. 넓은 화면은 3열, 좁으면 결과 → 포켓몬 → 공용 상태 순 |
 | `/dex` | pages/dex.vue → DexDetail / DexMoves | 포켓몬 도감. 목록은 성능표와 같음(usePerfList), `?id=`. 종족값·실능치(배분·성격·랭크)·스피드(도구)·내구·타입별 실질 내구(반감열매·특성), 배우는 기술 전부의 위력·명중·PP·우선도·결정력·사용률. 처음엔 통계 배분. 계산 utils/dex.ts. 오른쪽 위 **기술 탭**(`?tab=moves&move=`, DexMoveDetail): 출전 가능 포켓몬이 배우는 기술 목록(이름 검색·타입·분류 거르기) → 위력·명중·PP·우선도·대상·성질(접촉 등, 툴팁에 반응 특성·도구)·설명·부가효과·배우는 포켓몬(사용률 통계의 채용률 순, 누르면 포켓몬 탭). 포켓몬 기술표의 기술 이름을 누르면 기술 탭으로. 문구 utils/moveInfo.ts |
+| `/guide` | pages/guide.vue | 도움말(인게임 규칙): 능력치 기초·자속·타입 상성(상성표·타입 조합 배율은 `types.chart` 로 그림)·타입별 특징(무효 타입은 상성표에서, 문구 `guide.typeNote.<type>`)·상태이상(챔피언스 수치)·날씨·필드·급소·랭크·행동 순서·데미지·더블·메가진화. 문구는 i18n `guide.sec.<id>.items` 배열(`tm`/`rt`) |
 | `/patch` | pages/patch.vue | 패치 내역. 레귤레이션마다 직전 대비 출전 포켓몬·메가·도구·기술 수치·습득 기술·종족값 변경 (utils/regulationData.ts `diffRegulations`), 최신이 위. "이 레귤레이션으로 보기" = 상단 선택 변경 |
 
 ## composables

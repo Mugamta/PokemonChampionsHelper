@@ -120,6 +120,7 @@ const links = [
   { to: '/vs', label: 'nav.vs' },
   { to: '/dex', label: 'nav.dex' },
   { to: '/patch', label: 'nav.patch' },
+  { to: '/guide', label: 'nav.guide' },
   { to: '/help', label: 'nav.help' },
 ]
 const isActive = (to: string) => route.path === to || route.path.startsWith(to + '/')
