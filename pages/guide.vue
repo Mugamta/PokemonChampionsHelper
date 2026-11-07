@@ -13,115 +13,146 @@
       </div>
     </div>
 
-    <nav class="panel panel-pad toc" :aria-label="t('guide.toc')">
-      <a v-for="id in SECTIONS" :key="id" :href="'#' + id" class="chip" @click.prevent="jump(id)">
-        {{ t('guide.sec.' + id + '.title') }}
-      </a>
-    </nav>
+    <div class="layout">
+      <nav
+        class="panel toc"
+        role="tablist"
+        :aria-label="t('guide.toc')"
+        aria-orientation="vertical"
+      >
+        <button
+          v-for="id in SECTIONS"
+          :id="'tab-' + id"
+          :key="id"
+          type="button"
+          role="tab"
+          class="toc-tab"
+          :class="{ active: current === id }"
+          :aria-selected="current === id"
+          :aria-controls="id"
+          @click="select(id)"
+        >
+          {{ t('guide.sec.' + id + '.title') }}
+        </button>
+      </nav>
 
-    <section v-for="id in SECTIONS" :id="id" :key="id" class="panel panel-pad">
-      <h2 class="panel-title">{{ t('guide.sec.' + id + '.title') }}</h2>
-      <ul>
-        <li v-for="(line, i) in items('guide.sec.' + id + '.items')" :key="i">{{ line }}</li>
-      </ul>
+      <section
+        v-for="id in SECTIONS"
+        v-show="current === id"
+        :id="id"
+        :key="id"
+        class="panel panel-pad"
+        role="tabpanel"
+        :aria-labelledby="'tab-' + id"
+      >
+        <h2 class="panel-title">{{ t('guide.sec.' + id + '.title') }}</h2>
+        <ul>
+          <li v-for="(line, i) in items('guide.sec.' + id + '.items')" :key="i">{{ line }}</li>
+        </ul>
 
-      <!-- 타입 상성: 상성표 + 타입 조합 배율 -->
-      <template v-if="id === 'types' && chart">
-        <h3 class="sub-title">{{ t('guide.chartTitle') }}</h3>
-        <p class="hint muted">{{ t('guide.chartHint') }}</p>
-        <div class="chart-scroll">
-          <table class="chart">
+        <!-- 타입 상성: 상성표 + 타입 조합 배율 -->
+        <template v-if="id === 'types' && chart">
+          <h3 class="sub-title">{{ t('guide.chartTitle') }}</h3>
+          <p class="hint muted">{{ t('guide.chartHint') }}</p>
+          <div class="chart-scroll">
+            <table class="chart">
+              <thead>
+                <tr>
+                  <th />
+                  <th
+                    v-for="d in TYPE_ORDER"
+                    :key="d"
+                    class="col-head"
+                    :title="gd.name('types', d)"
+                  >
+                    <span class="col-type" :style="{ background: `var(--t-${d})` }">{{
+                      short(d)
+                    }}</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="a in TYPE_ORDER" :key="a">
+                  <th class="row-head"><UiTypeBadge :type="a" small /></th>
+                  <td
+                    v-for="d in TYPE_ORDER"
+                    :key="d"
+                    :class="cellClass(mult(a, [d]))"
+                    :title="cellTitle(a, d)"
+                  >
+                    {{ cellText(mult(a, [d])) }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3 class="sub-title">{{ t('guide.calcTitle') }}</h3>
+          <p class="hint muted">{{ t('guide.calcHint') }}</p>
+          <div class="pick">
+            <button
+              v-for="ty in TYPE_ORDER"
+              :key="ty"
+              type="button"
+              class="pick-btn"
+              :class="{ on: picked.includes(ty) }"
+              :aria-pressed="picked.includes(ty)"
+              @click="togglePick(ty)"
+            >
+              <UiTypeBadge :type="ty" small />
+            </button>
+          </div>
+          <dl v-if="picked.length" class="calc">
+            <div v-for="g in calcGroups" :key="g.m">
+              <dt :class="cellClass(g.m)">×{{ fmt(g.m) }}</dt>
+              <dd>
+                <template v-if="g.types.length">
+                  <UiTypeBadge v-for="ty in g.types" :key="ty" :type="ty" small />
+                </template>
+                <span v-else class="muted">{{ t('guide.calcNone') }}</span>
+              </dd>
+            </div>
+          </dl>
+        </template>
+
+        <!-- 타입별 특징: 무효(상성표에서) + 문구 + 날씨·필드·공간 효과 -->
+        <div v-if="id === 'typeNotes' && chart" class="perf-scroll">
+          <table class="perf-table notes">
             <thead>
               <tr>
-                <th />
-                <th v-for="d in TYPE_ORDER" :key="d" class="col-head" :title="gd.name('types', d)">
-                  <span class="col-type" :style="{ background: `var(--t-${d})` }">{{
-                    short(d)
-                  }}</span>
-                </th>
+                <th>{{ t('guide.typeCol') }}</th>
+                <th>{{ t('guide.immuneCol') }}</th>
+                <th>{{ t('guide.notesCol') }}</th>
+                <th>{{ t('guide.fieldCol') }}</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="a in TYPE_ORDER" :key="a">
-                <th class="row-head"><UiTypeBadge :type="a" small /></th>
-                <td
-                  v-for="d in TYPE_ORDER"
-                  :key="d"
-                  :class="cellClass(mult(a, [d]))"
-                  :title="cellTitle(a, d)"
-                >
-                  {{ cellText(mult(a, [d])) }}
+              <tr v-for="ty in TYPE_ORDER" :key="ty">
+                <td><UiTypeBadge :type="ty" small /></td>
+                <td>
+                  <div class="immune">
+                    <UiTypeBadge v-for="a in immuneTo(ty)" :key="a" :type="a" small />
+                    <span v-if="!immuneTo(ty).length" class="muted">—</span>
+                  </div>
+                </td>
+                <td>
+                  <ul v-if="items('guide.typeNote.' + ty).length" class="note-list">
+                    <li v-for="(line, i) in items('guide.typeNote.' + ty)" :key="i">{{ line }}</li>
+                  </ul>
+                  <span v-else class="muted">—</span>
+                </td>
+                <td>
+                  <ul v-if="items('guide.typeField.' + ty).length" class="note-list">
+                    <li v-for="(line, i) in items('guide.typeField.' + ty)" :key="i">{{ line }}</li>
+                  </ul>
+                  <span v-else class="muted">—</span>
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
-
-        <h3 class="sub-title">{{ t('guide.calcTitle') }}</h3>
-        <p class="hint muted">{{ t('guide.calcHint') }}</p>
-        <div class="pick">
-          <button
-            v-for="ty in TYPE_ORDER"
-            :key="ty"
-            type="button"
-            class="pick-btn"
-            :class="{ on: picked.includes(ty) }"
-            :aria-pressed="picked.includes(ty)"
-            @click="togglePick(ty)"
-          >
-            <UiTypeBadge :type="ty" small />
-          </button>
-        </div>
-        <dl v-if="picked.length" class="calc">
-          <div v-for="g in calcGroups" :key="g.m">
-            <dt :class="cellClass(g.m)">×{{ fmt(g.m) }}</dt>
-            <dd>
-              <template v-if="g.types.length">
-                <UiTypeBadge v-for="ty in g.types" :key="ty" :type="ty" small />
-              </template>
-              <span v-else class="muted">{{ t('guide.calcNone') }}</span>
-            </dd>
-          </div>
-        </dl>
-      </template>
-
-      <!-- 타입별 특징: 무효(상성표에서) + 문구 + 날씨·필드·공간 효과 -->
-      <div v-if="id === 'typeNotes' && chart" class="perf-scroll">
-        <table class="perf-table notes">
-          <thead>
-            <tr>
-              <th>{{ t('guide.typeCol') }}</th>
-              <th>{{ t('guide.immuneCol') }}</th>
-              <th>{{ t('guide.notesCol') }}</th>
-              <th>{{ t('guide.fieldCol') }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="ty in TYPE_ORDER" :key="ty">
-              <td><UiTypeBadge :type="ty" small /></td>
-              <td>
-                <div class="immune">
-                  <UiTypeBadge v-for="a in immuneTo(ty)" :key="a" :type="a" small />
-                  <span v-if="!immuneTo(ty).length" class="muted">—</span>
-                </div>
-              </td>
-              <td>
-                <ul v-if="items('guide.typeNote.' + ty).length" class="note-list">
-                  <li v-for="(line, i) in items('guide.typeNote.' + ty)" :key="i">{{ line }}</li>
-                </ul>
-                <span v-else class="muted">—</span>
-              </td>
-              <td>
-                <ul v-if="items('guide.typeField.' + ty).length" class="note-list">
-                  <li v-for="(line, i) in items('guide.typeField.' + ty)" :key="i">{{ line }}</li>
-                </ul>
-                <span v-else class="muted">—</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
+      </section>
+    </div>
   </div>
 </template>
 
@@ -129,7 +160,7 @@
 import { TYPE_ORDER } from '~/utils/typeCheck'
 import type { TypeId } from '~/utils/types'
 
-const { t, tm, rt, locale } = useI18n()
+const { t, tm, rt } = useI18n()
 const gd = useGameData()
 
 const SECTIONS = [
@@ -155,11 +186,19 @@ const items = (key: string): string[] => {
   return Array.isArray(v) ? v.map((m) => rt(m)) : []
 }
 
-// 목차: 헤더 높이만큼 띄워서 이동
-const jump = (id: string) => {
-  const el = document.getElementById(id)
-  if (!el) return
-  window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 80, behavior: 'smooth' })
+// ── 좌측 탭: 한 번에 한 섹션만, URL 해시(#types)로 링크 가능 ─────────────
+type SectionId = (typeof SECTIONS)[number]
+const route = useRoute()
+const router = useRouter()
+const isSection = (v: string): v is SectionId => (SECTIONS as readonly string[]).includes(v)
+const current = computed<SectionId>(() => {
+  const h = route.hash.slice(1)
+  return isSection(h) ? h : SECTIONS[0]
+})
+const select = (id: SectionId) => {
+  if (id === current.value) return
+  router.replace({ hash: '#' + id })
+  window.scrollTo({ top: 0 })
 }
 
 // ── 상성 ─────────────
@@ -177,7 +216,7 @@ const cellTitle = (a: TypeId, d: TypeId) =>
     m: mult(a, [d]),
   })
 // 열 머리: 한/일은 앞 2글자, 영어는 3글자
-const short = (ty: TypeId) => gd.name('types', ty).slice(0, locale.value === 'en' ? 3 : 2)
+const short = (ty: TypeId) => t(`guide.chartShort.${ty}`)
 
 // 타입 조합 (최대 2개, 세 번째를 고르면 가장 먼저 고른 것을 뺌)
 const picked = ref<TypeId[]>([])
@@ -198,7 +237,7 @@ const immuneTo = (ty: TypeId) => TYPE_ORDER.filter((a) => mult(a, [ty]) === 0)
 
 <style scoped>
 .doc {
-  max-width: 1000px;
+  max-width: 1180px;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -206,16 +245,53 @@ const immuneTo = (ty: TypeId) => TYPE_ORDER.filter((a) => mult(a, [ty]) === 0)
 .page-head {
   margin-bottom: 0;
 }
+.layout {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
 .toc {
+  position: sticky;
+  top: 80px;
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
 }
-.toc .chip {
-  text-decoration: none;
+.toc-tab {
+  appearance: none;
+  border: 0;
+  background: none;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  padding: 7px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
 }
-section {
-  scroll-margin-top: 80px;
+.toc-tab:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.toc-tab.active {
+  background: var(--accent-2);
+  color: var(--on-accent-2);
+  font-weight: 700;
+}
+/* 좁은 화면: 탭을 위쪽 가로 스크롤 줄로 */
+@media (max-width: 700px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .toc {
+    position: static;
+    flex-direction: row;
+    overflow-x: auto;
+  }
 }
 ul {
   margin: 0;
@@ -236,8 +312,14 @@ ul {
   overflow-x: auto;
 }
 .chart {
+  width: 100%;
+  min-width: 700px;
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: 12px;
+}
+.chart thead th:first-child {
+  width: 76px;
 }
 .chart th,
 .chart td {
@@ -245,8 +327,7 @@ ul {
   padding: 0;
 }
 .chart td {
-  width: 30px;
-  height: 24px;
+  height: 26px;
   text-align: center;
   font-weight: 800;
 }
@@ -261,11 +342,12 @@ ul {
   display: block;
   padding: 2px 0;
   color: #fff;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   text-align: center;
   white-space: nowrap;
   overflow: hidden;
+  text-overflow: clip;
 }
 .m4,
 .m2 {
