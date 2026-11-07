@@ -185,7 +185,13 @@
       </div>
     </section>
 
-    <DexMoves :r="r" :base-id="baseId" :ranks="cfg.ranks" :usage="usage?.moveUsage ?? null" />
+    <DexMoves
+      :r="r"
+      :base-id="baseId"
+      :ranks="cfg.ranks"
+      :usage="usage?.moveUsage ?? null"
+      @move="emit('move', $event)"
+    />
   </div>
 </template>
 
@@ -199,6 +205,7 @@ import { applyBoost, effectiveSpeed, SP_PER_STAT_MAX, SP_TOTAL_MAX, spTotal } fr
 import { emptySlot, STAT_KEYS, type StatKey, type StatTable, type TeamSlot } from '~/utils/types'
 
 const props = defineProps<{ mon: PerfMon }>()
+const emit = defineEmits<{ move: [id: string] }>()
 const { t } = useI18n()
 const gd = useGameData()
 const reg = useRegulation()

@@ -862,7 +862,91 @@
     "onlyUsed": "統計にある技のみ",
     "usageCol": "使用率",
     "neverMiss": "必中",
-    "movesNote": "命中: 命中ランク・ふくがん・はりきり・こうかくレンズを反映 (相手の回避補正なし)。決定力: 威力 × 攻撃(特攻) × タイプ一致 × 特性 × 道具 (攻撃・特攻ランク反映、連続技は期待値、変化技は —)。使用率: このポケモンを使ったチームのうちその技を入れた割合 (0.5%以上)"
+    "movesNote": "命中: 命中ランク・ふくがん・はりきり・こうかくレンズを反映 (相手の回避補正なし)。決定力: 威力 × 攻撃(特攻) × タイプ一致 × 特性 × 道具 (攻撃・特攻ランク反映、連続技は期待値、変化技は —)。使用率: このポケモンを使ったチームのうちその技を入れた割合 (0.5%以上)",
+    "tab": {
+      "pokemon": "ポケモン",
+      "moves": "わざ"
+    },
+    "mv": {
+      "sub": "{reg} で使えるポケモンが覚えるわざ {n}個",
+      "search": "わざを検索",
+      "allTypes": "タイプ",
+      "allCats": "分類",
+      "category": "分類",
+      "target": "対象",
+      "targets": {
+        "normal": "1匹",
+        "any": "1匹 (離れていても)",
+        "randomNormal": "ランダムな相手1匹",
+        "self": "自分",
+        "adjacentAlly": "味方1匹",
+        "adjacentAllyOrSelf": "自分か味方1匹",
+        "allAdjacentFoes": "相手全体 (ダブル0.75倍)",
+        "allAdjacent": "自分以外全員 (ダブル0.75倍)",
+        "allySide": "味方の場",
+        "foeSide": "相手の場",
+        "all": "場全体",
+        "allies": "自分と味方",
+        "allyTeam": "味方のポケモン全員",
+        "scripted": "直前に攻撃してきた相手"
+      },
+      "effects": "追加効果",
+      "noEffects": "なし (特殊な効果は説明を参照)",
+      "flags": "性質",
+      "related": "{hint} — {names}",
+      "flag": {
+        "contact": "接触",
+        "bullet": "弾",
+        "slicing": "切る",
+        "bypasssub": "みがわり貫通",
+        "wind": "風",
+        "sound": "音",
+        "reflectable": "跳ね返し可",
+        "pulse": "波動",
+        "bite": "かみつき",
+        "charge": "ため",
+        "punch": "パンチ",
+        "powder": "粉",
+        "futuremove": "時間差"
+      },
+      "flagHint": {
+        "contact": "相手に直接触れるわざ",
+        "bullet": "弾・爆弾のわざ",
+        "slicing": "切るわざ",
+        "bypasssub": "みがわりを無視して当たる",
+        "wind": "風のわざ",
+        "sound": "音のわざ (みがわり貫通)",
+        "reflectable": "跳ね返される変化わざ",
+        "pulse": "波動のわざ",
+        "bite": "かみつくわざ",
+        "charge": "1ターンためて次のターンに攻撃",
+        "punch": "パンチのわざ",
+        "powder": "粉のわざ (くさタイプには無効)",
+        "futuremove": "2ターン後に攻撃"
+      },
+      "learners": "覚えるポケモン",
+      "noLearners": "使えるポケモンの中に覚えるポケモンはいない",
+      "learnersNote": "% = そのポケモンを使ったチームのうちこのわざを入れた割合 ({reg} · {month} 統計、0.5% 以上)。割合順、なければ図鑑番号順。メガシンカは元の姿と同じ",
+      "fx": {
+        "chance": "{text} ({p}%)",
+        "self": "自分: {text}",
+        "target": "相手: {text}",
+        "hits": "{n}回連続攻撃",
+        "hitsRange": "{min}~{max}回連続攻撃",
+        "recoil": "与えたダメージの{p}%の反動",
+        "drain": "与えたダメージの{p}%回復",
+        "heal": "最大HPの{p}%回復",
+        "crit": "急所ランク+{n}",
+        "recharge": "次のターン反動で動けない",
+        "weather": "天気: {name}",
+        "side": {
+          "self": "味方の場に{name}",
+          "foe": "相手の場に{name}"
+        },
+        "maxStack": "{text} (最大{n}回)"
+      },
+      "count": "{n}匹"
+    }
   },
   "vs": {
     "title": "VS 計算機",

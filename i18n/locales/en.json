@@ -862,7 +862,91 @@
     "onlyUsed": "Only moves in usage stats",
     "usageCol": "Usage",
     "neverMiss": "Never misses",
-    "movesNote": "Accuracy: accuracy stage, Compound Eyes, Hustle and Wide Lens applied (no target evasion). Attack index: power × Atk (SpA) × STAB × ability × item (Atk/SpA stages applied, multi-hit moves use the expected value, status moves —). Usage: share of teams using this Pokémon that ran the move (0.5%+)"
+    "movesNote": "Accuracy: accuracy stage, Compound Eyes, Hustle and Wide Lens applied (no target evasion). Attack index: power × Atk (SpA) × STAB × ability × item (Atk/SpA stages applied, multi-hit moves use the expected value, status moves —). Usage: share of teams using this Pokémon that ran the move (0.5%+)",
+    "tab": {
+      "pokemon": "Pokémon",
+      "moves": "Moves"
+    },
+    "mv": {
+      "sub": "{n} moves learned by Pokémon eligible in {reg}",
+      "search": "Search moves",
+      "allTypes": "Type",
+      "allCats": "Category",
+      "category": "Category",
+      "target": "Target",
+      "targets": {
+        "normal": "One target",
+        "any": "One target (any distance)",
+        "randomNormal": "One random foe",
+        "self": "User",
+        "adjacentAlly": "One ally",
+        "adjacentAllyOrSelf": "User or one ally",
+        "allAdjacentFoes": "All foes (0.75× in Doubles)",
+        "allAdjacent": "All others (0.75× in Doubles)",
+        "allySide": "User's side",
+        "foeSide": "Foe's side",
+        "all": "Entire field",
+        "allies": "User and allies",
+        "allyTeam": "All of user's team",
+        "scripted": "Last attacker"
+      },
+      "effects": "Effects",
+      "noEffects": "None (see description for special effects)",
+      "flags": "Properties",
+      "related": "{hint} — {names}",
+      "flag": {
+        "contact": "Contact",
+        "bullet": "Ball/Bomb",
+        "slicing": "Slicing",
+        "bypasssub": "Bypasses Substitute",
+        "wind": "Wind",
+        "sound": "Sound",
+        "reflectable": "Reflectable",
+        "pulse": "Pulse",
+        "bite": "Bite",
+        "charge": "Charge",
+        "punch": "Punch",
+        "powder": "Powder",
+        "futuremove": "Delayed"
+      },
+      "flagHint": {
+        "contact": "Makes contact with the target",
+        "bullet": "Ball and bomb move",
+        "slicing": "Slicing move",
+        "bypasssub": "Hits through Substitute",
+        "wind": "Wind move",
+        "sound": "Sound move (bypasses Substitute)",
+        "reflectable": "Status move that can be bounced back",
+        "pulse": "Pulse and aura move",
+        "bite": "Biting move",
+        "charge": "Charges on the first turn, attacks on the next",
+        "punch": "Punching move",
+        "powder": "Powder move (Grass types are immune)",
+        "futuremove": "Hits two turns later"
+      },
+      "learners": "Learned by",
+      "noLearners": "No eligible Pokémon learns this move",
+      "learnersNote": "% = share of teams using that Pokémon that run this move ({reg} · {month} stats, 0.5% or more). Sorted by share, then Dex number. Mega Evolutions learn the same moves as the base form",
+      "fx": {
+        "chance": "{text} ({p}%)",
+        "self": "User {text}",
+        "target": "Target {text}",
+        "hits": "Hits {n} times",
+        "hitsRange": "Hits {min}–{max} times",
+        "recoil": "Recoil: {p}% of damage dealt",
+        "drain": "Restores {p}% of damage dealt",
+        "heal": "Restores {p}% of max HP",
+        "crit": "Critical-hit stage +{n}",
+        "recharge": "Must recharge next turn",
+        "weather": "Weather: {name}",
+        "side": {
+          "self": "Sets {name} on user's side",
+          "foe": "Sets {name} on foe's side"
+        },
+        "maxStack": "{text} (up to {n} layers)"
+      },
+      "count": "{n}"
+    }
   },
   "vs": {
     "title": "VS Calculator",

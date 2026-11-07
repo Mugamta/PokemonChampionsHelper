@@ -51,7 +51,16 @@
         </thead>
         <tbody>
           <tr v-for="row in rows" :key="row.id">
-            <td class="mv" :title="gd.text('moves', row.id)">{{ gd.name('moves', row.id) }}</td>
+            <td class="mv">
+              <button
+                type="button"
+                class="mv-link"
+                :title="gd.text('moves', row.id)"
+                @click="emit('move', row.id)"
+              >
+                {{ gd.name('moves', row.id) }}
+              </button>
+            </td>
             <td><UiTypeBadge :type="row.type" small /></td>
             <td><UiCategoryBadge :category="row.category" /></td>
             <td class="num">{{ row.power || '—' }}</td>
@@ -88,6 +97,7 @@ const props = defineProps<{
   ranks: { atk: number; spa: number; accuracy: number }
   usage: Record<string, number> | null
 }>()
+const emit = defineEmits<{ move: [id: string] }>()
 const { t } = useI18n()
 const gd = useGameData()
 const calc = useTeamCalc()
@@ -182,6 +192,20 @@ const rows = computed(() => {
 .mv {
   font-weight: 700;
   white-space: nowrap;
+}
+.mv-link {
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.mv-link:hover {
+  color: var(--accent-2);
+  text-decoration: underline;
 }
 .strong {
   font-weight: 800;

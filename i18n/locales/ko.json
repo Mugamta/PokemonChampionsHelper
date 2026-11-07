@@ -862,7 +862,91 @@
     "onlyUsed": "통계에 있는 기술만",
     "usageCol": "사용률",
     "neverMiss": "필중",
-    "movesNote": "명중: 명중 랭크·복안·의욕·광각렌즈 반영 (상대 회피 보정 없음). 결정력: 위력 × 공격(특공) × 자속 × 특성 × 도구 (공격·특공 랭크 반영, 연속기는 기댓값, 변화기는 —). 사용률: 이 포켓몬을 쓴 팀 중 그 기술을 넣은 비율 (0.5% 이상)"
+    "movesNote": "명중: 명중 랭크·복안·의욕·광각렌즈 반영 (상대 회피 보정 없음). 결정력: 위력 × 공격(특공) × 자속 × 특성 × 도구 (공격·특공 랭크 반영, 연속기는 기댓값, 변화기는 —). 사용률: 이 포켓몬을 쓴 팀 중 그 기술을 넣은 비율 (0.5% 이상)",
+    "tab": {
+      "pokemon": "포켓몬",
+      "moves": "기술"
+    },
+    "mv": {
+      "sub": "{reg} 출전 가능 포켓몬이 배우는 기술 {n}개",
+      "search": "기술 검색",
+      "allTypes": "타입",
+      "allCats": "분류",
+      "category": "분류",
+      "target": "대상",
+      "targets": {
+        "normal": "대상 1마리",
+        "any": "대상 1마리 (떨어져 있어도)",
+        "randomNormal": "무작위 상대 1마리",
+        "self": "자신",
+        "adjacentAlly": "아군 1마리",
+        "adjacentAllyOrSelf": "자신 또는 아군 1마리",
+        "allAdjacentFoes": "상대 전체 (더블 0.75배)",
+        "allAdjacent": "자신 외 전체 (더블 0.75배)",
+        "allySide": "내 쪽 필드",
+        "foeSide": "상대 쪽 필드",
+        "all": "필드 전체",
+        "allies": "자신과 아군",
+        "allyTeam": "내 쪽 포켓몬 전부",
+        "scripted": "직전에 공격한 상대"
+      },
+      "effects": "부가효과",
+      "noEffects": "없음 (특수한 효과는 설명 참고)",
+      "flags": "성질",
+      "related": "{hint} — {names}",
+      "flag": {
+        "contact": "접촉",
+        "bullet": "탄환",
+        "slicing": "베기",
+        "bypasssub": "대타 무시",
+        "wind": "바람",
+        "sound": "소리",
+        "reflectable": "반사 가능",
+        "pulse": "파동",
+        "bite": "물기",
+        "charge": "모으기",
+        "punch": "펀치",
+        "powder": "가루",
+        "futuremove": "시간차"
+      },
+      "flagHint": {
+        "contact": "상대에게 닿는 기술",
+        "bullet": "탄환·폭탄 기술",
+        "slicing": "베는 기술",
+        "bypasssub": "대타를 무시하고 맞힘",
+        "wind": "바람 기술",
+        "sound": "소리 기술 (대타 무시)",
+        "reflectable": "되돌려 받을 수 있는 변화기",
+        "pulse": "파동 기술",
+        "bite": "무는 기술",
+        "charge": "1턴 모은 뒤 다음 턴에 공격",
+        "punch": "펀치 기술",
+        "powder": "가루 기술 (풀 타입에는 무효)",
+        "futuremove": "2턴 뒤에 공격"
+      },
+      "learners": "배우는 포켓몬",
+      "noLearners": "출전 가능한 포켓몬 중 배우는 포켓몬 없음",
+      "learnersNote": "% = 그 포켓몬을 쓴 팀 중 이 기술을 넣은 비율 ({reg} · {month} 통계, 0.5% 이상). 비율 순, 없으면 도감 번호 순. 메가진화는 원종과 같음",
+      "fx": {
+        "chance": "{text} ({p}%)",
+        "self": "자신 {text}",
+        "target": "상대 {text}",
+        "hits": "{n}회 연속 공격",
+        "hitsRange": "{min}~{max}회 연속 공격",
+        "recoil": "준 데미지의 {p}% 반동",
+        "drain": "준 데미지의 {p}% 회복",
+        "heal": "최대 HP의 {p}% 회복",
+        "crit": "급소 랭크 +{n}",
+        "recharge": "다음 턴 반동으로 움직일 수 없음",
+        "weather": "날씨: {name}",
+        "side": {
+          "self": "내 쪽에 {name}",
+          "foe": "상대 쪽에 {name}"
+        },
+        "maxStack": "{text} (최대 {n}번)"
+      },
+      "count": "{n}종"
+    }
   },
   "vs": {
     "title": "VS 계산기",
