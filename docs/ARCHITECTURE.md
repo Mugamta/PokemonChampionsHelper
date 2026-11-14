@@ -19,6 +19,7 @@ components/
                        RecommendLog = 추천과 실제 행동 비교, RecommendWeights = 가중치 입력(미리 정한 값),
                        RecommendOppChips = 상대 예상 선택지 칩(비중 조정), PickRecommend = 선출 화면 선출·선두 추천)
   perf/                포켓몬 성능표: BulkTable / PowerTable / SpeedTable, MonCell(포켓몬 칸)
+  usage/               사용률 통계 화면: MonDetail(고른 포켓몬의 기술·도구·특성·배분·함께 쓴 포켓몬·월별 순위 추이)
   vs/                  VS 화면: MonPanel(한쪽 포켓몬 입력), ResultCard(공격 → 방어 결과)
 composables/           상태 + 계산 연결 (아래 표)
   battle/              useBattle 의 층별 구현 (index.ts 가 없어 자동 import 대상 아님, 아래 "배틀 상태")
@@ -59,6 +60,7 @@ Nuxt 컴포넌트 이름은 폴더 접두사가 붙는다: `components/team/Slot
 | `/single`, `/double` | BattleEntryView(mode) | 왼쪽 내 파티(눌러서 선출), 가운데 데미지 표(방향 탭), 오른쪽 상대 6마리 입력(compact SlotEditor, 포켓몬을 고르면 자동 배치 + "자동 배치" 버튼) |
 | `/single/battle`, `/double/battle` | BattleView(mode) | 필드 포켓몬 패널, 필드 상태, 행동 입력·턴 적용, 예상 흐름, 스피드 구간, 배분 추정, 데미지 표 2종 |
 | `/stats` | pages/stats.vue → PerfBulkTable / PerfPowerTable / PerfSpeedTable | 포켓몬 성능표. 검색, 탭은 `?tab=bulk|power|speed` |
+| `/usage` | pages/usage.vue → UsageMonDetail | 사용률 통계 (헤더 "통계"). Smogon 월별 통계를 **시즌(= 레귤레이션, 달 합산)별 / 월별** 순위표로: 순위·순위 변동(시즌 = 직전 시즌, 월 = 같은 레귤레이션의 직전 달, 첫 달은 직전 시즌)·채용률·사용 수, 검색. 싱글/더블은 `useUsageKind` 공유. `?mode=season|month&reg=&period=&id=`, 기본 = 현재 레귤레이션 시즌 / 가장 최근 달. 데이터 `useUsageStats` (`public/data/stats/`), 계산 utils/usageStats.ts |
 | `/vs` | pages/vs.vue → VsMonPanel ×2 / VsResultCard ×2 | 1:1 계산기. 양쪽 포켓몬·특성(그 포켓몬 것만)·도구·성격·능력P·랭크·HP·상태이상·진영 상태 + 기술 1개(배우는 공격 기술만) → 서로에게 주는 데미지·난수·KO·행동 순서. 공용 날씨·필드·공간·싱글/더블. 넓은 화면은 3열, 좁으면 결과 → 포켓몬 → 공용 상태 순 |
 | `/dex` | pages/dex.vue → DexDetail / DexMoves | 포켓몬 도감. 목록은 성능표와 같음(usePerfList), `?id=`. 종족값·실능치(배분·성격·랭크)·스피드(도구)·내구·타입별 실질 내구(반감열매·특성), 배우는 기술 전부의 위력·명중·PP·우선도·결정력·사용률. 처음엔 통계 배분. 계산 utils/dex.ts. 오른쪽 위 **기술 탭**(`?tab=moves&move=`, DexMoveDetail): 출전 가능 포켓몬이 배우는 기술 목록(이름 검색·타입·분류 거르기) → 위력·명중·PP·우선도·대상·성질(접촉 등, 툴팁에 반응 특성·도구)·설명·부가효과·배우는 포켓몬(사용률 통계의 채용률 순, 누르면 포켓몬 탭). 포켓몬 기술표의 기술 이름을 누르면 기술 탭으로. 문구 utils/moveInfo.ts |
 | `/guide` | pages/guide.vue | 도움말(인게임 규칙): 능력치 기초·자속·타입 상성(상성표·타입 조합 배율은 `types.chart` 로 그림)·타입별 특징(무효 타입은 상성표에서, 문구 `guide.typeNote.<type>`, 날씨·필드·공간 효과 `guide.typeField.<type>`)·상태이상(챔피언스 수치)·날씨·필드·급소·랭크·행동 순서·데미지·더블·메가진화. 문구는 i18n `guide.sec.<id>.items` 배열(`tm`/`rt`) |
@@ -73,6 +75,7 @@ Nuxt 컴포넌트 이름은 폴더 접두사가 붙는다: `components/team/Slot
 | `useTeam(side)` | `'mine' | 'opp'` 6슬롯 (`TeamSlot`), 완성 여부 `isComplete`(6마리·기술 1개 이상·내 파티는 성별까지, 성별 미선택 슬롯 `missingGender`), 메가 미리보기 토글(`megaOn`), 배틀 폼 토글(`altOn`, null = 기본값). localStorage `pch-team-mine-v2` / `pch-team-opp-v2` 자동 저장. `migrateLegacyTeam()` 은 예전 한글 저장분 이전 |
 | `useEntry(mode)` | 선출 순서(내 파티 인덱스 배열), 싱글 3 / 더블 4 |
 | `useTeamCalc()` | 슬롯 → `ResolvedSlot`(메가 폼·실능치·특성), `combatant()`, 데미지 표 칸 `cell()`, 결정력 `power()`, 연속기 타수 `hits()` |
+| `useUsageStats()` | 통계 화면 전용: `public/data/stats/` 의 `index()` / `trend(kind)` / `table(kind, meta)` — 반응형 조회(없으면 받기 시작하고 undefined, 실패 null), 같은 파일 중복 요청 없음 |
 | `useUsageKind()` | 사용률 통계 종류(싱글/더블) 선택, localStorage `pch_usage_kind`. 첫 화면·도감·파티 화면이 공유 (`TeamUsageKindToggle`) |
 | `useAutoSet(kind?)` | 상대 포켓몬 자동 배치: 현재 레귤레이션의 싱글/더블 사용률 통계(`public/data/usage/`, `usageSet`, kind 생략 시 `useUsageKind`)가 있으면 우선, 없으면 `utils/autoSet.ts` 규칙. 슬롯에 적용(`apply`, 같은 파티 도구 중복 피함). 표는 따로 받으므로 자동 배치 전에 `ready()` 를 기다린다 |
 | `useVs()` | VS 화면 상태(localStorage `pch-vs-v1` 자동 저장), 포켓몬 변경·좌우 교체·초기화, 양방향 결과 `leftToRight` / `rightToLeft`, 행동 순서 `speed`. 상태 형식·필드 변환·순서 계산은 `utils/vs.ts` |

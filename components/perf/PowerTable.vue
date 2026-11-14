@@ -43,6 +43,21 @@
         <span class="spacer" />
         <span class="muted small">{{ t('perf.count', { n: rows.length }) }}</span>
       </div>
+      <!-- 우선도 조건: 맞는 기술 중에서만 최고 결정력을 고름 (특성 반영 우선도) -->
+      <div class="chip-row">
+        <span class="section-label">{{ t('perf.priorityLabel') }}</span>
+        <button
+          v-for="f in PRIORITY_FILTERS"
+          :key="f"
+          type="button"
+          class="chip"
+          :class="{ active: prio === f }"
+          :aria-pressed="prio === f"
+          @click="prio = f"
+        >
+          {{ t('perf.priority.' + f) }}
+        </button>
+      </div>
       <!-- 페널티별로 포함 여부: 끄면 그 페널티가 있는 기술은 최고 기술로 고르지 않음 -->
       <div class="chip-row">
         <span class="section-label">{{ t('perf.penaltyLabel') }}</span>
@@ -100,6 +115,13 @@
                   <span v-if="e.ability" class="tag ab" :title="gd.text('abilities', e.ability)">{{
                     gd.name('abilities', e.ability)
                   }}</span>
+                  <span
+                    v-if="e.priority"
+                    class="tag prio"
+                    :class="{ minus: e.priority < 0 }"
+                    :title="t('perf.priorityHint')"
+                    >{{ t('perf.priorityTag', { n: signed(e.priority) }) }}</span
+                  >
                   <span v-if="e.stat === 'def'" class="tag">{{ t('perf.usesDef') }}</span>
                   <span v-if="hitsText(e)" class="tag">{{ hitsText(e) }}</span>
                   <span v-if="e.alwaysCrit" class="tag">{{ t('perf.crit') }}</span>
@@ -148,9 +170,11 @@ import {
   powerCandidates,
   powerRows,
   PENALTIES,
+  PRIORITY_FILTERS,
   SP_CFGS,
   type Penalty,
   type PowerEntry,
+  type PriorityFilter,
 } from '~/utils/perfTable'
 import { TYPE_ORDER } from '~/utils/typeCheck'
 import type { Move, TypeId } from '~/utils/types'
@@ -173,12 +197,14 @@ const togglePen = (p: Penalty, on: boolean) => {
   allowed.value = next
 }
 const setAll = (on: boolean) => (allowed.value = new Set(on ? PENALTIES : []))
+const prio = ref<PriorityFilter>('all') // 우선도 조건
+const signed = (n: number) => (n > 0 ? `+${n}` : String(n))
 const dice = ref(false) // 속임수주사위를 지녔을 때 (아직 챔피언스 도구 목록에 없으면 "미출시")
 const diceReleased = computed(() => !!gd.data.value?.items.loadeddice)
 
 const rowsOf = (m: PerfMon, c: (typeof CATS)[number]) => {
   const item = dice.value ? 'loadeddice' : ''
-  const key = `${m.id}|${c}|${item}|${rank.value}|${[...allowed.value].sort().join()}`
+  const key = `${m.id}|${c}|${item}|${rank.value}|${prio.value}|${[...allowed.value].sort().join()}`
   let rows = rowCache.get(key)
   if (!rows) {
     const ckey = `${m.id}|${item}|${rank.value}`
@@ -188,7 +214,7 @@ const rowsOf = (m: PerfMon, c: (typeof CATS)[number]) => {
       cands = powerCandidates(m.atkForm, moves, item, rank.value)
       candCache.set(ckey, cands)
     }
-    rows = powerRows(m.atkForm, cands, c === 'all' ? undefined : c, allowed.value)
+    rows = powerRows(m.atkForm, cands, c === 'all' ? undefined : c, allowed.value, prio.value)
     rowCache.set(key, rows)
   }
   return rows
@@ -304,5 +330,11 @@ td.num .line {
 }
 .tag.pen {
   color: var(--warn);
+}
+.tag.prio {
+  color: var(--good);
+}
+.tag.prio.minus {
+  color: var(--bad);
 }
 </style>

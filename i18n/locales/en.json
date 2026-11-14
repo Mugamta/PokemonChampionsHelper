@@ -16,6 +16,7 @@
     "about": "About",
     "contact": "Contact",
     "stats": "Stats",
+    "usage": "Usage",
     "vs": "VS",
     "dex": "Pokédex",
     "patch": "Patch Notes",
@@ -811,6 +812,17 @@
     "unreleased": "(not in game yet)",
     "loadedDiceHint": "Calculated as if holding Loaded Dice: 2–5 hit moves hit 4 or 5 times (50% each), Population Bomb 4–10 times, Triple Axel all 3 hits. Not applied to Mega Evolutions (they hold a Mega Stone). Acrobatics loses its no-item doubling.",
     "penaltyLabel": "Moves to pick from",
+    "priorityLabel": "Priority",
+    "priorityTag": "Priority {n}",
+    "priorityHint": "Priority including abilities (Gale Wings: +1 to Flying moves at full HP, Triage: +3 to healing moves)",
+    "priority": {
+      "all": "All",
+      "gte1": "+1 or more",
+      "gte2": "+2 or more",
+      "gte3": "+3",
+      "zero": "0",
+      "neg": "Negative"
+    },
     "penAll": "Include all",
     "penNone": "Exclude all"
   },
@@ -1222,5 +1234,39 @@
       "steel": ["Takes no sandstorm damage."],
       "fairy": []
     }
+  },
+  "usageStats": {
+    "title": "Usage Stats",
+    "sub": "Smogon monthly stats (Pokémon Showdown Champions formats, weighted for 1500+ rating) organized by season (regulation) and month. Not the in-game Ranked Battle stats",
+    "none": "No usage stats available",
+    "mode": {
+      "season": "By season",
+      "month": "By month"
+    },
+    "period": "Period",
+    "season": "{reg} season",
+    "month": "{month} · {reg}",
+    "battles": "{n} battles",
+    "count": "{n} Pokémon",
+    "compare": "Rank change vs. {period}",
+    "noCompare": "No earlier period to compare",
+    "col": {
+      "rank": "Rank",
+      "change": "Δ",
+      "pokemon": "Pokémon",
+      "usage": "Usage",
+      "count": "Count"
+    },
+    "changeHint": "Rank change from the previous period (season: previous season; month: previous month, or the previous season for the first month)",
+    "usageHint": "Team usage: share of teams that include this Pokémon (rating-weighted)",
+    "new": "NEW",
+    "rank": "#{n}",
+    "toDex": "Open in Pokédex",
+    "moves": "Moves",
+    "items": "Items",
+    "abilities": "Abilities",
+    "spreads": "Spreads (nature · stat points)",
+    "teammates": "Teammates",
+    "trend": "Monthly rank trend"
   }
 }

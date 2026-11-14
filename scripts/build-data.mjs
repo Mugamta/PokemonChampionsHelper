@@ -998,6 +998,139 @@ try {
   warn.push(`사용률 통계 받기 실패 (기존 usage/ 유지): ${e.message}`)
 }
 
+// ── 6.6 시즌별·월별 사용률 정리 (통계 화면) ─────────────
+// 레귤레이션(= 시즌)마다 그 포맷의 모든 달 통계를 받아 달마다 + 시즌 합산(배틀 수 가중) 순위표를 만든다.
+// public/data/stats/index.json = { single | double: [{ reg, period: 'season' | 'YYYY-MM', battles, months }] } (시간 순),
+// stats/{kind}-{reg}-{period}.json = { reg, period, battles, months, pokemon: [{ id, count, usage, moves, items,
+//   abilities, spreads, teammates }] } (채용률 높은 순, 각 목록 = [[id, 비율 0~1], …] 상위 몇 개),
+// stats/trend-{kind}.json = { [폼 id]: (index 목록 순서대로 [순위, 채용률] | 0) }.
+// 사용률 표(usage/)와 따로 둔다 — 자동 배치는 가장 최근 달만 쓰고, 이쪽은 통계 화면에서만 필요할 때 받는다.
+// 받기 실패면 기존 stats/ 를 유지한다
+const STATS_MIN = 50 // 이 기간 사용 수가 이보다 적으면 순위표에서 뺌
+const STATS_TOP = { moves: 10, items: 6, abilities: 3, spreads: 3, teammates: 8 }
+const STAT_KEYS = ['Moves', 'Items', 'Abilities', 'Spreads', 'Teammates']
+function addMonth(acc, json) {
+  const battles = json.info['number of battles']
+  acc.battles += battles
+  for (const [name, d] of Object.entries(json.data)) {
+    const id = toID(name)
+    if (!pokemon[id]) continue
+    const a = (acc.mons[id] ??= { count: 0, usage: 0, weight: 0 })
+    a.count += d['Raw count']
+    a.usage += d.usage * battles // 팀 채용률 × 배틀 수 → 합산 후 전체 배틀 수로 나눔
+    a.weight += Object.values(d.Abilities || {}).reduce((x, y) => x + y, 0)
+    for (const k of STAT_KEYS)
+      for (const [x, v] of Object.entries(d[k] || {})) (a[k] ??= {})[x] = (a[k]?.[x] ?? 0) + v
+  }
+}
+function finishStats(acc, reg, period, months) {
+  const list = []
+  for (const [id, a] of Object.entries(acc.mons)) {
+    if (a.count < STATS_MIN || !a.weight) continue
+    const learn = new Set(pokemon[id].learnset ?? pokemon[pokemon[id].mega?.from]?.learnset ?? [])
+    const pick = (obj, ok, n, key = (k) => k) =>
+      top(obj, ok)
+        .slice(0, n)
+        .map((k) => [key(k), round4(obj[k] / a.weight)])
+    list.push({
+      id,
+      count: a.count,
+      usage: round4(a.usage / acc.battles),
+      moves: pick(a.Moves, (m) => !!moves[m] && learn.has(m), STATS_TOP.moves),
+      items: pick(a.Items, (i) => !!items[i], STATS_TOP.items),
+      abilities: pick(a.Abilities, (x) => !!abilities[x], STATS_TOP.abilities),
+      // 배분 = '성격 id:H/A/B/C/D/S' (능력 포인트 0~32, 합 66 이하만)
+      spreads: pick(
+        a.Spreads,
+        (k) => {
+          const [n, s] = k.split(':')
+          const sp = s?.split('/').map(Number) ?? []
+          return (
+            !!natureOut[toID(n)] &&
+            sp.length === 6 &&
+            sp.every((v) => v >= 0 && v <= 32) &&
+            sp.reduce((x, y) => x + y) <= 66
+          )
+        },
+        STATS_TOP.spreads,
+        (k) => `${toID(k.split(':')[0])}:${k.split(':')[1]}`,
+      ),
+      teammates: pick(
+        Object.fromEntries(Object.entries(a.Teammates || {}).map(([k, v]) => [toID(k), v])),
+        (k) => !!pokemon[k] && k !== id,
+        STATS_TOP.teammates,
+      ),
+    })
+  }
+  list.sort((x, y) => y.usage - x.usage || y.count - x.count)
+  return { reg, period, battles: acc.battles, months, pokemon: list }
+}
+async function buildUsageStats() {
+  const index = await cached(`${STATS}/`, 'smogon/index.html')
+  const first = regulations.map((r) => r.start.slice(0, 7).replace('/', '-')).sort()[0]
+  const months = [...index.matchAll(/href="(\d{4}-\d{2})\/"/g)]
+    .map((m) => m[1])
+    .filter((m) => m >= first)
+    .sort()
+  const FORMATS = {
+    single: (id) => new RegExp(`"(gen9championsbssreg${id})-${USAGE_CUTOFF}\\.json"`),
+    double: (id) => new RegExp(`"(gen9championsvgc\\d{4}reg${id})-${USAGE_CUTOFF}\\.json"`),
+  }
+  const lists = {}
+  for (const month of months)
+    lists[month] = await cached(`${STATS}/${month}/chaos/`, `smogon/${month}/chaos.html`)
+  const out = { single: [], double: [] }
+  const files = []
+  for (const [kind, re] of Object.entries(FORMATS)) {
+    const monthRows = []
+    for (const r of regulations) {
+      const season = { battles: 0, mons: {} }
+      const got = []
+      for (const month of months) {
+        const format = lists[month].match(re(toID(r.id)))?.[1]
+        if (!format) continue
+        const file = `${format}-${USAGE_CUTOFF}.json`
+        const json = JSON.parse(
+          await cached(`${STATS}/${month}/chaos/${file}`, `smogon/${month}/${file}`),
+        )
+        const one = { battles: 0, mons: {} }
+        addMonth(one, json)
+        addMonth(season, json)
+        got.push(month)
+        files.push([`${kind}-${r.id}-${month}`, finishStats(one, r.id, month, [month])])
+        monthRows.push({ reg: r.id, period: month, battles: one.battles, months: [month] })
+      }
+      if (!got.length) continue
+      files.push([`${kind}-${r.id}-season`, finishStats(season, r.id, 'season', got)])
+      out[kind].push({ reg: r.id, period: 'season', battles: season.battles, months: got })
+    }
+    // 달은 시간 순 (같은 달에 두 레귤레이션이 겹치면 레귤레이션 순)
+    const regOrder = regulations.map((r) => r.id)
+    monthRows.sort(
+      (a, b) =>
+        a.period.localeCompare(b.period) || regOrder.indexOf(a.reg) - regOrder.indexOf(b.reg),
+    )
+    out[kind].push(...monthRows)
+    // 추이: 포켓몬마다 index 목록 순서대로 [순위, 채용률] (그 기간 순위표에 없으면 0) → 순위 변동·상세 추이
+    const byName = new Map(files)
+    const trend = {}
+    out[kind].forEach((m, i) => {
+      byName.get(`${kind}-${m.reg}-${m.period}`).pokemon.forEach((p, rank) => {
+        const row = (trend[p.id] ??= new Array(out[kind].length).fill(0))
+        row[i] = [rank + 1, p.usage]
+      })
+    })
+    files.push([`trend-${kind}`, trend])
+  }
+  return { index: out, files }
+}
+let usageStats = null
+try {
+  usageStats = await buildUsageStats()
+} catch (e) {
+  warn.push(`시즌·월별 사용률 정리 받기 실패 (기존 stats/ 유지): ${e.message}`)
+}
+
 // ── 7. 출력 ─────────────
 fs.mkdirSync(OUT, { recursive: true })
 const write = (name, data) => fs.writeFileSync(path.join(OUT, name), JSON.stringify(data))
@@ -1021,6 +1154,13 @@ if (usage) {
     }
   write('usage/index.json', index)
   fs.rmSync(path.join(OUT, 'usage.json'), { force: true }) // 예전 한 파일 형식
+}
+if (usageStats) {
+  const dir = path.join(OUT, 'stats')
+  fs.rmSync(dir, { recursive: true, force: true })
+  fs.mkdirSync(dir, { recursive: true })
+  for (const [name, table] of usageStats.files) write(`stats/${name}.json`, table)
+  write('stats/index.json', usageStats.index)
 }
 for (const L of Object.keys(names)) {
   write(`names.${L}.json`, names[L])

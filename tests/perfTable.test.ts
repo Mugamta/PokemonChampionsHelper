@@ -10,6 +10,7 @@ import {
   PENALTIES,
   powerCandidates,
   powerRows,
+  priorityOk,
   speedRows,
 } from '../utils/perfTable'
 import type { Move, Pokemon } from '../utils/types'
@@ -176,6 +177,32 @@ describe('결정력', () => {
     // 전부 빼면 페널티 없는 기술만
     const none = powerRows(p, cands, undefined, new Set())
     expect(none.every((r) => r.best.penalties.length === 0 && r.alt == null)).toBe(true)
+  })
+  it('우선도 조건: 맞는 기술 중에서만 고름 (특성 반영)', () => {
+    expect(priorityOk('gte1', 2)).toBe(true)
+    expect(priorityOk('gte2', 1)).toBe(false)
+    expect(priorityOk('zero', 0)).toBe(true)
+    expect(priorityOk('neg', -6)).toBe(true)
+    expect(priorityOk('neg', 0)).toBe(false)
+    // 루카리오 +1 이상: 격투 = 기습권(+3, 조건부) + 차선 진공파(+1), 강철 = 불릿펀치
+    const lu = mon('lucario')
+    const rows = powerRows(lu, powerCandidates(lu, learn('lucario')), undefined, undefined, 'gte1')
+    const fighting = rows.find((r) => r.type === 'fighting')!
+    expect(fighting.best.move).toBe('upperhand')
+    expect(fighting.alt?.move).toBe('vacuumwave')
+    expect(rows.find((r) => r.type === 'steel')?.best.move).toBe('bulletpunch')
+    expect(rows.every((r) => r.best.priority >= 1 && (!r.alt || r.alt.priority >= 1))).toBe(true)
+    // 파이어로 질풍날개: 비행 기술이 +1 (특성 표시)
+    const tf = mon('talonflame')
+    const fly = powerRows(
+      tf,
+      powerCandidates(tf, learn('talonflame')),
+      undefined,
+      undefined,
+      'gte1',
+    ).find((r) => r.type === 'flying')!
+    expect(fly.best.ability).toBe('galewings')
+    expect(fly.best.priority).toBe(1)
   })
   it('공격 랭크 +2 = 결정력 2배', () => {
     const e0 = moveEntries(mon('garchomp'), [mv('earthquake')])[0]!

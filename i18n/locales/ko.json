@@ -16,6 +16,7 @@
     "about": "소개",
     "contact": "문의",
     "stats": "성능표",
+    "usage": "통계",
     "vs": "VS",
     "dex": "도감",
     "patch": "패치 내역",
@@ -811,6 +812,17 @@
     "unreleased": "(미출시)",
     "loadedDiceHint": "속임수주사위를 지녔을 때로 계산: 2~5회 기술은 4·5회 50%씩, 찍찍베기는 4~10회, 트리플악셀은 3회 모두 맞음. 메가진화는 메가스톤을 지니므로 해당 없음. 도구를 지녀서 애크러뱃 2배도 없음.",
     "penaltyLabel": "고를 기술",
+    "priorityLabel": "우선도",
+    "priorityTag": "우선도 {n}",
+    "priorityHint": "특성 반영 우선도 (질풍날개는 HP 가득일 때 비행 기술 +1, 힐링시프트는 회복 기술 +3)",
+    "priority": {
+      "all": "전체",
+      "gte1": "+1 이상",
+      "gte2": "+2 이상",
+      "gte3": "+3",
+      "zero": "0",
+      "neg": "마이너스"
+    },
     "penAll": "전부 포함",
     "penNone": "전부 빼기"
   },
@@ -1219,5 +1231,39 @@
       "steel": ["모래바람 데미지를 받지 않습니다."],
       "fairy": []
     }
+  },
+  "usageStats": {
+    "title": "사용률 통계",
+    "sub": "Smogon 월별 통계(Pokémon Showdown 챔피언스 포맷, 레이팅 1500 이상 가중)를 시즌(레귤레이션)별·월별로 정리. 게임 내 랭크배틀 통계가 아닙니다",
+    "none": "사용률 통계 자료가 없습니다",
+    "mode": {
+      "season": "시즌별",
+      "month": "월별"
+    },
+    "period": "기간",
+    "season": "{reg} 시즌",
+    "month": "{month} · {reg}",
+    "battles": "{n}배틀",
+    "count": "{n}마리",
+    "compare": "순위 변동 비교: {period}",
+    "noCompare": "비교할 이전 기간 없음",
+    "col": {
+      "rank": "순위",
+      "change": "변동",
+      "pokemon": "포켓몬",
+      "usage": "채용률",
+      "count": "사용 수"
+    },
+    "changeHint": "이전 기간(시즌별 = 직전 시즌, 월별 = 직전 달, 시즌 첫 달은 직전 시즌) 대비 순위 변동",
+    "usageHint": "팀 채용률: 전체 파티 중 이 포켓몬을 넣은 파티의 비율 (레이팅 가중)",
+    "new": "NEW",
+    "rank": "{n}위",
+    "toDex": "도감에서 보기",
+    "moves": "기술",
+    "items": "도구",
+    "abilities": "특성",
+    "spreads": "배분 (성격 · 능력 포인트)",
+    "teammates": "함께 쓴 포켓몬",
+    "trend": "월별 순위 추이"
   }
 }

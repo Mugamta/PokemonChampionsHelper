@@ -10,6 +10,7 @@
 import { effectiveMoveType, hitInfo, powerIndex, type Combatant } from './damage'
 import { applyBoost, calcStat, effectiveSpeed, type SpeedContext } from './stats'
 import type { BoostKey, Move, Nature, Pokemon, StatTable, TypeId } from './types'
+import { vsPriority } from './vs'
 
 // 한 능력치만 올리는 성격 (실능치 계산용)
 const plusNature = (stat: BoostKey): Nature => ({
@@ -234,6 +235,7 @@ export interface PowerEntry {
   hits: HitsUsed | null
   alwaysCrit: boolean
   accuracy: number | null
+  priority: number // 특성 반영 우선도 (질풍날개 = HP 가득일 때, 힐링시프트)
   penalties: Penalty[]
   values: [number, number, number] // SP 0 / 32 / 32+성격. 타수가 랜덤이면 기댓값
   ranges: [[number, number], [number, number], [number, number]] | null // 타수가 랜덤일 때 [최소, 최대]
@@ -291,6 +293,7 @@ function candidate(
     hits: hitsUsed(move, ability, item),
     alwaysCrit: ALWAYS_CRIT.has(move.id),
     accuracy: effectiveAccuracy(move, ability),
+    priority: vsPriority(move, ability, true),
     penalties: movePenalties(move, ability, item),
   }
   const v = perHit(p, base, 's32plus')
@@ -301,6 +304,7 @@ function candidate(
 const sameEffect = (a: PowerCandidate, b: PowerCandidate) =>
   a.type === b.type &&
   a.top === b.top &&
+  a.priority === b.priority &&
   a.penalties.join() === b.penalties.join() &&
   a.hits?.expHits === b.hits?.expHits
 
@@ -365,18 +369,34 @@ const better = (a: PowerCandidate, b: PowerCandidate) =>
       ? a.penalties.length < b.penalties.length
       : !a.ability && !!b.ability
 
+// ── 우선도 조건 ─────────────
+export type PriorityFilter = 'all' | 'gte1' | 'gte2' | 'gte3' | 'zero' | 'neg'
+export const PRIORITY_FILTERS: readonly PriorityFilter[] = [
+  'all',
+  'gte1',
+  'gte2',
+  'gte3',
+  'zero',
+  'neg',
+]
+export const priorityOk = (f: PriorityFilter, p: number) =>
+  f === 'all' ? true : f === 'zero' ? p === 0 : f === 'neg' ? p < 0 : p >= Number(f.slice(3))
+
 // category: 물리 / 특수만 볼 때 (그 분류 안에서 다시 고름)
 // allowed: 이 페널티가 있는 기술만 고를 수 있음 (생략 = 전부 허용). 빠진 페널티가 있는 기술은 고르지 않는다
+// priority: 이 우선도 조건에 맞는 기술만 고름 (특성 반영 우선도, 생략 = 전부)
 export function powerRows(
   p: Pokemon,
   cands: PowerCandidate[],
   category?: PowerEntry['category'],
   allowed?: ReadonlySet<Penalty>,
+  priority: PriorityFilter = 'all',
 ): PowerRow[] {
   const byType = new Map<TypeId, PowerCandidate[]>()
   for (const c of cands) {
     if (category && c.category !== category) continue
     if (allowed && !c.penalties.every((x) => allowed.has(x))) continue
+    if (!priorityOk(priority, c.priority)) continue
     const list = byType.get(c.type) ?? []
     list.push(c)
     byType.set(c.type, list)
