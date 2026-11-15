@@ -1,5 +1,6 @@
 <!--
-  사용률 통계 화면의 포켓몬 상세: 고른 기간의 순위·채용률, 기술·도구·특성·배분·함께 쓴 포켓몬 비율, 월별 순위 추이.
+  사용률 통계 화면의 포켓몬 상세: 고른 기간의 순위·채용률, 기술·도구·특성·배분·함께 쓴 포켓몬 비율, 월별 순위 추이,
+  대면(상대하기 어려운/쉬운 상대, A vs B — components/usage/MatchupList.vue).
   함께 쓴 포켓몬을 누르면 그 포켓몬으로 (select). 데이터 형식: utils/usageStats.ts
 -->
 <template>
@@ -94,6 +95,8 @@
         </div>
       </div>
     </div>
+
+    <UsageMatchupList :mon-id="mon.id" :current="current" />
   </section>
 </template>
 

@@ -3,16 +3,20 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
+  matchupOf,
   monthTrend,
   parseSpread,
   periodsOf,
   previousPeriod,
   rankChange,
+  rankedMatchups,
   statsFile,
+  statsVsFile,
   type StatsIndex,
   type StatsMeta,
   type StatsTable,
   type StatsTrend,
+  type StatsVs,
 } from '../utils/usageStats'
 
 const load = <T>(f: string): T =>
@@ -106,5 +110,56 @@ describe('생성된 데이터 (public/data/stats)', () => {
       expect(trend[top.id]![0]).toEqual([1, top.usage])
       for (const row of Object.values(trend)) expect(row.length).toBe(index[kind].length)
     }
+  })
+})
+
+describe('대면', () => {
+  const vs: StatsVs = {
+    a: [
+      ['b', 1000, 0.3, 0.2, 0.1],
+      ['c', 500, 0.8],
+      ['d', 300, 0.1],
+      ['e', 50, 0.95], // 가장 많이 만난 상대(1000)의 10% 미만 → 순위 제외
+    ],
+  }
+  it('matchupOf: a 쪽 기록, 없으면 null', () => {
+    expect(matchupOf(vs, 'a', 'b')).toEqual({ id: 'b', n: 1000, out: 0.3, ko: 0.2, sw: 0.1 })
+    expect(matchupOf(vs, 'a', 'c')).toEqual({
+      id: 'c',
+      n: 500,
+      out: 0.8,
+      ko: undefined,
+      sw: undefined,
+    })
+    expect(matchupOf(vs, 'b', 'a')).toBeNull()
+    expect(matchupOf(null, 'a', 'b')).toBeNull()
+  })
+  it('rankedMatchups: 어려운 상대 = 물러남 높은 순, 쉬운 상대 = 낮은 순, 적게 만난 쌍 제외', () => {
+    expect(rankedMatchups(vs.a, 'hard').map((m) => m.id)).toEqual(['c', 'b', 'd'])
+    expect(rankedMatchups(vs.a, 'easy', 2).map((m) => m.id)).toEqual(['d', 'b'])
+    expect(rankedMatchups(undefined, 'hard')).toEqual([])
+  })
+})
+
+describe('대면 파일', () => {
+  it('싱글 시즌: 쌍마다 [상대, 수, 물러남(, 쓰러짐, 교체)], 미러 없음, 쓰러짐 + 교체 = 물러남', () => {
+    const idx = load<StatsIndex>('stats/index.json')
+    const m = idx.single.find((x) => x.period === 'season')!
+    const vs = load<StatsVs>(statsVsFile('single', m))
+    const rows = Object.entries(vs)
+    expect(rows.length).toBeGreaterThan(50)
+    let split = 0
+    for (const [x, list] of rows)
+      for (const [y, n, out, ko, sw] of list) {
+        expect(y).not.toBe(x)
+        expect(n).toBeGreaterThanOrEqual(20)
+        expect(out).toBeGreaterThanOrEqual(0)
+        expect(out).toBeLessThanOrEqual(1)
+        if (ko != null) {
+          split++
+          expect(Math.abs(ko + sw! - out)).toBeLessThan(0.002)
+        }
+      }
+    expect(split).toBeGreaterThan(0)
   })
 })

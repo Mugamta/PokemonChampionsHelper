@@ -1294,5 +1294,18 @@
     "spreads": "Spreads (nature · stat points)",
     "teammates": "Teammates",
     "trend": "Monthly rank trend"
+  },
+  "matchup": {
+    "title": "Matchup stats",
+    "count": "{n} matchups",
+    "out": "left field {p}",
+    "split": "KOed {ko} · switched {sw}",
+    "noPair": "Not enough matchups between these two in this period",
+    "none": "No matchup stats for this period",
+    "hard": "Tough opponents (highest share of leaving the field)",
+    "easy": "Easy opponents (lowest share of leaving the field)",
+    "listNote": "Number = matchups, % = how often this Pokémon was KOed or switched out against that opponent (Smogon Checks and Counters, rare pairs excluded). Click to compare both sides below",
+    "pair": "Compare with an opponent",
+    "pickOpp": "Opponent"
   }
 }

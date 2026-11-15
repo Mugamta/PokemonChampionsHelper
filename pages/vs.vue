@@ -1,6 +1,7 @@
 <!--
   VS: 두 포켓몬을 양쪽에 두고 서로를 공격한 결과를 바로 비교하는 1:1 계산기.
   포켓몬·특성·기술은 현재 레귤레이션에서 쓸 수 있는 것만. 상태·계산: composables/useVs.ts
+  대면 통계: 현재 레귤레이션 시즌(없으면 마지막 시즌)에 두 포켓몬이 만났을 때 각각 물러난 비율 (UsageMatchupLine)
 -->
 <template>
   <div class="page">
@@ -41,6 +42,20 @@
             <b class="num right-c">{{ speed.right }}</b>
             <span class="speed-order">{{ orderText }}</span>
           </p>
+          <div v-if="pair" class="matchup">
+            <div class="mu-head">
+              <span class="section-label">{{ t('matchup.title') }}</span>
+              <TeamUsageKindToggle />
+            </div>
+            <UiPageLoading v-if="vsStats === undefined" />
+            <UsageMatchupLine
+              v-else
+              :a="pair[0]"
+              :b="pair[1]"
+              :vs="vsStats"
+              :label="season ? t('usageStats.season', { reg: season.reg }) : ''"
+            />
+          </div>
         </div>
 
         <section class="panel panel-pad shared">
@@ -121,6 +136,8 @@
 </template>
 
 <script setup lang="ts">
+import { useUsageKind } from '~/composables/useUsageKind'
+import { useUsageStats } from '~/composables/useUsageStats'
 import { useVs } from '~/composables/useVs'
 import { ROOMS } from '~/utils/battleState'
 import type { Terrain, Weather } from '~/utils/types'
@@ -145,6 +162,22 @@ const orderText = computed(() => {
   if (!s.first) return t('vs.order.tie')
   const r = vs.resolved(s.first)
   return t('vs.order.' + s.reason, { name: r ? gd.name('pokemon', r.species.id) : '' })
+})
+
+// ── 대면 통계 (현재 레귤레이션 시즌) ─────────────
+const reg = useRegulation()
+const kind = useUsageKind()
+const stats = useUsageStats()
+const season = computed(() => {
+  const list = (stats.index()?.[kind.value] ?? []).filter((m) => m.period === 'season')
+  return list.find((m) => m.reg === reg.active.value?.id) ?? list.at(-1)
+})
+const vsStats = computed(() => stats.vs(kind.value, season.value))
+// 지금 폼 (메가진화를 켜면 메가 폼) 양쪽 다 있을 때만
+const pair = computed(() => {
+  const a = vs.resolved('left')?.species.id
+  const b = vs.resolved('right')?.species.id
+  return a && b && a !== b ? ([a, b] as const) : null
 })
 
 const onReset = () => {
@@ -187,6 +220,22 @@ const onReset = () => {
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   font-size: 14px;
+}
+.matchup {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 12px;
+  background: var(--well);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.mu-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 .left-c {
   color: var(--mine);

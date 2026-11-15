@@ -1,14 +1,16 @@
 // composables/useUsageStats.ts
 // 시즌별·월별 사용률 정리 (통계 화면 전용) — public/data/stats/ 를 필요할 때 받아 앱 전역에서 공유한다.
-// 목록(index)과 추이(trend-{kind})는 통계 화면을 열 때, 순위표는 고른 기간마다 받는다. 형식: utils/usageStats.ts
+// 목록(index)과 추이(trend-{kind})는 통계 화면을 열 때, 순위표는 고른 기간마다, 대면은 보여줄 때 받는다. 형식: utils/usageStats.ts
 
 import type { UsageKind } from '~/utils/autoSet'
 import {
   statsFile,
+  statsVsFile,
   type StatsIndex,
   type StatsMeta,
   type StatsTable,
   type StatsTrend,
+  type StatsVs,
 } from '~/utils/usageStats'
 
 // 받는 중인 파일 (같은 파일을 두 번 받지 않게)
@@ -51,5 +53,8 @@ export function useUsageStats() {
     trend: (kind: UsageKind) => get<StatsTrend>(`stats/trend-${kind}.json`),
     table: (kind: UsageKind, meta: StatsMeta | undefined) =>
       meta ? get<StatsTable>(statsFile(kind, meta)) : undefined,
+    // 대면 (stats/*-vs.json, 통계 화면 상세·VS 화면에서 필요할 때)
+    vs: (kind: UsageKind, meta: StatsMeta | undefined) =>
+      meta ? get<StatsVs>(statsVsFile(kind, meta)) : undefined,
   }
 }

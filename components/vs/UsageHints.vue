@@ -22,24 +22,30 @@
             :title="gd.text('abilities', a.id)"
             @click="mon.slot.ability = a.id"
           >
-            {{ gd.name('abilities', a.id) }} <span class="num pct">{{ pct(a.use) }}</span>
+            {{ gd.name('abilities', a.id) }}<span class="num pct">{{ pct(a.use) }}</span>
           </button>
         </div>
       </div>
       <div v-if="spreadRows.length" class="hint-row">
         <span class="lbl muted">{{ t('vs.usage.spread') }}</span>
-        <div class="chip-row">
+        <!-- 한 줄 = 성격 | 능력 포인트(0 이 아닌 것만) | 비율 -->
+        <div class="spreads">
           <button
             v-for="s in spreadRows"
             :key="s.key"
             type="button"
-            class="chip"
+            class="spread"
             :class="{ active: isCurrent(s) }"
             @click="apply(s)"
           >
-            <b>{{ gd.name('natures', s.nature) }}</b>
-            <span class="num">{{ spText(s.sp) }}</span>
-            <span class="num pct">{{ pct(s.use) }}</span>
+            <b class="sp-nature">{{ gd.name('natures', s.nature) }}</b>
+            <span class="sp-points">
+              <span v-for="p in spTokens(s.sp)" :key="p.k" class="sp-tok">
+                <span class="sp-k">{{ t('stat.short.' + p.k) }}</span>
+                <b class="num">{{ p.v }}</b>
+              </span>
+            </span>
+            <span class="num sp-pct">{{ pct(s.use) }}</span>
           </button>
         </div>
       </div>
@@ -88,12 +94,9 @@ const spreadRows = computed(() =>
 )
 
 const pct = (v: number) => `${(v * 100).toFixed(1)}%`
-// 0 이 아닌 능력 포인트만 (예: H2 A32 S32)
-const spText = (sp: number[]) =>
-  sp
-    .map((v, j) => (v ? `${t('stat.short.' + STAT_KEYS[j])}${v}` : ''))
-    .filter(Boolean)
-    .join(' ')
+// 0 이 아닌 능력 포인트만 (예: H 2 · A 32 · S 32)
+const spTokens = (sp: number[]) =>
+  STAT_KEYS.map((k, j) => ({ k, v: sp[j] ?? 0 })).filter((p) => p.v > 0)
 const isCurrent = (s: { nature: string; sp: number[] }) =>
   mon.value.slot.nature === s.nature && STAT_KEYS.every((k, j) => mon.value.slot.sp[k] === s.sp[j])
 const apply = (s: { nature: string; sp: number[] }) => {
@@ -130,12 +133,59 @@ const apply = (s: { nature: string; sp: number[] }) => {
   font-weight: 700;
   line-height: 26px;
 }
-.chip {
-  gap: 4px;
-}
 .pct {
+  margin-left: 6px;
   font-size: 11px;
   opacity: 0.8;
+}
+/* 배분: 칸을 맞춘 줄 목록 (성격 | 능력 포인트 | 비율) */
+.spreads {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.spread {
+  appearance: none;
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 3px 8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.spread:hover {
+  background: var(--hover);
+}
+.spread.active {
+  background: var(--panel-3);
+  border-color: var(--accent-2);
+}
+.sp-points {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+}
+.sp-tok {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+}
+.sp-k {
+  font-size: 11px;
+  color: var(--text-3);
+}
+.sp-pct {
+  font-weight: 700;
+  color: var(--accent-2);
 }
 .note {
   margin: 0;

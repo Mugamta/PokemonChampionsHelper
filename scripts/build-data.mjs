@@ -817,6 +817,7 @@ const top = (obj, ok) =>
     .sort((a, b) => b[1] - a[1])
     .map(([k]) => k)
 const round4 = (v) => Math.round(v * 10000) / 10000
+const round3 = (v) => Math.round(v * 1000) / 1000
 function summarizeUsage(json, month, format) {
   const out = {}
   for (const [name, d] of Object.entries(json.data)) {
@@ -1040,6 +1041,52 @@ function addMonth(acc, json) {
       for (const [x, v] of Object.entries(d[k] || {})) (a[k] ??= {})[x] = (a[k]?.[x] ?? 0) + v
   }
 }
+// 대면(Smogon "Checks and Counters"): X 가 Y 와 맞붙은 수 n, 그중 X 가 쓰러지거나 교체로 물러난 비율 p.
+// 쓰러짐/교체 나눔은 moveset txt(싱글만 받음, X 마다 주요 상대 10여 개)에 있을 때만.
+// 달 합산: n 합, 물러남·쓰러짐·교체는 수(n × 비율)로 더해 나눔 (나눔은 그 값이 있는 달만)
+const VS_MIN = 20 // 이 기간 맞대결이 이보다 적은 쌍은 뺌
+const VS_TOP = 40 // 포켓몬마다 맞대결 많은 상대 이만큼만 (더블은 쌍이 많아 파일 크기)
+function addVs(acc, json, split) {
+  for (const [name, d] of Object.entries(json.data)) {
+    const x = toID(name)
+    const cc = d['Checks and Counters']
+    if (!pokemon[x] || !cc) continue
+    for (const [yn, v] of Object.entries(cc)) {
+      const y = toID(yn)
+      const [n, p] = Array.isArray(v) ? v : [v.n, v.p]
+      if (!pokemon[y] || y === x || !(n > 0)) continue
+      const r = ((acc[x] ??= {})[y] ??= { n: 0, out: 0, splitOut: 0, sw: 0 })
+      r.n += n
+      r.out += n * p
+      const share = split[x]?.[y]
+      if (share != null) {
+        r.splitOut += n * p
+        r.sw += n * p * share
+      }
+    }
+  }
+}
+// → { X: [[Y, 맞대결 수, 물러남 비율, 쓰러짐 비율?, 교체 비율?], …] } (맞대결 많은 순)
+function finishVs(acc) {
+  const out = {}
+  for (const [x, ys] of Object.entries(acc)) {
+    const rows = Object.entries(ys)
+      .filter(([, r]) => r.n >= VS_MIN)
+      .sort((a, b) => b[1].n - a[1].n)
+      .slice(0, VS_TOP)
+      .map(([y, r]) => {
+        const p = r.out / r.n
+        const row = [y, Math.round(r.n), round3(p)]
+        if (r.splitOut > 0) {
+          const sw = p * (r.sw / r.splitOut)
+          row.push(round3(p - sw), round3(sw))
+        }
+        return row
+      })
+    if (rows.length) out[x] = rows
+  }
+  return out
+}
 function finishStats(acc, reg, period, months) {
   const list = []
   for (const [id, a] of Object.entries(acc.mons)) {
@@ -1104,6 +1151,7 @@ async function buildUsageStats() {
     const monthRows = []
     for (const r of regulations) {
       const season = { battles: 0, mons: {} }
+      const seasonVs = {}
       const got = []
       for (const month of months) {
         const format = lists[month].match(re(toID(r.id)))?.[1]
@@ -1115,12 +1163,29 @@ async function buildUsageStats() {
         const one = { battles: 0, mons: {} }
         addMonth(one, json)
         addMonth(season, json)
+        // 대면: 싱글은 moveset txt 로 쓰러짐/교체를 나눔 (없으면 물러남만)
+        let split = {}
+        if (kind === 'single') {
+          const txt = file.replace('.json', '.txt')
+          try {
+            split = parseSwitchSplit(
+              await cached(`${STATS}/${month}/moveset/${txt}`, `smogon/${month}/moveset-${txt}`),
+            )
+          } catch (e) {
+            warn.push(`대면 통계(moveset) 받기 실패 ${r.id} ${month}: ${e.message} — 물러남만`)
+          }
+        }
+        const oneVs = {}
+        addVs(oneVs, json, split)
+        addVs(seasonVs, json, split)
         got.push(month)
         files.push([`${kind}-${r.id}-${month}`, finishStats(one, r.id, month, [month])])
+        files.push([`${kind}-${r.id}-${month}-vs`, finishVs(oneVs)])
         monthRows.push({ reg: r.id, period: month, battles: one.battles, months: [month] })
       }
       if (!got.length) continue
       files.push([`${kind}-${r.id}-season`, finishStats(season, r.id, 'season', got)])
+      files.push([`${kind}-${r.id}-season-vs`, finishVs(seasonVs)])
       out[kind].push({ reg: r.id, period: 'season', battles: season.battles, months: got })
     }
     // 달은 시간 순 (같은 달에 두 레귤레이션이 겹치면 레귤레이션 순)

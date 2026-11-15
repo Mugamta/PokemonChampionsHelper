@@ -96,3 +96,46 @@ export function parseSpread(s: string): { nature: string; sp: number[] } {
   const [nature = '', sp = ''] = s.split(':')
   return { nature, sp: sp.split('/').map(Number) }
 }
+
+// ── 대면 ─────────────
+// stats/{kind}-{reg}-{period}-vs.json (scripts/build-data.mjs addVs/finishVs, Smogon "Checks and Counters")
+/** [상대 id, 맞대결 수, 물러남 비율, 쓰러짐 비율?, 교체 비율?] — 물러남 = 쓰러짐 + 교체 (나눔은 싱글 주요 상대만) */
+export type VsRow = [string, number, number, number?, number?]
+/** 포켓몬 id → 맞대결 많은 순 */
+export type StatsVs = Record<string, VsRow[]>
+export const statsVsFile = (kind: UsageKind, m: Pick<StatsMeta, 'reg' | 'period'>) =>
+  `stats/${kind}-${statsKey(m)}-vs.json`
+
+export interface Matchup {
+  /** 상대 id */
+  id: string
+  /** 맞대결 수 */
+  n: number
+  /** 이 포켓몬이 물러난(쓰러짐 + 교체) 비율 */
+  out: number
+  ko?: number
+  sw?: number
+}
+export const toMatchup = ([id, n, out, ko, sw]: VsRow): Matchup => ({ id, n, out, ko, sw })
+
+/** a 가 b 를 만났을 때 (a 쪽 기록, 없으면 null) */
+export function matchupOf(vs: StatsVs | null | undefined, a: string, b: string): Matchup | null {
+  const row = vs?.[a]?.find((r) => r[0] === b)
+  return row ? toMatchup(row) : null
+}
+
+/** 순위에 넣을 최소 맞대결 수: 20 과 가장 많이 만난 상대의 10% 중 큰 쪽 (적게 만난 쌍은 비율이 들쭉날쭉) */
+export const VS_RANK_MIN = 20
+export function rankedMatchups(
+  rows: readonly VsRow[] | undefined,
+  dir: 'hard' | 'easy',
+  limit = 10,
+): Matchup[] {
+  if (!rows?.length) return []
+  const minN = Math.max(VS_RANK_MIN, Math.max(...rows.map((r) => r[1])) * 0.1)
+  return rows
+    .filter((r) => r[1] >= minN)
+    .map(toMatchup)
+    .sort((x, y) => (dir === 'hard' ? y.out - x.out : x.out - y.out) || y.n - x.n)
+    .slice(0, limit)
+}
