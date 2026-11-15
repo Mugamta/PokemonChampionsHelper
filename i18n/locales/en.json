@@ -880,7 +880,8 @@
     "movesNote": "Accuracy: accuracy stage, Compound Eyes, Hustle and Wide Lens applied (no target evasion). Attack index: power × Atk (SpA) × STAB × ability × item (Atk/SpA stages applied, multi-hit moves use the expected value, status moves —). Usage: share of teams using this Pokémon that ran the move (0.5%+)",
     "tab": {
       "pokemon": "Pokémon",
-      "moves": "Moves"
+      "moves": "Moves",
+      "items": "Items"
     },
     "mv": {
       "sub": "{n} moves learned by Pokémon eligible in {reg}",
@@ -961,6 +962,24 @@
         "maxStack": "{text} (up to {n} layers)"
       },
       "count": "{n}"
+    },
+    "it": {
+      "sub": "{n} items usable in {reg}",
+      "search": "Search items",
+      "category": "Category",
+      "allCats": "Category",
+      "cat": {
+        "mega": "Mega Stone",
+        "berry": "Berry",
+        "held": "Held item"
+      },
+      "price": "Shop price",
+      "vp": "{n} VP",
+      "noPrice": "No shop price info",
+      "mega": "Mega Evolution",
+      "users": "Used by",
+      "noUsers": "No Pokémon holds this item in usage stats",
+      "usersNote": "% = share of teams using that Pokémon that hold this item ({reg} · {month} stats, 0.5%+). Prices: Serebii Champions item list"
     }
   },
   "vs": {
@@ -982,6 +1001,12 @@
       "trickroom": "Trick Room: {name} moves first",
       "priority": "Priority: {name} moves first",
       "tie": "Speed tie (random)"
+    },
+    "usage": {
+      "title": "Usage stats",
+      "none": "No usage stats for this Pokémon",
+      "spread": "Spread",
+      "note": "Click to apply · share of teams using this Pokémon ({reg} · {month} stats)"
     }
   },
   "patch": {
@@ -989,7 +1014,7 @@
     "sub": "What changed in each regulation compared with the previous one: eligible Pokémon, Mega Evolutions, items, moves and learnsets. Picking a regulation at the top switches the Pokédex, VS, party and battle calculations to that regulation's data.",
     "view": "View this regulation",
     "viewing": "Viewing",
-    "first": "First regulation — {pokemon} eligible Pokémon, {megas} Mega Evolutions, {items} items (excluding Mega Stones)",
+    "first": "Opening regulation — {pokemon} eligible Pokémon, {megas} Mega Evolutions, {items} items (excluding Mega Stones). Below is everything that debuted",
     "noChange": "No differences from the previous regulation.",
     "pokemon": "Eligible Pokémon",
     "moveChanges": "Move changes",
@@ -1009,7 +1034,8 @@
       "types": "Type",
       "abilities": "Ability",
       "weight": "Weight"
-    }
+    },
+    "gen": "Gen {n}"
   },
   "guide": {
     "title": "Battle Guide",

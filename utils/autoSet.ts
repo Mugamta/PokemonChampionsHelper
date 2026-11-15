@@ -447,6 +447,7 @@ export interface UsageSet {
   nature?: string
   sp?: number[] // H A B C D S
   spreadShare?: number // 이 배분(성격 + 능력 포인트)의 비율 (0~1)
+  spreads?: [string, number][] // 많이 쓴 배분 상위 3개 ['성격id:H/A/B/C/D/S', 비율 0~1] (VS 통계 배분)
   ability: string
   abilityUsage?: Record<string, number> // 특성별 비율 (0~1)
   items: string[] // 많이 쓴 순 (최대 3개)

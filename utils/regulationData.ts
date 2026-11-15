@@ -171,3 +171,30 @@ export function diffRegulations(
 // 내역이 하나도 없는지
 export const isEmptyDiff = (d: RegulationDiff) =>
   Object.values(d).every((v) => (v as unknown[]).length === 0)
+
+// 첫 레귤레이션(개막): 빈 레귤레이션과 비교 → 출전 포켓몬·메가진화·도구·기술 전부가 "추가"
+export const openingDiff = (cd: GameData, cur: Regulation): RegulationDiff =>
+  diffRegulations({ ...cd, items: {} }, { ...cur, pokemon: [] }, cd, cur)
+
+// ── 세대 ─────────────
+// 세대별 첫 전국도감 번호 (1세대 = 1, 9세대 = 906)
+const GEN_STARTS = [1, 152, 252, 387, 494, 650, 722, 810, 906]
+export const generationOf = (num: number): number => {
+  let g = 1
+  for (let i = 0; i < GEN_STARTS.length; i++) if (num >= GEN_STARTS[i]!) g = i + 1
+  return g
+}
+// 포켓몬 id 를 도감 번호 순으로 정렬해 세대별로 묶기 (번호가 같으면 원래 순서 = id 순)
+export function groupByGeneration(
+  ids: readonly string[],
+  numOf: (id: string) => number,
+): { gen: number; ids: string[] }[] {
+  const sorted = [...ids].sort((a, b) => numOf(a) - numOf(b))
+  const out: { gen: number; ids: string[] }[] = []
+  for (const id of sorted) {
+    const gen = generationOf(numOf(id))
+    if (out.at(-1)?.gen !== gen) out.push({ gen, ids: [] })
+    out.at(-1)!.ids.push(id)
+  }
+  return out
+}

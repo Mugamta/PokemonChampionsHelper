@@ -13,12 +13,12 @@
           <a href="https://www.smogon.com/stats/" target="_blank" rel="noopener">Smogon</a>
         </p>
       </div>
-      <TeamUsageKindToggle />
     </div>
 
     <UiPageLoading v-if="!gd.ready.value || index === undefined" />
     <p v-else-if="!list.length" class="panel panel-pad muted">{{ t('usageStats.none') }}</p>
     <template v-else>
+      <!-- 1줄: 시즌별/월별 · 싱글/더블 (+ 검색), 2줄: 고를 수 있는 시즌·월 -->
       <div class="toolbar">
         <div class="tab-row" role="tablist">
           <button
@@ -34,6 +34,16 @@
             {{ t('usageStats.mode.' + k) }}
           </button>
         </div>
+        <TeamUsageKindToggle class="kind" />
+        <input
+          v-model="query"
+          type="search"
+          class="field-input search"
+          :placeholder="t('perf.search')"
+          :aria-label="t('perf.search')"
+        />
+      </div>
+      <div class="toolbar">
         <div class="chip-row periods" role="group" :aria-label="t('usageStats.period')">
           <button
             v-for="p in periods"
@@ -47,13 +57,6 @@
             {{ periodLabel(p) }}
           </button>
         </div>
-        <input
-          v-model="query"
-          type="search"
-          class="field-input search"
-          :placeholder="t('perf.search')"
-          :aria-label="t('perf.search')"
-        />
       </div>
 
       <p v-if="current" class="summary muted">
@@ -241,8 +244,14 @@ const selected = computed(() => ranked.value.find((r) => r.mon.id === id.value) 
 .periods {
   flex: 1;
 }
+/* 시즌별/월별 탭과 싱글/더블 사이 구분선 */
+.kind {
+  padding-left: 10px;
+  border-left: 1px solid var(--line);
+}
 .search {
   width: min(240px, 100%);
+  margin-left: auto;
 }
 .summary {
   margin: 0 0 12px;

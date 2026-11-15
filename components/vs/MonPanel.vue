@@ -1,6 +1,6 @@
 <!--
-  VS 화면 한쪽 포켓몬: 포켓몬·특성·도구·성격, 기술 1개(이 포켓몬이 배우는 공격 기술만),
-  능력 포인트·랭크, 현재 HP·상태이상, 이 포켓몬 쪽 진영 상태.
+  VS 화면 한쪽 포켓몬: 포켓몬·특성·도구·성격, 통계로 많이 쓴 특성·배분(components/vs/UsageHints.vue),
+  기술 1개(이 포켓몬이 배우는 공격 기술만), 능력 포인트·랭크, 현재 HP·상태이상, 이 포켓몬 쪽 진영 상태.
 -->
 <template>
   <article class="panel vs-mon" :class="[side, { empty: !r }]">
@@ -64,6 +64,8 @@
           <TeamItemPicker v-model="mon.slot.item" :species="mon.slot.species" />
         </label>
       </div>
+
+      <VsUsageHints :side="side" />
 
       <div class="fld">
         <span class="section-label">{{ t('common.move') }}</span>

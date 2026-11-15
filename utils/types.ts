@@ -100,6 +100,7 @@ export interface Item {
   num: number
   megaStone?: Record<string, string>
   berry?: boolean
+  price?: number // 상점 가격 VP (없으면 상점 가격 정보 없음)
 }
 
 export interface Nature {

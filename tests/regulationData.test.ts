@@ -2,7 +2,14 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import type { GameData } from '../utils/types'
-import { applyRegulation, availableMegas, diffRegulations } from '../utils/regulationData'
+import {
+  applyRegulation,
+  availableMegas,
+  diffRegulations,
+  generationOf,
+  groupByGeneration,
+  openingDiff,
+} from '../utils/regulationData'
 
 const load = (f: string) =>
   JSON.parse(readFileSync(new URL(`../public/data/${f}.json`, import.meta.url), 'utf8'))
@@ -91,5 +98,35 @@ describe('diffRegulations', () => {
     const d = applyRegulation(base, reg('M-A'))
     for (const m of availableMegas(d, reg('M-A')))
       expect(reg('M-A').pokemon).toContain(d.pokemon[m]!.mega!.from)
+  })
+})
+
+describe('openingDiff · 세대', () => {
+  it('첫 레귤레이션은 출전 포켓몬·메가·기술이 전부 추가, 변경 없음', () => {
+    const r = base.regulations[0]!
+    const d = applyRegulation(base, r)
+    const diff = openingDiff(d, r)
+    expect(diff.pokemonAdded.length).toBe(r.pokemon.length)
+    expect(diff.megasAdded).toEqual(availableMegas(d, r))
+    expect(diff.movesAdded.length).toBeGreaterThan(100)
+    expect(diff.itemsAdded.length).toBeGreaterThan(0)
+    expect(diff.pokemonRemoved).toEqual([])
+    expect(diff.moveChanges).toEqual([])
+    expect(diff.learnsetChanges).toEqual([])
+  })
+
+  it('세대 경계', () => {
+    expect([1, 151, 152, 386, 387, 649, 650, 809, 810, 905, 906, 1025].map(generationOf)).toEqual([
+      1, 1, 2, 3, 4, 5, 6, 7, 8, 8, 9, 9,
+    ])
+  })
+
+  it('번호 순으로 세대별 묶음', () => {
+    const num: Record<string, number> = { a: 445, b: 3, c: 6, d: 1000 }
+    expect(groupByGeneration(['a', 'd', 'c', 'b'], (id) => num[id]!)).toEqual([
+      { gen: 1, ids: ['b', 'c'] },
+      { gen: 4, ids: ['a'] },
+      { gen: 9, ids: ['d'] },
+    ])
   })
 })

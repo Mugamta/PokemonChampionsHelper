@@ -2,6 +2,8 @@
   패치 내역: 레귤레이션마다 직전 레귤레이션과 비교해 바뀐 출전 포켓몬·메가진화·도구·기술 수치·습득 기술·종족값.
   데이터는 레귤레이션별로 덮어쓴 게임 데이터(useGameData().dataFor)를 utils/regulationData.ts 의 diffRegulations 로 비교.
   기술·특성의 동작(수치가 아닌 효과) 변경은 데이터에 없어서 표시하지 않는다.
+  첫 레귤레이션(개막)은 빈 레귤레이션과 비교해 처음 나온 포켓몬·메가진화·도구·기술을 전부 "추가"로 보여준다.
+  포켓몬은 도감 번호 순(추가·제외 목록은 세대별), 포켓몬·기술·도구를 누르면 도감의 해당 탭으로.
 -->
 <template>
   <div class="page">
@@ -36,29 +38,21 @@
           </button>
         </h2>
 
-        <!-- 첫 레귤레이션: 비교 대상이 없어서 규모만 -->
-        <p v-if="!e.diff" class="muted small">
+        <!-- 첫 레귤레이션(개막): 규모 + 처음 나온 것 전부 -->
+        <p v-if="e.first" class="muted small first">
           {{ t('patch.first', { pokemon: e.reg.pokemon.length, megas: e.megas, items: e.items }) }}
         </p>
-        <p v-else-if="e.empty" class="muted small">{{ t('patch.noChange') }}</p>
-        <template v-else-if="e.diff">
+        <p v-if="e.empty" class="muted small">{{ t('patch.noChange') }}</p>
+        <template v-else>
           <div v-if="e.diff.pokemonAdded.length || e.diff.pokemonRemoved.length" class="group">
             <h3 class="section-label">{{ t('patch.pokemon') }}</h3>
             <div v-if="e.diff.pokemonAdded.length" class="row">
               <span class="mark good-text">+{{ e.diff.pokemonAdded.length }}</span>
-              <div class="mons">
-                <span v-for="id in e.diff.pokemonAdded" :key="id" class="mon">
-                  <UiPokeSprite :id="id" :size="28" />{{ gd.name('pokemon', id) }}
-                </span>
-              </div>
+              <PatchMonList :ids="e.diff.pokemonAdded" grouped />
             </div>
             <div v-if="e.diff.pokemonRemoved.length" class="row">
               <span class="mark bad-text">−{{ e.diff.pokemonRemoved.length }}</span>
-              <div class="mons">
-                <span v-for="id in e.diff.pokemonRemoved" :key="id" class="mon">
-                  <UiPokeSprite :id="id" :size="28" />{{ gd.name('pokemon', id) }}
-                </span>
-              </div>
+              <PatchMonList :ids="e.diff.pokemonRemoved" grouped />
             </div>
           </div>
 
@@ -66,19 +60,11 @@
             <h3 class="section-label">{{ t('common.mega') }}</h3>
             <div v-if="e.diff.megasAdded.length" class="row">
               <span class="mark good-text">+{{ e.diff.megasAdded.length }}</span>
-              <div class="mons">
-                <span v-for="id in e.diff.megasAdded" :key="id" class="mon">
-                  <UiPokeSprite :id="id" :size="28" />{{ gd.name('pokemon', id) }}
-                </span>
-              </div>
+              <PatchMonList :ids="e.diff.megasAdded" grouped />
             </div>
             <div v-if="e.diff.megasRemoved.length" class="row">
               <span class="mark bad-text">−{{ e.diff.megasRemoved.length }}</span>
-              <div class="mons">
-                <span v-for="id in e.diff.megasRemoved" :key="id" class="mon">
-                  <UiPokeSprite :id="id" :size="28" />{{ gd.name('pokemon', id) }}
-                </span>
-              </div>
+              <PatchMonList :ids="e.diff.megasRemoved" grouped />
             </div>
           </div>
 
@@ -87,17 +73,27 @@
             <div v-if="e.diff.itemsAdded.length" class="row">
               <span class="mark good-text">+{{ e.diff.itemsAdded.length }}</span>
               <div class="mons">
-                <span v-for="id in e.diff.itemsAdded" :key="id" class="mon">
+                <NuxtLink
+                  v-for="id in e.diff.itemsAdded"
+                  :key="id"
+                  class="mon link"
+                  :to="itemLink(id)"
+                >
                   <UiItemIcon :id="id" :size="24" />{{ gd.name('items', id) }}
-                </span>
+                </NuxtLink>
               </div>
             </div>
             <div v-if="e.diff.itemsRemoved.length" class="row">
               <span class="mark bad-text">−{{ e.diff.itemsRemoved.length }}</span>
               <div class="mons">
-                <span v-for="id in e.diff.itemsRemoved" :key="id" class="mon">
+                <NuxtLink
+                  v-for="id in e.diff.itemsRemoved"
+                  :key="id"
+                  class="mon link"
+                  :to="itemLink(id)"
+                >
                   <UiItemIcon :id="id" :size="24" />{{ gd.name('items', id) }}
-                </span>
+                </NuxtLink>
               </div>
             </div>
           </div>
@@ -105,7 +101,9 @@
           <div v-if="e.diff.moveChanges.length" class="group">
             <h3 class="section-label">{{ t('patch.moveChanges') }}</h3>
             <div v-for="c in e.diff.moveChanges" :key="c.id" class="row">
-              <span class="move-name">{{ gd.name('moves', c.id) }}</span>
+              <NuxtLink class="move-name link" :to="moveLink(c.id)">{{
+                gd.name('moves', c.id)
+              }}</NuxtLink>
               <div class="changes">
                 <span v-for="f in c.changes" :key="f.key" class="change">
                   <template v-if="f.key === 'effects' || f.key === 'target'">{{
@@ -127,17 +125,25 @@
             <div v-if="e.diff.movesAdded.length" class="row">
               <span class="mark good-text">+{{ e.diff.movesAdded.length }}</span>
               <div class="mons">
-                <span v-for="id in e.diff.movesAdded" :key="id" class="mon">{{
-                  gd.name('moves', id)
-                }}</span>
+                <NuxtLink
+                  v-for="id in e.diff.movesAdded"
+                  :key="id"
+                  class="mon link"
+                  :to="moveLink(id)"
+                  >{{ gd.name('moves', id) }}</NuxtLink
+                >
               </div>
             </div>
             <div v-if="e.diff.movesRemoved.length" class="row">
               <span class="mark bad-text">−{{ e.diff.movesRemoved.length }}</span>
               <div class="mons">
-                <span v-for="id in e.diff.movesRemoved" :key="id" class="mon">{{
-                  gd.name('moves', id)
-                }}</span>
+                <NuxtLink
+                  v-for="id in e.diff.movesRemoved"
+                  :key="id"
+                  class="mon link"
+                  :to="moveLink(id)"
+                  >{{ gd.name('moves', id) }}</NuxtLink
+                >
               </div>
             </div>
           </div>
@@ -149,21 +155,19 @@
               <span class="mark" :class="l.added ? 'good-text' : 'bad-text'">{{
                 l.added ? '+' : '−'
               }}</span>
-              <span class="move-name">{{ gd.name('moves', l.move) }}</span>
-              <div class="mons">
-                <span v-for="id in l.mons" :key="id" class="mon">
-                  <UiPokeSprite :id="id" :size="28" />{{ gd.name('pokemon', id) }}
-                </span>
-              </div>
+              <NuxtLink class="move-name link" :to="moveLink(l.move)">{{
+                gd.name('moves', l.move)
+              }}</NuxtLink>
+              <PatchMonList :ids="l.mons" />
             </div>
           </div>
 
           <div v-if="e.diff.pokemonChanges.length" class="group">
             <h3 class="section-label">{{ t('patch.pokemonChanges') }}</h3>
-            <div v-for="c in e.diff.pokemonChanges" :key="c.id" class="row">
-              <span class="mon">
+            <div v-for="c in byNum(e.diff.pokemonChanges)" :key="c.id" class="row">
+              <NuxtLink class="mon link" :to="{ path: '/dex', query: { id: c.id } }">
                 <UiPokeSprite :id="c.id" :size="28" />{{ gd.name('pokemon', c.id) }}
-              </span>
+              </NuxtLink>
               <div class="changes">
                 <span v-for="f in c.changes" :key="f.key" class="change">
                   {{ pokemonLabel(f.key) }}
@@ -187,6 +191,7 @@ import {
   availableMegas,
   diffRegulations,
   isEmptyDiff,
+  openingDiff,
   type RegulationDiff,
 } from '~/utils/regulationData'
 
@@ -225,18 +230,26 @@ const entries = computed(() => {
     .map((r, i) => {
       const cd = gd.dataFor(r.id)!
       const prev = list[i - 1]
-      const diff = prev ? diffRegulations(gd.dataFor(prev.id)!, prev, cd, r) : null
+      const diff = prev ? diffRegulations(gd.dataFor(prev.id)!, prev, cd, r) : openingDiff(cd, r)
       return {
         reg: r,
+        first: !prev,
         diff,
-        empty: !!diff && isEmptyDiff(diff),
-        learn: diff ? groupLearn(diff) : [],
+        empty: isEmptyDiff(diff),
+        learn: groupLearn(diff),
         megas: availableMegas(cd, r).length,
         items: Object.values(cd.items).filter((it) => !it.megaStone).length,
       }
     })
     .reverse()
 })
+
+// 도감으로 (포켓몬은 PatchMonList)
+const moveLink = (id: string) => ({ path: '/dex', query: { tab: 'moves', move: id } })
+const itemLink = (id: string) => ({ path: '/dex', query: { tab: 'items', item: id } })
+// 종족값 등 변경: 도감 번호 순
+const byNum = <T extends { id: string }>(list: T[]) =>
+  [...list].sort((a, b) => (gd.pokemon(a.id)?.num ?? 0) - (gd.pokemon(b.id)?.num ?? 0))
 
 const moveValue = (key: string, v: unknown) => {
   if (key === 'type') return gd.name('types', String(v))
@@ -333,6 +346,19 @@ const pokemonValue = (key: string, v: unknown) => {
 .row > .mon {
   min-width: 180px;
   font-weight: 700;
+}
+.link {
+  color: var(--text);
+  text-decoration: none;
+  border-radius: 6px;
+  padding-right: 4px;
+}
+.link:hover {
+  background: var(--hover);
+  color: var(--accent-text);
+}
+.first {
+  margin: 0 0 8px;
 }
 .change {
   line-height: 28px;

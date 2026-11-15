@@ -20,7 +20,8 @@ components/
                        RecommendOppChips = 상대 예상 선택지 칩(비중 조정), PickRecommend = 선출 화면 선출·선두 추천)
   perf/                포켓몬 성능표: BulkTable / PowerTable / SpeedTable, MonCell(포켓몬 칸)
   usage/               사용률 통계 화면: MonDetail(고른 포켓몬의 기술·도구·특성·배분·함께 쓴 포켓몬·월별 순위 추이)
-  vs/                  VS 화면: MonPanel(한쪽 포켓몬 입력), ResultCard(공격 → 방어 결과)
+  vs/                  VS 화면: MonPanel(한쪽 포켓몬 입력), UsageHints(통계 특성·배분), ResultCard(공격 → 방어 결과)
+  patch/               패치 내역: MonList(도감 번호 순·세대별 포켓몬 목록, 도감 링크)
 composables/           상태 + 계산 연결 (아래 표)
   battle/              useBattle 의 층별 구현 (index.ts 가 없어 자동 import 대상 아님, 아래 "배틀 상태")
 utils/                 순수 계산 (tests/ 에서 테스트): types.ts, stats.ts, damage.ts, ko.ts, typeCheck.ts(타입 상성 도우미),
@@ -60,11 +61,11 @@ Nuxt 컴포넌트 이름은 폴더 접두사가 붙는다: `components/team/Slot
 | `/single`, `/double` | BattleEntryView(mode) | 왼쪽 내 파티(눌러서 선출), 가운데 데미지 표(방향 탭), 오른쪽 상대 6마리 입력(compact SlotEditor, 포켓몬을 고르면 자동 배치 + "자동 배치" 버튼) |
 | `/single/battle`, `/double/battle` | BattleView(mode) | 필드 포켓몬 패널, 필드 상태, 행동 입력·턴 적용, 예상 흐름, 스피드 구간, 배분 추정, 데미지 표 2종 |
 | `/stats` | pages/stats.vue → PerfBulkTable / PerfPowerTable / PerfSpeedTable | 포켓몬 성능표. 검색, 탭은 `?tab=bulk|power|speed` |
-| `/usage` | pages/usage.vue → UsageMonDetail | 사용률 통계 (헤더 "통계"). Smogon 월별 통계를 **시즌(= 레귤레이션, 달 합산)별 / 월별** 순위표로: 순위·순위 변동(시즌 = 직전 시즌, 월 = 같은 레귤레이션의 직전 달, 첫 달은 직전 시즌)·채용률·사용 수, 검색. 싱글/더블은 `useUsageKind` 공유. `?mode=season|month&reg=&period=&id=`, 기본 = 현재 레귤레이션 시즌 / 가장 최근 달. 데이터 `useUsageStats` (`public/data/stats/`), 계산 utils/usageStats.ts |
-| `/vs` | pages/vs.vue → VsMonPanel ×2 / VsResultCard ×2 | 1:1 계산기. 양쪽 포켓몬·특성(그 포켓몬 것만)·도구·성격·능력P·랭크·HP·상태이상·진영 상태 + 기술 1개(배우는 공격 기술만) → 서로에게 주는 데미지·난수·KO·행동 순서. 공용 날씨·필드·공간·싱글/더블. 넓은 화면은 3열, 좁으면 결과 → 포켓몬 → 공용 상태 순 |
-| `/dex` | pages/dex.vue → DexDetail / DexMoves | 포켓몬 도감. 목록은 성능표와 같음(usePerfList), `?id=`. 종족값·실능치(배분·성격·랭크)·스피드(도구)·내구·타입별 실질 내구(반감열매·특성), 배우는 기술 전부의 위력·명중·PP·우선도·결정력·사용률. 처음엔 통계 배분. 계산 utils/dex.ts. 오른쪽 위 **기술 탭**(`?tab=moves&move=`, DexMoveDetail): 출전 가능 포켓몬이 배우는 기술 목록(이름 검색·타입·분류 거르기) → 위력·명중·PP·우선도·대상·성질(접촉 등, 툴팁에 반응 특성·도구)·설명·부가효과·배우는 포켓몬(사용률 통계의 채용률 순, 누르면 포켓몬 탭). 포켓몬 기술표의 기술 이름을 누르면 기술 탭으로. 문구 utils/moveInfo.ts |
+| `/usage` | pages/usage.vue → UsageMonDetail | 사용률 통계 (헤더 "통계"). Smogon 월별 통계를 **시즌(= 레귤레이션, 달 합산)별 / 월별** 순위표로: 순위·순위 변동(시즌 = 직전 시즌, 월 = 같은 레귤레이션의 직전 달, 첫 달은 직전 시즌)·채용률·사용 수, 검색. 툴바 1줄 = 시즌별/월별 · 싱글/더블 · 검색, 2줄 = 기간 칩. 싱글/더블은 `useUsageKind` 공유. `?mode=season|month&reg=&period=&id=`, 기본 = 현재 레귤레이션 시즌 / 가장 최근 달. 데이터 `useUsageStats` (`public/data/stats/`), 계산 utils/usageStats.ts |
+| `/vs` | pages/vs.vue → VsMonPanel ×2 / VsResultCard ×2 | 1:1 계산기. 양쪽 포켓몬·특성(그 포켓몬 것만)·도구·성격·능력P·랭크·HP·상태이상·진영 상태 + 기술 1개(배우는 공격 기술만). 사용률 통계로 많이 쓴 특성(여러 개일 때)·배분 상위 3개 칩(누르면 적용, VsUsageHints) → 서로에게 주는 데미지·난수·KO·행동 순서. 공용 날씨·필드·공간·싱글/더블. 넓은 화면은 3열, 좁으면 결과 → 포켓몬 → 공용 상태 순 |
+| `/dex` | pages/dex.vue → DexDetail / DexMoves / DexMoveDetail / DexItemDetail | 포켓몬 도감. 목록은 성능표와 같음(usePerfList), `?id=`. 종족값·실능치(배분·성격·랭크)·스피드(도구)·내구·타입별 실질 내구(반감열매·특성), 배우는 기술 전부의 위력·명중·PP·우선도·결정력·사용률. 처음엔 통계 배분. 계산 utils/dex.ts. 왼쪽 위 탭(포켓몬 / 기술 / 도구). **기술 탭**(`?tab=moves&move=`, DexMoveDetail): 출전 가능 포켓몬이 배우는 기술 목록(이름 검색·타입·분류 거르기) → 위력·명중·PP·우선도·대상·성질(접촉 등, 툴팁에 반응 특성·도구)·설명·부가효과·배우는 포켓몬(사용률 통계의 채용률 순, 누르면 포켓몬 탭). 포켓몬 기술표의 기술 이름을 누르면 기술 탭으로. 문구 utils/moveInfo.ts. **도구 탭**(`?tab=items&item=`, DexItemDetail): 현재 레귤레이션 도구(이름 검색·분류 거르기 — utils/itemInfo.ts) → 분류·상점 가격(VP)·설명·메가진화 대상·채용한 포켓몬(사용률 통계 `itemUsage` 순) |
 | `/guide` | pages/guide.vue | 도움말(인게임 규칙): 능력치 기초·자속·타입 상성(상성표·타입 조합 배율은 `types.chart` 로 그림)·타입별 특징(무효 타입은 상성표에서, 문구 `guide.typeNote.<type>`, 날씨·필드·공간 효과 `guide.typeField.<type>`)·상태이상(챔피언스 수치)·날씨·필드·급소·랭크·행동 순서·데미지·더블·메가진화. 문구는 i18n `guide.sec.<id>.items` 배열(`tm`/`rt`) |
-| `/patch` | pages/patch.vue | 패치 내역. 레귤레이션마다 직전 대비 출전 포켓몬·메가·도구·기술 수치·습득 기술·종족값 변경 (utils/regulationData.ts `diffRegulations`), 최신이 위. "이 레귤레이션으로 보기" = 상단 선택 변경 |
+| `/patch` | pages/patch.vue | 패치 내역. 레귤레이션마다 직전 대비 출전 포켓몬·메가·도구·기술 수치·습득 기술·종족값 변경 (utils/regulationData.ts `diffRegulations`), 최신이 위. 첫 레귤레이션(개막)은 `openingDiff`(빈 레귤레이션과 비교)로 처음 나온 것 전부. 포켓몬은 도감 번호 순(추가·제외는 세대별, `groupByGeneration`), 포켓몬·기술·도구를 누르면 도감 해당 탭으로. "이 레귤레이션으로 보기" = 상단 선택 변경 |
 
 ## composables
 

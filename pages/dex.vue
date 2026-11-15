@@ -4,6 +4,7 @@
   목록: composables/usePerfList.ts (성능표와 같은 목록), 상세: components/dex/DexDetail.vue
   기술 탭(?tab=moves&move=): 출전 가능 포켓몬이 배우는 기술 전부 — 설명·부가효과·PP·배우는 포켓몬
   (components/dex/DexMoveDetail.vue)
+  도구 탭(?tab=items&item=): 현재 레귤레이션 도구 전부 — 설명·상점 가격·채용한 포켓몬 (components/dex/DexItemDetail.vue)
 -->
 <template>
   <div class="page">
@@ -14,25 +15,64 @@
           <template v-if="tab === 'moves'">
             {{ t('dex.mv.sub', { reg: regId, n: moveList.length }) }}
           </template>
+          <template v-else-if="tab === 'items'">
+            {{ t('dex.it.sub', { reg: regId, n: itemList.length }) }}
+          </template>
           <template v-else>{{ t('dex.sub', { reg: regId, n: mons.length }) }}</template>
         </p>
       </div>
-      <span class="tabs" role="group" :aria-label="t('dex.title')">
-        <button
-          v-for="k in TABS"
-          :key="k"
-          type="button"
-          class="chip"
-          :class="{ active: tab === k }"
-          :aria-pressed="tab === k"
-          @click="tab = k"
-        >
-          {{ t('dex.tab.' + k) }}
-        </button>
-      </span>
     </div>
 
-    <div v-if="tab === 'moves'" class="dex-layout">
+    <div class="tab-row dex-tabs" role="tablist" :aria-label="t('dex.title')">
+      <button
+        v-for="k in TABS"
+        :key="k"
+        type="button"
+        role="tab"
+        class="tab-btn"
+        :class="{ active: tab === k }"
+        :aria-selected="tab === k"
+        @click="tab = k"
+      >
+        {{ t('dex.tab.' + k) }}
+      </button>
+    </div>
+
+    <div v-if="tab === 'items'" class="dex-layout">
+      <aside class="panel dex-list">
+        <input
+          v-model="itemQuery"
+          type="search"
+          class="field-input"
+          :placeholder="t('dex.it.search')"
+          :aria-label="t('dex.it.search')"
+        />
+        <select v-model="itemCat" class="field-input filter-one" :aria-label="t('dex.it.category')">
+          <option value="">{{ t('dex.it.allCats') }}</option>
+          <option v-for="c in ITEM_CATEGORIES" :key="c" :value="c">
+            {{ t('dex.it.cat.' + c) }}
+          </option>
+        </select>
+        <div ref="itemListEl" class="list-scroll">
+          <button
+            v-for="it in shownItems"
+            :key="it.id"
+            type="button"
+            class="dex-item item-row"
+            :class="{ active: it.id === selectedItem?.id }"
+            @click="itemId = it.id"
+          >
+            <UiItemIcon :id="it.id" :size="24" />
+            <span class="nm grow">{{ gd.name('items', it.id) }}</span>
+            <span class="pw num">{{ it.price ?? '' }}</span>
+          </button>
+          <p v-if="!shownItems.length" class="muted empty">—</p>
+        </div>
+      </aside>
+      <DexItemDetail v-if="selectedItem" :key="selectedItem.id" :item="selectedItem" />
+    </div>
+
+    <div v-else-if="tab === 'moves'" class="dex-layout">
       <aside class="panel dex-list">
         <input
           v-model="moveQuery"
@@ -109,9 +149,10 @@
 
 <script setup lang="ts">
 import { usePerfList } from '~/composables/usePerfList'
+import { ITEM_CATEGORIES, itemCategory } from '~/utils/itemInfo'
 import { learnerMap } from '~/utils/moveInfo'
 import { TYPE_ORDER } from '~/utils/typeCheck'
-import type { Move } from '~/utils/types'
+import type { Item, Move } from '~/utils/types'
 
 const { t, locale } = useI18n()
 const gd = useGameData()
@@ -122,12 +163,12 @@ const { mons, matcher } = usePerfList()
 
 const regId = computed(() => reg.active.value?.id ?? t('regulation.none'))
 
-// ── 탭 (포켓몬 / 기술) ─────────────
-const TABS = ['pokemon', 'moves'] as const
-const tab = computed<(typeof TABS)[number]>({
-  get: () => (route.query.tab === 'moves' ? 'moves' : 'pokemon'),
-  set: (v) =>
-    router.replace({ query: { ...route.query, tab: v === 'moves' ? 'moves' : undefined } }),
+// ── 탭 (포켓몬 / 기술 / 도구) ─────────────
+const TABS = ['pokemon', 'moves', 'items'] as const
+type Tab = (typeof TABS)[number]
+const tab = computed<Tab>({
+  get: () => TABS.find((k) => k === route.query.tab) ?? 'pokemon',
+  set: (v) => router.replace({ query: { ...route.query, tab: v === 'pokemon' ? undefined : v } }),
 })
 
 // 다른 화면(성능표·첫 화면)에서 넘어오면 목록에서 고른 항목이 보이게 (목록 안에서만 스크롤)
@@ -198,6 +239,38 @@ const moveListEl = ref<HTMLElement | null>(null)
 watch(
   () => [selectedMove.value?.id, tab.value],
   () => scrollToActive(moveListEl.value),
+  { immediate: true, flush: 'post' },
+)
+
+// ── 도구 ─────────────
+// 현재 레귤레이션 도구 (이름 순)
+const itemList = computed<Item[]>(() =>
+  Object.values(gd.data.value?.items ?? {}).sort((a, b) =>
+    gd.name('items', a.id).localeCompare(gd.name('items', b.id), locale.value),
+  ),
+)
+const itemQuery = ref('')
+const itemCat = ref('')
+const shownItems = computed(() => {
+  const q = norm(itemQuery.value)
+  return itemList.value.filter(
+    (it) =>
+      (!itemCat.value || itemCategory(it) === itemCat.value) &&
+      (!q || norm(gd.name('items', it.id)).includes(q) || it.id.includes(q)),
+  )
+})
+const itemId = computed<string>({
+  get: () => (typeof route.query.item === 'string' ? route.query.item : ''),
+  set: (v) => router.replace({ query: { ...route.query, item: v } }),
+})
+const selectedItem = computed(
+  () => itemList.value.find((it) => it.id === itemId.value) ?? itemList.value[0],
+)
+
+const itemListEl = ref<HTMLElement | null>(null)
+watch(
+  () => [selectedItem.value?.id, tab.value],
+  () => scrollToActive(itemListEl.value),
   { immediate: true, flush: 'post' },
 )
 
@@ -272,9 +345,8 @@ const openMove = (mid: string) => {
 .empty {
   padding: 8px;
 }
-.tabs {
-  display: inline-flex;
-  gap: 4px;
+.dex-tabs {
+  margin-bottom: 12px;
 }
 .filters {
   display: grid;
@@ -295,6 +367,13 @@ const openMove = (mid: string) => {
 .dex-item:has(.type-dot) {
   contain-intrinsic-size: auto 26px;
   padding: 4px 6px;
+}
+/* 도구 목록 줄 (아이콘 24) */
+.dex-item.item-row {
+  contain-intrinsic-size: auto 28px;
+}
+.filter-one {
+  font-size: 12px;
 }
 .grow {
   flex: 1;

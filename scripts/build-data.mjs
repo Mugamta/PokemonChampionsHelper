@@ -7,6 +7,8 @@
 //   - 챔피언스 PP = Showdown 챔피언스 모드의 기본 PP 를 5→8, 10→12, 15→16, 20 이상→20 으로 변환 (1 은 그대로)
 //     (Serebii 챔피언스 기술 목록 512개와 전부 일치 확인, 2026-10-18). 예외는 scripts/sources/champions-pp.json 으로 덮어씀
 //   - scripts/sources/item-names-ko.json → PokeAPI에 한국어 이름이 없는 도구(챔피언스 신규 메가스톤 등)
+//   - scripts/sources/item-prices.json → 상점(프론티어 숍) 가격 VP (Serebii 챔피언스 도구 목록, 2026-11-15).
+//     목록에 없는 도구 = 상점 가격 정보 없음 (튜토리얼·이벤트 보상 등)
 //   - scripts/sources/regulation/*.json (도감코드 목록, index.json 에 파일명 등록) → 레귤레이션별 출전 가능 포켓몬
 //
 // 실행:  node scripts/build-data.mjs            (데이터만)
@@ -514,6 +516,10 @@ function buildMoves(src, pokemon) {
 }
 const moves = buildMoves(MASTER, pokemon)
 
+// 상점 가격 (VP, 없으면 상점 가격 정보 없음)
+const ITEM_PRICES = JSON.parse(
+  fs.readFileSync(path.join(ROOT, 'scripts/sources/item-prices.json'), 'utf8'),
+)
 function buildItems(src) {
   const items = {}
   for (const id of Object.keys(src.baseItems).filter(src.isLegalItem).sort()) {
@@ -527,6 +533,7 @@ function buildItems(src) {
         ),
       }),
       ...(it.isBerry && { berry: true }),
+      ...(ITEM_PRICES[id] && { price: ITEM_PRICES[id] }),
     }
   }
   return items
@@ -821,12 +828,17 @@ function summarizeUsage(json, month, format) {
     const weight = Object.values(d.Abilities || {}).reduce((a, b) => a + b, 0) || 1
     const share = (obj, ids) => ids.map((k) => round4((obj?.[k] ?? 0) / weight))
     const learn = new Set(p.learnset ?? pokemon[p.mega?.from]?.learnset ?? [])
-    const spread = top(d.Spreads, (k) => {
-      const sp = k.split(':')[1]?.split('/').map(Number) ?? []
+    const spreadList = top(d.Spreads, (k) => {
+      const [nat, spStr] = k.split(':')
+      const sp = spStr?.split('/').map(Number) ?? []
       return (
-        sp.length === 6 && sp.every((v) => v >= 0 && v <= 32) && sp.reduce((a, b) => a + b) <= 66
+        !!natureOut[toID(nat ?? '')] &&
+        sp.length === 6 &&
+        sp.every((v) => v >= 0 && v <= 32) &&
+        sp.reduce((a, b) => a + b) <= 66
       )
-    })[0]
+    })
+    const spread = spreadList[0]
     const [nature, sp] = spread ? spread.split(':') : []
     const moveIds = top(d.Moves, (m) => !!moves[m] && learn.has(m)).slice(0, 4)
     const itemIds = top(d.Items, (i) => !!items[i]).slice(0, 3)
@@ -847,6 +859,10 @@ function summarizeUsage(json, month, format) {
           sp: sp.split('/').map(Number),
           spreadShare: round4(d.Spreads[spread] / weight),
         }),
+      // 많이 쓴 배분 상위 3개 ['성격id:H/A/B/C/D/S', 비율] (VS 화면 통계 배분 선택지)
+      spreads: spreadList
+        .slice(0, 3)
+        .map((k) => [toID(k.split(':')[0]) + ':' + k.split(':')[1], round4(d.Spreads[k] / weight)]),
       ability: top(d.Abilities, (a) => !!abilities[a])[0] ?? '',
       // 특성별 비율 전체 (배틀 화면 상대 특성 확정 선택지)
       abilityUsage: Object.fromEntries(
