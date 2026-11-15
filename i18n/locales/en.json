@@ -857,7 +857,7 @@
   "dex": {
     "title": "Pokédex",
     "sub": "{n} Pokémon allowed in {reg} (incl. Mega Evolutions) · Level 50",
-    "usage": "{kind} usage {pct} ({reg} · {month} stats)",
+    "usage": "{kind} · {period} #{rank} · usage {pct}",
     "noUsage": "No usage stats",
     "settings": "Spread · item · stages",
     "applyUsage": "Usage spread",
@@ -942,7 +942,7 @@
       },
       "learners": "Learned by",
       "noLearners": "No eligible Pokémon learns this move",
-      "learnersNote": "% = share of teams using that Pokémon that run this move ({reg} · {month} stats, 0.5% or more). Sorted by share, then Dex number. Mega Evolutions learn the same moves as the base form",
+      "learnersNote": "% = share of teams using that Pokémon in the period that ran this move (0.5%+, season = all months of the regulation combined). Sorted by share, then Dex number. Mega Evolutions learn the same moves as the base form",
       "fx": {
         "chance": "{text} ({p}%)",
         "self": "User {text}",

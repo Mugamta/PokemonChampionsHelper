@@ -1,6 +1,7 @@
 <!--
   도감 상세: 포켓몬 하나의 종족값·실능치(배분·성격·랭크 반영)·스피드(도구 반영)·내구·타입별 실질 내구와 기술표.
   처음에는 사용률 통계의 배분(성격·능력 포인트·특성·도구)으로 채우고, 없으면 무보정·능력 포인트 0.
+  사용률·기술 채용률·통계 배분은 고른 시즌·월 통계 (useDexPeriod, 기술·도구 탭과 공유).
   메가진화 폼은 메가스톤·메가 특성으로 고정. 계산: utils/dex.ts, useTeamCalc
 -->
 <template>
@@ -26,18 +27,19 @@
         </div>
         <div class="kind-row">
           <TeamUsageKindToggle />
+          <DexPeriodSelect />
         </div>
         <p v-if="usage" class="usage-line">
           {{
             t('dex.usage', {
-              kind: t('usage.' + kind),
-              pct: pct(usage.usage),
-              month: usageTable!.month,
-              reg: usageTable!.reg,
+              kind: t('usage.' + period.kind.value),
+              period: period.current.value ? period.periodLabel(period.current.value) : '',
+              rank: usage.rank,
+              pct: pct(usage.mon.usage),
             })
           }}
         </p>
-        <p v-else class="usage-line muted">{{ t('dex.noUsage') }}</p>
+        <p v-else-if="!period.loading.value" class="usage-line muted">{{ t('dex.noUsage') }}</p>
       </div>
     </section>
 
@@ -189,7 +191,7 @@
       :r="r"
       :base-id="baseId"
       :ranks="cfg.ranks"
-      :usage="usage?.moveUsage ?? null"
+      :usage="moveUsage"
       @move="emit('move', $event)"
     />
   </div>
@@ -198,17 +200,16 @@
 <script setup lang="ts">
 import type { PerfMon } from '~/composables/usePerfList'
 import { useTeamCalc } from '~/composables/useTeamCalc'
-import { useUsageKind } from '~/composables/useUsageKind'
-import { pickUsageTable } from '~/utils/autoSet'
+import { useDexPeriod } from '~/composables/useDexPeriod'
 import { dexBulk, typeBulk } from '~/utils/dex'
 import { applyBoost, effectiveSpeed, SP_PER_STAT_MAX, SP_TOTAL_MAX, spTotal } from '~/utils/stats'
 import { emptySlot, STAT_KEYS, type StatKey, type StatTable, type TeamSlot } from '~/utils/types'
+import { parseSpread, statsKey } from '~/utils/usageStats'
 
 const props = defineProps<{ mon: PerfMon }>()
 const emit = defineEmits<{ move: [id: string] }>()
 const { t } = useI18n()
 const gd = useGameData()
-const reg = useRegulation()
 const calc = useTeamCalc()
 
 const RANK_KEYS = ['atk', 'def', 'spa', 'spd', 'spe', 'accuracy'] as const
@@ -219,14 +220,11 @@ const baseId = computed(() => self.value.mega?.from ?? props.mon.id)
 const megaItem = computed(() => self.value.mega?.item ?? '')
 const abilityList = computed(() => [...new Set(self.value.abilities)])
 
-// 사용률 통계 (현재 레귤레이션, 없으면 가장 최근 달) — 메가는 메가 폼 줄
-const kind = useUsageKind()
-const usageTable = computed(() => {
-  const p = pickUsageTable(gd.usageMeta(kind.value), reg.active.value?.id)
-  const table = p && gd.usageTable(kind.value, p.reg)
-  return table ? { reg: p.reg, month: table.month, pokemon: table.pokemon } : null
-})
-const usage = computed(() => usageTable.value?.pokemon[props.mon.id] ?? null)
+// 사용률 통계 (고른 시즌·월) — 메가는 메가 폼 줄. { rank, mon }
+const period = useDexPeriod()
+const usage = computed(() => period.byId.value.get(props.mon.id) ?? null)
+// 기술표 채용률 열 (0.5% 이상)
+const moveUsage = computed(() => (usage.value ? Object.fromEntries(usage.value.mon.moves) : null))
 
 const zeroSp = (): StatTable => ({ hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 })
 const zeroRanks = (): Record<RankKey, number> => ({
@@ -254,18 +252,26 @@ const resetCfg = () =>
   })
 // 통계 배분: 성격 + 능력 포인트 + 특성 + 가장 많이 쓴 도구 (메가 폼은 원종 특성을 쓰지 않음)
 const applyUsage = () => {
-  const u = usage.value
+  const u = usage.value?.mon
   if (!u) return
-  if (u.nature && u.sp?.length === 6) {
-    cfg.nature = u.nature
-    cfg.sp = Object.fromEntries(STAT_KEYS.map((k, i) => [k, u.sp![i] ?? 0])) as StatTable
+  const top = u.spreads[0]
+  if (top) {
+    const { nature, sp } = parseSpread(top[0])
+    if (sp.length === 6) {
+      cfg.nature = nature
+      cfg.sp = Object.fromEntries(STAT_KEYS.map((k, i) => [k, sp[i] ?? 0])) as StatTable
+    }
   }
-  if (abilityList.value.includes(u.ability)) cfg.ability = u.ability
-  cfg.item = u.items[0] ?? ''
+  const ability = u.abilities[0]?.[0]
+  if (ability && abilityList.value.includes(ability)) cfg.ability = ability
+  cfg.item = u.items[0]?.[0] ?? ''
 }
-applyUsage()
-// 싱글 ↔ 더블을 바꾸면 그 통계 배분으로 다시 채움 (랭크는 그대로)
-watch(kind, applyUsage)
+// 통계가 도착하거나 싱글/더블·기간을 바꾸면 그 통계 배분으로 다시 채움 (랭크는 그대로)
+watch(
+  () => (usage.value ? period.kind.value + statsKey(period.current.value!) : ''),
+  (k) => k && applyUsage(),
+  { immediate: true },
+)
 
 const slot = computed<TeamSlot>(() => ({
   ...emptySlot(),

@@ -29,7 +29,7 @@
     <div class="grid">
       <div class="block">
         <h3 class="section-label">{{ t('usageStats.moves') }}</h3>
-        <div v-for="[k, v] in mon.moves" :key="k" class="share">
+        <div v-for="[k, v] in mon.moves.slice(0, 10)" :key="k" class="share">
           <span class="type-dot" :style="{ background: `var(--t-${gd.move(k)?.type})` }" />
           <span class="lbl">{{ gd.name('moves', k) }}</span>
           <span class="bar-wrap"><span class="bar" :style="{ width: pct(v) }" /></span>

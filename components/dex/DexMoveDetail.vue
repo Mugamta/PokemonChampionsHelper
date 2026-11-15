@@ -1,6 +1,6 @@
 <!--
   기술 도감 상세: 기술 하나의 타입·분류·위력·명중·PP·우선도·대상·성질(접촉 등)·설명·부가효과와
-  배우는 포켓몬(현재 레귤레이션 출전 가능, 사용률 통계에서 이 기술을 넣은 비율 순).
+  배우는 포켓몬(현재 레귤레이션 출전 가능, 고른 시즌·월 사용률 통계에서 이 기술을 넣은 비율 순 — useDexPeriod).
   포켓몬을 누르면 포켓몬 탭으로. 문구: utils/moveInfo.ts
 -->
 <template>
@@ -65,8 +65,9 @@
         {{ t('dex.mv.learners') }}
         <span class="spacer" />
         <TeamUsageKindToggle />
-        <span class="muted small">{{ t('dex.mv.count', { n: learnerRows.length }) }}</span>
+        <DexPeriodSelect />
       </h3>
+      <DexPeriodLine>· {{ t('dex.mv.count', { n: learnerRows.length }) }}</DexPeriodLine>
       <div v-if="learnerRows.length" class="learners">
         <NuxtLink
           v-for="row in learnerRows"
@@ -80,23 +81,19 @@
         </NuxtLink>
       </div>
       <p v-else class="muted small">{{ t('dex.mv.noLearners') }}</p>
-      <p v-if="usageTable" class="note muted">
-        {{ t('dex.mv.learnersNote', { reg: usageTable.reg, month: usageTable.month }) }}
-      </p>
+      <p class="note muted">{{ t('dex.mv.learnersNote') }}</p>
     </section>
   </div>
 </template>
 
 <script setup lang="ts">
-import { useUsageKind } from '~/composables/useUsageKind'
-import { pickUsageTable } from '~/utils/autoSet'
+import { useDexPeriod } from '~/composables/useDexPeriod'
 import { effectLabels, FLAG_RELATED, hasAccuracyCol, shownFlags } from '~/utils/moveInfo'
 import type { Move } from '~/utils/types'
 
 const props = defineProps<{ move: Move; learners: string[] }>()
 const { t } = useI18n()
 const gd = useGameData()
-const reg = useRegulation()
 
 const desc = computed(() => gd.text('moves', props.move.id))
 const effects = computed(() => effectLabels(props.move, t, (id) => gd.name('moves', id)))
@@ -111,18 +108,16 @@ const flagHint = (f: string) => {
   return names.length ? t('dex.mv.related', { hint, names: names.join(', ') }) : hint
 }
 
-// 사용률 통계 (현재 레귤레이션, 없으면 가장 최근 달)
-const kind = useUsageKind()
-const usageTable = computed(() => {
-  const p = pickUsageTable(gd.usageMeta(kind.value), reg.active.value?.id)
-  const table = p && gd.usageTable(kind.value, p.reg)
-  return table ? { reg: p.reg, month: table.month, pokemon: table.pokemon } : null
-})
-// 이 기술을 넣은 비율 순 (통계에 없으면 도감 번호 순 — learners 가 이미 번호 순)
+// 고른 기간 통계에서 이 기술을 넣은 비율 순 (통계에 없으면 도감 번호 순 — learners 가 이미 번호 순)
+const period = useDexPeriod()
 const learnerRows = computed(() => {
-  const pk = usageTable.value?.pokemon
+  const by = period.byId.value
   return props.learners
-    .map((id, i) => ({ id, i, use: pk?.[id]?.moveUsage?.[props.move.id] ?? null }))
+    .map((id, i) => ({
+      id,
+      i,
+      use: by.get(id)?.mon.moves.find(([m]) => m === props.move.id)?.[1] ?? null,
+    }))
     .sort((a, b) => (b.use ?? -1) - (a.use ?? -1) || a.i - b.i)
 })
 </script>
