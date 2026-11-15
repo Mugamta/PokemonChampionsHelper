@@ -3,6 +3,7 @@
 // 없으면 utils/autoSet.ts 의 규칙. 여기서는 게임 데이터로 입력을 만들고 슬롯에 넣는다.
 // kind: 싱글 / 더블 통계 (선출 화면은 배틀 모드, 생략하면 사용자가 고른 종류 — useUsageKind)
 // 파티 화면 "통계로 파티 채우기"도 여기 (suggest, 고르는 규칙은 utils/teamSuggest.ts)
+// "추천 파티 만들기"는 고르는 규칙이 utils/teamRecommend.ts, 슬롯 만들기는 여기 (slotsFor)
 
 import { toValue, type MaybeRefOrGetter } from 'vue'
 import { useUsageKind } from '~/composables/useUsageKind'
@@ -106,18 +107,7 @@ export function useAutoSet(kind?: MaybeRefOrGetter<UsageKind | undefined>) {
     const t = table.value
     const data = gd.data.value
     if (!t || !data) return out
-    const members = slots
-      .filter((s) => s.species)
-      .map((s) => {
-        const form = gd.megaFor(s.species, s.item) ?? s.species
-        if (t.pokemon[form]) return form
-        const forms = [s.species, ...(gd.pokemon(s.species)?.megas ?? [])]
-        return (
-          forms
-            .filter((id) => t.pokemon[id])
-            .sort((a, b) => t.pokemon[b]!.count - t.pokemon[a]!.count)[0] ?? form
-        )
-      })
+    const members = formsOf(slots)
     const empty = slots.flatMap((s, i) => (s.species ? [] : [i]))
     const forms = suggestTeam({
       table: t,
@@ -127,15 +117,41 @@ export function useAutoSet(kind?: MaybeRefOrGetter<UsageKind | undefined>) {
       count: empty.length,
     })
     // 도구 중복 금지: 이미 있는 도구 + 앞에서 채운 슬롯의 도구는 피함
-    const taken = slots.map((s) => s.item).filter(Boolean)
-    forms.forEach((form, k) => {
-      const slot = { ...emptySlot(), species: slotSpecies(data.pokemon, form) }
-      apply(slot, taken, false, form)
-      if (slot.item) taken.push(slot.item)
-      out.set(empty[k]!, slot)
-    })
+    slotsFor(forms, slots.map((s) => s.item).filter(Boolean)).forEach((slot, k) =>
+      out.set(empty[k]!, slot),
+    )
     return out
   }
 
-  return { build, apply, ready, usageInfo, source, suggest }
+  // 파티 슬롯 → 통계에서 볼 폼 id (포켓몬이 있는 슬롯만). 메가스톤을 지니면 메가 폼,
+  // 그 폼이 통계에 없으면 원종·메가 폼 중 많이 쓴 폼 (통계가 없으면 원종/메가 폼 그대로)
+  const formsOf = (slots: readonly TeamSlot[]) => {
+    const t = table.value
+    return slots
+      .filter((s) => s.species)
+      .map((s) => {
+        const form = gd.megaFor(s.species, s.item) ?? s.species
+        if (!t || t.pokemon[form]) return form
+        const forms = [s.species, ...(gd.pokemon(s.species)?.megas ?? [])]
+        return (
+          forms
+            .filter((id) => t.pokemon[id])
+            .sort((a, b) => t.pokemon[b]!.count - t.pokemon[a]!.count)[0] ?? form
+        )
+      })
+  }
+
+  // 폼 id 목록 → 통계 배치를 넣은 새 슬롯 (순서대로, 앞 슬롯·taken 의 도구와 겹치지 않게)
+  const slotsFor = (forms: readonly string[], taken: string[] = []) => {
+    const data = gd.data.value
+    if (!data) return []
+    return forms.map((form) => {
+      const slot = { ...emptySlot(), species: slotSpecies(data.pokemon, form) }
+      apply(slot, taken, false, form)
+      if (slot.item) taken.push(slot.item)
+      return slot
+    })
+  }
+
+  return { build, apply, ready, usageInfo, source, table, suggest, slotsFor, formsOf }
 }

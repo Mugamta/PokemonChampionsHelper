@@ -41,6 +41,16 @@
         >
           {{ t('party.usageFill') }}
         </button>
+        <!-- 첫 포켓몬을 고르면 통계(함께 쓴 비율 + 불리 대면 보완)로 6마리 추천 -->
+        <button
+          type="button"
+          class="btn btn-sm"
+          :disabled="!auto.source.value"
+          :title="t('party.recOpenHint')"
+          @click="recOpen = true"
+        >
+          {{ t('party.recOpen') }}
+        </button>
         <span class="muted small">✓ {{ t('party.saved') }}</span>
         <button type="button" class="btn btn-sm btn-danger" @click="onReset">
           {{ t('common.reset') }}
@@ -61,6 +71,15 @@
         >
       </div>
     </div>
+
+    <v-dialog v-model="recOpen" max-width="820" scrollable>
+      <TeamRecommendDialog
+        v-if="recOpen"
+        :party="auto.formsOf(mine.slots.value)"
+        @close="recOpen = false"
+        @apply="applyRecommend"
+      />
+    </v-dialog>
 
     <div ref="bodyEl" class="party-body fit-scroll">
       <div ref="gridEl" class="grid">
@@ -86,6 +105,8 @@
 </template>
 
 <script setup lang="ts">
+import { emptySlot } from '~/utils/types'
+
 // 넓은 화면에서 한 화면 배치 (layouts/default.vue)
 definePageMeta({ fit: true })
 
@@ -158,6 +179,20 @@ const fillByUsage = async () => {
     mine.megaOn.value[i] = true
     mine.altOn.value[i] = null
   }
+}
+
+// 추천 파티 적용 (6칸 모두 덮어씀 — 모자라면 나머지는 비움, 파티에 포켓몬이 있으면 확인)
+const recOpen = ref(false)
+const applyRecommend = async (forms: string[]) => {
+  if (mine.filled.value > 0 && !window.confirm(t('party.recReplace'))) return
+  await auto.ready()
+  const slots = auto.slotsFor(forms)
+  mine.slots.value.forEach((_, i) => {
+    mine.slots.value[i] = slots[i] ?? emptySlot()
+    mine.megaOn.value[i] = true
+    mine.altOn.value[i] = null
+  })
+  recOpen.value = false
 }
 
 const onReset = () => {
