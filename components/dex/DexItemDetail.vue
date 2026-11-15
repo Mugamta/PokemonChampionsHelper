@@ -1,6 +1,7 @@
 <!--
   도구 도감 상세: 도구 하나의 분류(메가스톤·열매·지닌 도구)·상점 가격(VP)·설명·메가진화 대상과
-  채용한 포켓몬(사용률 통계에서 이 도구를 지닌 비율 순). 포켓몬을 누르면 포켓몬 탭으로.
+  채용한 포켓몬(고른 시즌·월 사용률 통계에서 이 도구를 지닌 비율 순, public/data/stats/ — 통계 화면과 같은 데이터).
+  기간 기본 = 현재 레귤레이션 시즌, 고른 기간은 도구를 바꿔도 유지. 포켓몬을 누르면 포켓몬 탭으로.
 -->
 <template>
   <div class="dex-detail">
@@ -35,9 +36,32 @@
         {{ t('dex.it.users') }}
         <span class="spacer" />
         <TeamUsageKindToggle />
-        <span class="muted small">{{ t('dex.mv.count', { n: users.length }) }}</span>
+        <select
+          v-if="list.length"
+          v-model="periodKey"
+          class="field-input period"
+          :aria-label="t('usageStats.period')"
+        >
+          <optgroup :label="t('usageStats.mode.season')">
+            <option v-for="p in seasons" :key="statsKey(p)" :value="statsKey(p)">
+              {{ periodLabel(p) }}
+            </option>
+          </optgroup>
+          <optgroup :label="t('usageStats.mode.month')">
+            <option v-for="p in months" :key="statsKey(p)" :value="statsKey(p)">
+              {{ periodLabel(p) }}
+            </option>
+          </optgroup>
+        </select>
       </h3>
-      <div v-if="users.length" class="learners">
+      <p v-if="current" class="period-line muted">
+        <b>{{ periodLabel(current) }}</b>
+        <span class="num">{{ monthsText(current) }}</span>
+        · {{ t('usageStats.battles', { n: current.battles.toLocaleString() }) }} ·
+        {{ t('dex.mv.count', { n: users.length }) }}
+      </p>
+      <UiPageLoading v-if="index === undefined || (current && table === undefined)" />
+      <div v-else-if="users.length" class="learners">
         <NuxtLink
           v-for="row in users"
           :key="row.id"
@@ -50,18 +74,17 @@
         </NuxtLink>
       </div>
       <p v-else class="muted small">{{ t('dex.it.noUsers') }}</p>
-      <p v-if="usageTable" class="note muted">
-        {{ t('dex.it.usersNote', { reg: usageTable.reg, month: usageTable.month }) }}
-      </p>
+      <p class="note muted">{{ t('dex.it.usersNote') }}</p>
     </section>
   </div>
 </template>
 
 <script setup lang="ts">
 import { useUsageKind } from '~/composables/useUsageKind'
-import { pickUsageTable } from '~/utils/autoSet'
+import { useUsageStats } from '~/composables/useUsageStats'
 import { itemCategory } from '~/utils/itemInfo'
 import type { Item } from '~/utils/types'
+import { periodsOf, statsKey, type StatsMeta } from '~/utils/usageStats'
 
 const props = defineProps<{ item: Item }>()
 const { t } = useI18n()
@@ -76,19 +99,38 @@ const megas = computed(() =>
     .map(([from, to]) => ({ from, to })),
 )
 
-// 사용률 통계 (현재 레귤레이션, 없으면 가장 최근 달) — 이 도구를 지닌 비율 순
+// ── 채용한 포켓몬 (시즌·월별 통계) ─────────────
 const kind = useUsageKind()
-const usageTable = computed(() => {
-  const p = pickUsageTable(gd.usageMeta(kind.value), reg.active.value?.id)
-  const table = p && gd.usageTable(kind.value, p.reg)
-  return table ? { reg: p.reg, month: table.month, pokemon: table.pokemon } : null
+const stats = useUsageStats()
+const index = computed(() => stats.index())
+const list = computed<StatsMeta[]>(() => index.value?.[kind.value] ?? [])
+const seasons = computed(() => periodsOf(list.value, 'season'))
+const months = computed(() => periodsOf(list.value, 'month'))
+// 고른 기간 (statsKey). 없거나 목록에 없으면 현재 레귤레이션 시즌, 그것도 없으면 마지막 시즌
+const picked = useState('dex-item-period', () => '')
+const current = computed<StatsMeta | undefined>(
+  () =>
+    list.value.find((p) => statsKey(p) === picked.value) ??
+    seasons.value.find((p) => p.reg === reg.active.value?.id) ??
+    seasons.value.at(-1),
+)
+const periodKey = computed({
+  get: () => (current.value ? statsKey(current.value) : ''),
+  set: (v: string) => (picked.value = v),
 })
+const table = computed(() => stats.table(kind.value, current.value))
 const users = computed(() =>
-  Object.entries(usageTable.value?.pokemon ?? {})
-    .map(([id, u]) => ({ id, use: u.itemUsage?.[props.item.id] ?? 0 }))
+  (table.value?.pokemon ?? [])
+    .map((m) => ({ id: m.id, use: m.items.find(([i]) => i === props.item.id)?.[1] ?? 0 }))
     .filter((r) => r.use > 0 && gd.pokemon(r.id))
     .sort((a, b) => b.use - a.use),
 )
+const periodLabel = (p: StatsMeta) =>
+  p.period === 'season'
+    ? t('usageStats.season', { reg: p.reg })
+    : t('usageStats.month', { month: p.period, reg: p.reg })
+const monthsText = (p: StatsMeta) =>
+  p.months.length > 1 ? `${p.months[0]} ~ ${p.months.at(-1)}` : (p.months[0] ?? '')
 </script>
 
 <style scoped>
@@ -202,6 +244,20 @@ const users = computed(() =>
   font-size: 12px;
   color: var(--accent-2);
   font-weight: 700;
+}
+.period {
+  width: auto;
+  font-size: 12px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+.period-line {
+  margin: 0 0 8px;
+  font-size: 12px;
+}
+.period-line b {
+  color: var(--text);
+  margin-right: 6px;
 }
 .note {
   margin: 8px 0 0;

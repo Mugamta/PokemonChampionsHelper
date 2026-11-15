@@ -1023,7 +1023,8 @@ try {
 // 사용률 표(usage/)와 따로 둔다 — 자동 배치는 가장 최근 달만 쓰고, 이쪽은 통계 화면에서만 필요할 때 받는다.
 // 받기 실패면 기존 stats/ 를 유지한다
 const STATS_MIN = 50 // 이 기간 사용 수가 이보다 적으면 순위표에서 뺌
-const STATS_TOP = { moves: 10, items: 6, abilities: 3, spreads: 3, teammates: 8 }
+// 도구는 도감 도구 탭(채용한 포켓몬)에서도 써서 넉넉히 (0.5% 이상만, 통계 화면은 앞 6개만 보여줌)
+const STATS_TOP = { moves: 10, items: 12, abilities: 3, spreads: 3, teammates: 8 }
 const STAT_KEYS = ['Moves', 'Items', 'Abilities', 'Spreads', 'Teammates']
 function addMonth(acc, json) {
   const battles = json.info['number of battles']
@@ -1053,7 +1054,7 @@ function finishStats(acc, reg, period, months) {
       count: a.count,
       usage: round4(a.usage / acc.battles),
       moves: pick(a.Moves, (m) => !!moves[m] && learn.has(m), STATS_TOP.moves),
-      items: pick(a.Items, (i) => !!items[i], STATS_TOP.items),
+      items: pick(a.Items, (i) => !!items[i], STATS_TOP.items).filter(([, v]) => v >= 0.005),
       abilities: pick(a.Abilities, (x) => !!abilities[x], STATS_TOP.abilities),
       // 배분 = '성격 id:H/A/B/C/D/S' (능력 포인트 0~32, 합 66 이하만)
       spreads: pick(

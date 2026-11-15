@@ -39,7 +39,7 @@
 
       <div class="block">
         <h3 class="section-label">{{ t('usageStats.items') }}</h3>
-        <div v-for="[k, v] in mon.items" :key="k" class="share">
+        <div v-for="[k, v] in mon.items.slice(0, 6)" :key="k" class="share">
           <UiItemIcon :id="k" :size="20" />
           <span class="lbl">{{ gd.name('items', k) }}</span>
           <span class="bar-wrap"><span class="bar" :style="{ width: pct(v) }" /></span>

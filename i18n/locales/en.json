@@ -979,7 +979,7 @@
       "mega": "Mega Evolution",
       "users": "Used by",
       "noUsers": "No Pokémon holds this item in usage stats",
-      "usersNote": "% = share of teams using that Pokémon that hold this item ({reg} · {month} stats, 0.5%+). Prices: Serebii Champions item list"
+      "usersNote": "% = share of teams using that Pokémon in the period that held this item (0.5%+, season = all months of the regulation combined). Prices: Serebii Champions item list"
     }
   },
   "vs": {
