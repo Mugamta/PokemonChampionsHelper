@@ -18,6 +18,7 @@
     "stats": "Stats",
     "usage": "Usage",
     "vs": "VS",
+    "teams": "Top Teams",
     "dex": "Pokédex",
     "patch": "Patch Notes",
     "guide": "Guide"
@@ -1380,5 +1381,38 @@
     "listNote": "Number = matchups, % = how often this Pokémon was KOed or switched out against that opponent (Smogon Checks and Counters, rare pairs excluded). Click to compare both sides below",
     "pair": "Compare with an opponent",
     "pickOpp": "Opponent"
+  },
+  "topTeams": {
+    "title": "Top Player Teams",
+    "sub": "Teams used by high-rated players in Pokémon Showdown ranked battles (public replays)",
+    "by": {
+      "rating": "By rating",
+      "rank": "By ladder rank"
+    },
+    "all": "All",
+    "ratingMin": "{n}+",
+    "rankTop": "Top {n}",
+    "search": "Find by Pokémon",
+    "summary": "{replays} replays · ladder rank as of {date} · {n} teams",
+    "note": "These are Showdown records, not in-game ranked battles. Items, Abilities and moves are shown only when revealed in battle; games by the same player with the same six Pokémon are merged.",
+    "noData": "No top team data for this regulation.",
+    "none": "No teams match these filters.",
+    "rating": "Rating",
+    "ratingHint": "Highest pre-battle rating among games with this team (Showdown Elo)",
+    "rankLabel": "#{n}",
+    "rankHint": "Player's Showdown ladder rank (as of the data date, top 500 only)",
+    "record": "{games} games, {wins} wins",
+    "last": "Last {date}",
+    "replay": "Watch replay {n} (Showdown)",
+    "brought": "Brought {n}/{games}",
+    "mega": "Mega",
+    "item": "Item",
+    "ability": "Ability",
+    "itemLabel": "Held item",
+    "abilityLabel": "Ability",
+    "unknown": "Not revealed in battle",
+    "import": "Use as my team",
+    "importConfirm": "Replace your current team with this team? Unrevealed moves, items, Abilities and spreads are filled from usage stats.",
+    "more": "Show more ({n})"
   }
 }

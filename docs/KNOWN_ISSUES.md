@@ -44,6 +44,8 @@
 ## 환경
 
 - `nuxt build` 시 Vuetify 4 CSS `@layer` 관련 esbuild 경고 3건 — Vuetify 쪽 문제, 동작 영향 없음.
+- VS Code 터미널처럼 작업 폴더가 소문자 드라이브(`c:\...`)로 잡힌 셸에서 `npm test` 를 돌리면 vitest 가 모듈을 두 번 불러와
+  모든 테스트 파일이 `Cannot read properties of undefined (reading 'config')` 로 실패한다. `C:\...`(대문자)로 이동한 뒤 실행하면 정상 (2026-11-17 확인)
 - npm 10.9 에서 vitest 설치 시 peer 해석 버그(`edgesOut`)가 있어 `--legacy-peer-deps` 로 설치했다. 일반 `npm install`/`npm ci` 는 정상.
 - Windows Git Bash 에서 `NUXT_APP_BASE_URL=/PokemonChampionsHelper/` 로 빌드할 때 `MSYS_NO_PATHCONV=1` 필요.
 - 예전 URL(`/partySelect`, `/entrySelect`, `/singleEntrySelect`, `/doubleEntrySelect`, `/singleBattle`)은 라우터 리다이렉트로 새 경로로 보낸다.

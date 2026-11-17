@@ -1215,6 +1215,152 @@ try {
   warn.push(`시즌·월별 사용률 정리 받기 실패 (기존 stats/ 유지): ${e.message}`)
 }
 
+// ── 6.7 상위 유저 파티 (Pokémon Showdown 리플레이 + 래더) ─────────────
+// Smogon 통계에는 완성 파티가 없어서, 사용률 통계와 같은 포맷의 공개 리플레이에서 플레이어별 6마리 + 배틀 중 드러난
+// 기술·도구·특성·메가를 모은다. 리플레이마다 양쪽 플레이어의 배틀 전 레이팅(Elo)이 있고, 래더 TOP 500 으로 순위를 붙인다.
+//   리플레이 = 레이팅 높은 순 검색 TEAMS_PAGES 쪽 + 래더 상위 TEAMS_USERS 명의 최근 리플레이 (레이팅 배틀만)
+//   같은 플레이어의 같은 6마리 = 한 파티 (utils/topTeams.ts mergeTeams), 레이팅 높은 순 TEAMS_MAX 개
+// public/data/teams/index.json = { single | double: { [레귤레이션]: { format, fetched, replays, teams } } },
+// teams/{kind}-{reg}.json = { format, fetched, replays, teams: [TopTeam] }. 형식은 utils/topTeams.ts.
+// 검색·래더는 소스 캐시(--refresh 로 다시 받음), 리플레이는 내용이 바뀌지 않으므로 읽은 결과만 캐시한다.
+// 받기 실패면 기존 teams/ 를 유지한다
+const REPLAY = 'https://replay.pokemonshowdown.com'
+const TEAMS_PAGES = 8 // 레이팅 순 검색 쪽 수 (쪽당 50개)
+const TEAMS_USERS = 50 // 최근 리플레이를 따로 찾아보는 래더 상위 플레이어 수
+const TEAMS_PER_USER = 10
+const TEAMS_MAX = 300
+// 리플레이는 읽은 결과만 캐시하므로 utils/topTeams.ts parseReplayLog 를 고치면 올려서 다시 읽게 한다
+const REPLAY_PARSE_VERSION = 1
+async function importTS(rel) {
+  const src = fs.readFileSync(path.join(ROOT, rel), 'utf8')
+  const js = esbuild.transformSync(src, { loader: 'ts', format: 'esm' }).code
+  return import('data:text/javascript;base64,' + Buffer.from(js).toString('base64'))
+}
+// 동시에 n 개씩
+async function pool(list, n, fn) {
+  const out = new Array(list.length)
+  let next = 0
+  await Promise.all(
+    Array.from({ length: Math.min(n, list.length) }, async () => {
+      while (next < list.length) {
+        const i = next++
+        out[i] = await fn(list[i], i)
+      }
+    }),
+  )
+  return out
+}
+// 리플레이의 종 id → 앱의 슬롯 종 (메가·배틀 폼이면 원래 폼, 데이터에 없는 폼이면 가장 긴 앞부분이 맞는 종)
+function teamSpecies(id) {
+  let p = pokemon[id]
+  for (let n = id.length - 1; !p && n >= 3; n--) p = pokemon[id.slice(0, n)]
+  if (!p) return null
+  return p.mega?.from ?? p.battleForm?.from ?? p.id
+}
+async function buildTopTeams(formats) {
+  const { parseReplayLog, mergeTeams } = await importTS('utils/topTeams.ts')
+  const out = { index: { single: {}, double: {} }, files: [] }
+  const readReplay = async (id) => {
+    const file = path.join(CACHE, `replays-v${REPLAY_PARSE_VERSION}`, `${id}.json`)
+    if (fs.existsSync(file)) return JSON.parse(fs.readFileSync(file, 'utf8'))
+    const res = await fetch(`${REPLAY}/${id}.json`, { headers: { 'User-Agent': UA } })
+    if (!res.ok) return null // 지워졌거나 비공개로 바뀐 리플레이 (캐시하지 않음)
+    const j = await res.json()
+    const r = { time: j.uploadtime, game: parseReplayLog(j.log ?? '') }
+    fs.mkdirSync(path.dirname(file), { recursive: true })
+    fs.writeFileSync(file, JSON.stringify(r))
+    return r
+  }
+  // 리플레이에서 읽은 한 쪽 → 앱 데이터 id 로 맞춤 (없는 기술·도구·특성은 버림)
+  const fixSide = (s) => ({
+    ...s,
+    mons: s.mons.map((m) => {
+      const species = teamSpecies(m.species) ?? m.species
+      const mega = m.mega && pokemon[m.mega]?.mega?.from === species ? m.mega : undefined
+      return {
+        ...m,
+        species,
+        mega,
+        item: m.item && items[m.item] ? m.item : undefined,
+        ability: m.ability && abilities[m.ability] ? m.ability : undefined,
+        moves: m.moves.filter((id) => moves[id]),
+      }
+    }),
+  })
+  for (const [kind, regs] of Object.entries(formats)) {
+    for (const [reg, format] of Object.entries(regs)) {
+      const ladderName = `teams/ladder-${format}.json`
+      const ladder = JSON.parse(
+        await cached(`https://pokemonshowdown.com/ladder/${format}.json`, ladderName),
+      )
+      const rank = new Map((ladder.toplist ?? []).map((u, i) => [u.userid, i + 1]))
+      const fetched = fs.statSync(path.join(CACHE, ladderName)).mtime.toISOString().slice(0, 10)
+      const ids = new Set()
+      for (let page = 1; page <= TEAMS_PAGES; page++) {
+        const list = JSON.parse(
+          await cached(
+            `${REPLAY}/search.json?format=${format}&sort=rating&page=${page}`,
+            `teams/search-${format}-${page}.json`,
+          ),
+        )
+        for (const r of list) if (r.rating && !r.private) ids.add(r.id)
+        if (list.length <= 50) break // 쪽당 50개 + 다음 쪽이 있으면 1개 더
+      }
+      const users = (ladder.toplist ?? []).slice(0, TEAMS_USERS).map((u) => u.userid)
+      await pool(users, 4, async (u) => {
+        try {
+          const list = JSON.parse(
+            await cached(
+              `${REPLAY}/search.json?user=${encodeURIComponent(u)}&format=${format}`,
+              `teams/user-${format}-${u}.json`,
+            ),
+          )
+          list
+            .filter((r) => r.rating && !r.private)
+            .slice(0, TEAMS_PER_USER)
+            .forEach((r) => ids.add(r.id))
+        } catch (e) {
+          warn.push(`상위 파티: ${u} 리플레이 검색 실패 (${e.message})`)
+        }
+      })
+      const read = await pool([...ids], 6, async (id) => {
+        try {
+          return [id, await readReplay(id)]
+        } catch {
+          return [id, null]
+        }
+      })
+      const games = []
+      let replays = 0
+      for (const [id, r] of read) {
+        if (!r?.game || r.game.doubles !== (kind === 'double')) continue
+        replays++
+        for (const side of r.game.sides) games.push({ id, time: r.time, side: fixSide(side) })
+      }
+      const teams = mergeTeams(games, rank).slice(0, TEAMS_MAX)
+      if (!teams.length) {
+        warn.push(`상위 파티 없음: ${kind} ${reg} (${format})`)
+        continue
+      }
+      out.index[kind][reg] = { format, fetched, replays, teams: teams.length }
+      out.files.push([`${kind}-${reg}`, { format, fetched, replays, teams }])
+      console.log(`상위 파티 ${kind} ${reg}: 리플레이 ${replays}, 파티 ${teams.length}`)
+    }
+  }
+  return out
+}
+let topTeams = null
+try {
+  // 포맷 = 사용률 통계와 같은 싱글/더블 포맷 (이번에 못 받았으면 기존 usage/index.json)
+  const meta = usage ?? JSON.parse(fs.readFileSync(path.join(OUT, 'usage', 'index.json'), 'utf8'))
+  const formats = { single: {}, double: {} }
+  for (const kind of ['single', 'double'])
+    for (const [reg, t] of Object.entries(meta[kind] ?? {})) formats[kind][reg] = t.format
+  topTeams = await buildTopTeams(formats)
+} catch (e) {
+  warn.push(`상위 파티 받기 실패 (기존 teams/ 유지): ${e.message}`)
+}
+
 // ── 7. 출력 ─────────────
 fs.mkdirSync(OUT, { recursive: true })
 const write = (name, data) => fs.writeFileSync(path.join(OUT, name), JSON.stringify(data))
@@ -1245,6 +1391,13 @@ if (usageStats) {
   fs.mkdirSync(dir, { recursive: true })
   for (const [name, table] of usageStats.files) write(`stats/${name}.json`, table)
   write('stats/index.json', usageStats.index)
+}
+if (topTeams) {
+  const dir = path.join(OUT, 'teams')
+  fs.rmSync(dir, { recursive: true, force: true })
+  fs.mkdirSync(dir, { recursive: true })
+  for (const [name, file] of topTeams.files) write(`teams/${name}.json`, file)
+  write('teams/index.json', topTeams.index)
 }
 for (const L of Object.keys(names)) {
   write(`names.${L}.json`, names[L])

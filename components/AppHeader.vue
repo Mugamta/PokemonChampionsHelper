@@ -119,6 +119,7 @@ const links = [
   { to: '/stats', label: 'nav.stats' },
   { to: '/usage', label: 'nav.usage' },
   { to: '/vs', label: 'nav.vs' },
+  { to: '/teams', label: 'nav.teams' },
   { to: '/dex', label: 'nav.dex' },
   { to: '/patch', label: 'nav.patch' },
   { to: '/guide', label: 'nav.guide' },

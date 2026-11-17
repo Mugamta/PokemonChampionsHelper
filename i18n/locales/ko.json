@@ -18,6 +18,7 @@
     "stats": "성능표",
     "usage": "통계",
     "vs": "VS",
+    "teams": "상위 파티",
     "dex": "도감",
     "patch": "패치 내역",
     "guide": "도움말"
@@ -1377,5 +1378,38 @@
     "listNote": "숫자 = 맞대결 수, % = 그 상대를 만났을 때 이 포켓몬이 쓰러지거나 교체로 물러난 비율 (Smogon Checks and Counters, 맞대결이 적은 쌍 제외). 누르면 아래에서 양쪽 기록 비교",
     "pair": "상대 골라서 비교",
     "pickOpp": "상대 포켓몬"
+  },
+  "topTeams": {
+    "title": "상위 유저 파티",
+    "sub": "레이팅이 높은 플레이어들이 Pokémon Showdown 랭크 배틀(리플레이 공개)에서 쓴 파티",
+    "by": {
+      "rating": "레이팅 기준",
+      "rank": "래더 순위 기준"
+    },
+    "all": "전체",
+    "ratingMin": "{n} 이상",
+    "rankTop": "TOP {n}",
+    "search": "포켓몬으로 찾기",
+    "summary": "리플레이 {replays}개 · 래더 순위 {date} 기준 · 파티 {n}개",
+    "note": "게임 내 랭크배틀이 아니라 Showdown 기록입니다. 도구·특성·기술은 배틀에서 드러난 것만 표시하고, 같은 플레이어가 같은 6마리로 한 배틀은 하나로 묶었습니다.",
+    "noData": "이 레귤레이션의 상위 파티 자료가 없습니다.",
+    "none": "조건에 맞는 파티가 없습니다.",
+    "rating": "레이팅",
+    "ratingHint": "이 파티로 한 배틀 중 가장 높았던 배틀 전 레이팅 (Showdown Elo)",
+    "rankLabel": "{n}위",
+    "rankHint": "플레이어의 Showdown 래더 순위 (자료를 받은 날 기준, TOP 500 안일 때만)",
+    "record": "{games}전 {wins}승",
+    "last": "최근 {date}",
+    "replay": "리플레이 {n} 보기 (Showdown)",
+    "brought": "선출 {n}/{games}",
+    "mega": "메가",
+    "item": "도구",
+    "ability": "특성",
+    "itemLabel": "지닌 도구",
+    "abilityLabel": "특성",
+    "unknown": "배틀에서 드러나지 않음",
+    "import": "내 파티로 가져오기",
+    "importConfirm": "지금 내 파티를 이 파티로 바꿀까요? 드러나지 않은 기술·도구·특성·배분은 사용률 통계로 채웁니다.",
+    "more": "더 보기 ({n})"
   }
 }
