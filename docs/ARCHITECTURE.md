@@ -59,8 +59,8 @@ Nuxt 컴포넌트 이름은 폴더 접두사가 붙는다: `components/team/Slot
 |---|---|---|
 | `/` | pages/index.vue | 모드 카드, 현재 레귤레이션, 파티 진행도 |
 | `/party` | pages/party.vue → TeamSlotEditor ×6 | 포켓몬/성별(TeamGenderToggle, 둘 다 가능한 종만 ♂/♀)/특성/도구/성격/능력P/기술, 실능치·HP 배수·내구·결정력, 결정력 미리보기 조건, "통계 추천" 버튼(사용률 통계가 있는 포켓몬) |
-| `/single`, `/double` | BattleEntryView(mode) | 왼쪽 내 파티(눌러서 선출), 가운데 데미지 표(방향 탭), 오른쪽 상대 6마리 입력(compact SlotEditor, 포켓몬을 고르면 자동 배치 + "자동 배치" 버튼) |
-| `/single/battle`, `/double/battle` | BattleView(mode) | 필드 포켓몬 패널, 필드 상태, 행동 입력·턴 적용, 예상 흐름, 스피드 구간, 배분 추정, 데미지 표 2종 |
+| `/single`, `/double` | BattleEntryView(mode) | 위 단계 표시(상대 입력 → 선출 → 배틀 시작), 왼쪽 내 파티(기본 한 줄, 눌러서 선출), 가운데 데미지 표(방향 탭 · 계산 조건 버튼 · 자세히), 오른쪽 상대 6마리 입력(기본 이름 줄만 = SlotEditor brief, 포켓몬을 고르면 자동 배치 + "자동 배치" 버튼) |
+| `/single/battle`, `/double/battle` | BattleView(mode) | 필드 포켓몬 패널(상태·랭크 고치기는 접힘), 필드 상태(켜진 것만, "바꾸기"), 행동 입력·턴 적용, 예상 흐름, 가운데 아래 탭(예상 데미지 / 상대 기술 / 스피드 구간 / 배분 추정) |
 | `/stats` | pages/stats.vue → PerfBulkTable / PerfPowerTable / PerfSpeedTable | 포켓몬 성능표. 검색, 탭은 `?tab=bulk|power|speed` |
 | `/usage` | pages/usage.vue → UsageMonDetail | 사용률 통계 (헤더 "통계"). Smogon 월별 통계를 **시즌(= 레귤레이션, 달 합산)별 / 월별** 순위표로: 순위·순위 변동(시즌 = 직전 시즌, 월 = 같은 레귤레이션의 직전 달, 첫 달은 직전 시즌)·채용률·사용 수, 검색. 툴바 1줄 = 시즌별/월별 · 싱글/더블 · 검색, 2줄 = 기간 칩. 싱글/더블은 `useUsageKind` 공유. `?mode=season|month&reg=&period=&id=`, 기본 = 현재 레귤레이션 시즌 / 가장 최근 달. 데이터 `useUsageStats` (`public/data/stats/`), 계산 utils/usageStats.ts. 상세 아래 **대면** 칸(UsageMatchupList): 상대하기 어려운/쉬운 상대(물러난 비율 높은/낮은 순, `rankedMatchups`) + 상대를 골라 양쪽 기록 비교(UsageMatchupLine) |
 | `/teams` | pages/teams.vue → TeamsTeamCard | 상위 유저 파티 (헤더 "상위 파티"). Showdown 리플레이에서 모은 상위 플레이어 파티, 기준 = 레이팅 이상 / 래더 순위 TOP N, 레귤레이션 칩, 싱글/더블(`useUsageKind`), 포켓몬 검색, 30개씩 더 보기. `?reg=&by=rating|rank&v=`. 데이터 `useTopTeams` (`public/data/teams/`), 고르기 utils/topTeams.ts. "내 파티로 가져오기" = 통계 배치 + 드러난 도구·특성·기술 → /party |
@@ -94,6 +94,7 @@ Nuxt 컴포넌트 이름은 폴더 접두사가 붙는다: `components/team/Slot
 | `useIncremental(list)` | 긴 목록을 조금씩 그리기 (끝 요소가 화면 근처에 오면 더) |
 | `useLazyField()` | 입력칸을 처음엔 `UiLazyField`(겉모습만 같은 정적 마크업)로 그리고, 누르거나 포커스하면 진짜 v-autocomplete/v-select 로 바꿔 포커스·목록 열기. 종/도구/성격/기술 피커가 사용 |
 | `useLine()` | 위 문구를 현재 언어로 렌더링 (`@키` / `@키|이름` 파라미터 번역) |
+| `useViewPrefs()` | 선출·배틀에서 접어 두는 정보의 보기 설정 (`damageDetail` 데미지 칸 자세히, `scenarioSplit` 예상 데미지 배분별). localStorage `pch_view` |
 | `useThemeMode()` | 테마 선택값 `'light' | 'dark' | 'system'` (적용·저장은 plugins/theme.client.ts) |
 | `useFitLayout()` | 넓은 화면 한 화면 배치 여부 (`(min-width: 1400px) and (min-height: 700px)`). 배틀 화면의 패널 재배치·표 탭, 파티 6장 한 줄에 사용 |
 

@@ -1,4 +1,5 @@
-<!-- 예상 데미지: 내 포켓몬(미리보기 대상)의 기술 × 상대 후보, 칸마다 상대 배분 4가지 시나리오.
+<!-- 예상 데미지: 내 포켓몬(미리보기 대상)의 기술 × 상대 후보.
+     칸마다 상대 배분 4가지 시나리오 — 기본은 무보정 ~ 풀보정을 합친 범위 한 줄, "배분별"을 켜면 4줄.
      아직 메가진화하지 않은 쪽은 메가 폼도 함께 (내 쪽 = 미리보기 버튼 추가, 상대 = 열 추가) -->
 <template>
   <section class="panel panel-pad">
@@ -8,6 +9,13 @@
         t('battle.expectedVs', { name: gd.name('pokemon', attacker.species.id) })
       }}</span>
       <span class="spacer" />
+      <label class="crit" :title="t('battle.scenarioSplitHint')"
+        ><input v-model="prefs.scenarioSplit" type="checkbox" />
+        {{ t('battle.scenarioSplit') }}</label
+      >
+      <label class="crit" :title="t('common.detailHint')"
+        ><input v-model="prefs.damageDetail" type="checkbox" /> {{ t('common.detail') }}</label
+      >
       <label class="crit"><input v-model="crit" type="checkbox" /> {{ t('common.crit') }}</label>
     </h3>
     <div class="who">
@@ -52,13 +60,17 @@
               }}
             </td>
             <td v-for="c in oppCols" :key="c.key">
-              <div v-for="sc in DEF_SCENARIOS" :key="sc" class="sc-line">
-                <span class="sc-label">{{ t('battle.scenario.' + sc) }}</span>
-                <UiDamageCell
-                  :cell="an.mineVsScenario(previewIdx!, mv, c.oi, sc, crit, previewMega, c.mega)"
-                  compact
-                />
-              </div>
+              <template v-if="prefs.scenarioSplit">
+                <div v-for="sc in DEF_SCENARIOS" :key="sc" class="sc-line">
+                  <span class="sc-label">{{ t('battle.scenario.' + sc) }}</span>
+                  <UiDamageCell
+                    :cell="an.mineVsScenario(previewIdx!, mv, c.oi, sc, crit, previewMega, c.mega)"
+                    compact
+                    :brief="!prefs.damageDetail"
+                  />
+                </div>
+              </template>
+              <UiDamageCell v-else :cell="merged(mv, c)" :brief="!prefs.damageDetail" />
             </td>
           </tr>
         </tbody>
@@ -71,6 +83,7 @@
 import type { useBattle } from '~/composables/useBattle'
 import { DEF_SCENARIOS, type useBattleAnalysis } from '~/composables/useBattleAnalysis'
 import { effectiveMoveType } from '~/utils/damage'
+import { spanCells } from '~/composables/useTeamCalc'
 
 const props = defineProps<{
   b: ReturnType<typeof useBattle>
@@ -80,6 +93,7 @@ const { t } = useI18n()
 const gd = useGameData()
 const s = computed(() => props.b.state.value!)
 const crit = ref(false)
+const prefs = useViewPrefs()
 
 // 내 로스터 + 아직 메가진화하지 않았고 메가진화할 수 있는 포켓몬은 메가 폼 버튼도
 const roster = computed(() =>
@@ -119,6 +133,29 @@ const attackMoves = computed(() =>
   (attacker.value?.slot.moves || []).filter((m) => m && gd.move(m)?.category !== 'status'),
 )
 
+// 배분 범위 양 끝(무보정 = 가장 많이 들어감, H·B/D 풀보정 = 가장 적게)을 합친 한 칸
+const merged = (mv: string, c: { oi: number; mega?: boolean }) =>
+  spanCells(
+    props.an.mineVsScenario(
+      previewIdx.value!,
+      mv,
+      c.oi,
+      'neutral',
+      crit.value,
+      previewMega.value,
+      c.mega,
+    ),
+    props.an.mineVsScenario(
+      previewIdx.value!,
+      mv,
+      c.oi,
+      'fullNature',
+      crit.value,
+      previewMega.value,
+      c.mega,
+    ),
+  )
+
 // 선출 마릿수만큼 상대가 확인되면 그 포켓몬만, 아니면 상대 6마리 전부 (메가진화 가능하면 메가 폼 열 추가)
 const oppCols = computed(() => {
   const rev = s.value.sides.opp.revealed
@@ -144,6 +181,9 @@ const oppCols = computed(() => {
 .sub {
   font-size: 12px;
   font-weight: 600;
+}
+.crit + .crit {
+  margin-left: 10px;
 }
 .crit {
   font-size: 12px;
@@ -191,7 +231,7 @@ td {
   font-size: 11px;
   font-weight: 600;
   color: var(--text-2);
-  min-width: 150px;
+  min-width: 110px;
 }
 .mv {
   white-space: nowrap;

@@ -5,6 +5,9 @@
     <h3 class="panel-title">
       {{ t('battle.oppMoves') }}
       <span class="spacer" />
+      <label class="crit" :title="t('common.detailHint')"
+        ><input v-model="prefs.damageDetail" type="checkbox" /> {{ t('common.detail') }}</label
+      >
       <label class="crit"><input v-model="crit" type="checkbox" /> {{ t('common.crit') }}</label>
     </h3>
     <p v-if="oi == null || !oppSlot" class="muted small">
@@ -51,6 +54,7 @@
                 v-if="oppSlot.moves[k - 1]"
                 :cell="an.oppVsMine(oi, oppSlot.moves[k - 1]!, c.idx, crit, c.mega)"
                 show-eff
+                :brief="!prefs.damageDetail"
               />
             </td>
           </tr>
@@ -70,6 +74,7 @@
                 <UiDamageCell
                   :cell="an.oppVsMine(oi, mv, c.idx, crit, c.mega, false, true)"
                   show-eff
+                  :brief="!prefs.damageDetail"
                 />
               </td>
             </tr>
@@ -92,6 +97,7 @@ const { t } = useI18n()
 const gd = useGameData()
 const oppTeam = useTeam('opp')
 const crit = ref(false)
+const prefs = useViewPrefs()
 const s = computed(() => props.b.state.value!)
 
 const oi = computed(() => props.an.activeIdx('opp'))
@@ -117,6 +123,9 @@ const oppMega = computed(() => oi.value != null && props.an.megaPreviewable('opp
 <style scoped>
 .panel-title {
   margin-bottom: 8px;
+}
+.crit + .crit {
+  margin-left: 10px;
 }
 .crit {
   font-size: 12px;

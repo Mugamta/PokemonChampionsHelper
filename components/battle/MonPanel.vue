@@ -1,4 +1,6 @@
-<!-- 필드에 나와 있는 포켓몬 1마리: HP / 실능치 / 랭크 / 상태이상 / 특수상태 / 메가진화 -->
+<!-- 필드에 나와 있는 포켓몬 1마리: HP / 실능치 / 랭크 / 상태이상 / 특수상태 / 메가진화
+     랭크·상태이상·특수 상태는 기술·특성으로 자동 반영되므로 고치는 버튼은 "상태·랭크 고치기" 안에 접어 둔다
+     (지금 값은 능력치 줄의 랭크, 이름 옆 상태이상, 아래 특수 상태 태그로 항상 보임) -->
 <template>
   <div
     class="mon panel"
@@ -140,12 +142,9 @@
               r.nature?.plus === k ? 'up' : r.nature?.minus === k ? 'down' : '',
               { range: !!oppBounds },
             ]"
-            :title="oppBounds ? t('battle.oppStatHint') : undefined"
+            :title="statHint(k)"
             >{{ statText(k) }}</span
           >
-          <span v-if="spText(k)" class="st-sp num" :title="t('battle.spHint')">{{
-            spText(k)
-          }}</span>
           <span
             v-if="k !== 'hp' && m.boosts[k as BoostKey]"
             class="st-b num"
@@ -174,7 +173,19 @@
         </span>
       </div>
 
-      <div class="lower" @click.stop>
+      <div v-if="volList.length" class="chip-row" @click.stop>
+        <span v-for="v in volList" :key="v" class="vol-tag">{{ volLabel(v) }}</span>
+      </div>
+
+      <button
+        type="button"
+        class="edit-toggle section-label"
+        :class="{ open: editOpen }"
+        @click.stop="editOpen = !editOpen"
+      >
+        {{ t('battle.editState') }}
+      </button>
+      <div v-if="editOpen" class="lower" @click.stop>
         <UiRankControl :boosts="m.boosts" @change="(k, d) => b.changeBoost(side, idx!, k, d)" />
         <div class="conds">
           <div class="chip-row">
@@ -216,9 +227,6 @@
               </div>
             </div>
           </details>
-          <div v-if="volList.length" class="chip-row">
-            <span v-for="v in volList" :key="v" class="vol-tag">{{ volLabel(v) }}</span>
-          </div>
         </div>
       </div>
     </template>
@@ -301,6 +309,12 @@ const moveList = computed(() => {
   if (!knownSet) while (list.length < 4) list.push({ id: '', max: 0, left: 0 })
   return list
 })
+// 실능치 칸에 마우스를 올리면: 상대 추정 안내 + 능력 포인트
+const statHint = (k: StatKey) =>
+  [oppBounds.value && t('battle.oppStatHint'), spText(k) && `${t('battle.spHint')} ${spText(k)}`]
+    .filter(Boolean)
+    .join(' / ') || undefined
+const editOpen = ref(false)
 const hpPercent = computed(() =>
   !m.value ? 0 : props.side === 'opp' ? m.value.hp : max.value ? (m.value.hp / max.value) * 100 : 0,
 )
@@ -575,11 +589,23 @@ const volLabel = (v: string) => {
 .mv-chip.out b {
   color: var(--bad);
 }
-.st-sp {
-  font-size: 10px;
-  font-weight: 600;
+.edit-toggle {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+}
+.edit-toggle::before {
+  content: '▸';
   color: var(--text-3);
-  white-space: nowrap;
+}
+.edit-toggle.open::before {
+  content: '▾';
 }
 .st-b {
   font-size: 10px;

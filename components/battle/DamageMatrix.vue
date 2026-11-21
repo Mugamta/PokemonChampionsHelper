@@ -35,6 +35,7 @@
                     : null
                 "
                 show-eff
+                :brief="!prefs.damageDetail"
               />
             </td>
           </tr>
@@ -63,6 +64,7 @@ const props = defineProps<{
 const { t } = useI18n()
 const gd = useGameData()
 const calc = useTeamCalc()
+const prefs = useViewPrefs()
 
 const attackerC = computed(() =>
   props.attacker ? calc.combatant(calc.attackForm(props.attacker)) : null,

@@ -1,9 +1,9 @@
 <!--
   배틀 화면 (싱글 1:1 / 더블 2:2 공용)
   왼쪽: 내 필드 + 대기 · 가운데: 필드/스피드/행동/예상 흐름 · 오른쪽: 상대 필드 + 확인된/후보 포켓몬
-  아래: 예상 데미지 표 (내 공격 시나리오 / 상대 기술)
+  가운데 아래 탭: 예상 데미지 / 상대 기술 / 스피드 비교 / 상대 능력 추정 (매 턴 꼭 보지 않아도 되는 것은 탭 안에)
   넓은 화면(useFitLayout): 화면 높이에 맞추고 열마다 스크롤. 날씨/필드/공간은 가운데 위,
-  진영 상태(벽·설치기)는 각 진영 열, 스피드는 오른쪽, 예상 데미지 표 2개는 가운데에 탭으로
+  진영 상태(벽·설치기)는 각 진영 열
 -->
 <template>
   <div class="page">
@@ -96,30 +96,22 @@
           <BattleReplacePanel :b="b" />
           <BattleActionPanel :b="b" :an="an" />
           <BattleForecastPanel :an="an" />
-          <BattleSpeedPanel v-if="!fit" :b="b" :an="an" />
-          <BattleEstimatePanel v-if="!fit" :b="b" />
-          <template v-if="fit">
-            <div class="tab-row">
-              <button
-                type="button"
-                class="tab-btn"
-                :class="{ active: tableTab === 'scenario' }"
-                @click="tableTab = 'scenario'"
-              >
-                {{ t('battle.expected') }}
-              </button>
-              <button
-                type="button"
-                class="tab-btn"
-                :class="{ active: tableTab === 'incoming' }"
-                @click="tableTab = 'incoming'"
-              >
-                {{ t('battle.oppMoves') }}
-              </button>
-            </div>
-            <BattleScenarioTable v-if="tableTab === 'scenario'" :b="b" :an="an" />
-            <BattleIncomingTable v-else :b="b" :an="an" />
-          </template>
+          <div class="tab-row">
+            <button
+              v-for="tb in TABS"
+              :key="tb.key"
+              type="button"
+              class="tab-btn"
+              :class="{ active: tableTab === tb.key }"
+              @click="tableTab = tb.key"
+            >
+              {{ t(tb.label) }}
+            </button>
+          </div>
+          <BattleScenarioTable v-if="tableTab === 'scenario'" :b="b" :an="an" />
+          <BattleIncomingTable v-else-if="tableTab === 'incoming'" :b="b" :an="an" />
+          <BattleSpeedPanel v-else-if="tableTab === 'speed'" :b="b" :an="an" />
+          <BattleEstimatePanel v-else :b="b" />
         </section>
 
         <section class="col fit-scroll">
@@ -173,14 +165,7 @@
             </template>
           </div>
           <BattleFieldPanel v-if="fit" :b="b" part="opp" />
-          <BattleSpeedPanel v-if="fit" :b="b" :an="an" />
-          <BattleEstimatePanel v-if="fit" :b="b" />
         </section>
-      </div>
-
-      <div v-if="!fit" class="tables">
-        <BattleScenarioTable :b="b" :an="an" />
-        <BattleIncomingTable :b="b" :an="an" />
       </div>
     </template>
   </div>
@@ -199,7 +184,14 @@ const opp = useTeam('opp')
 const b = useBattle(props.mode)
 const an = useBattleAnalysis(b)
 const fit = useFitLayout()
-const tableTab = ref<'scenario' | 'incoming'>('scenario')
+type TableTab = 'scenario' | 'incoming' | 'speed' | 'estimate'
+const tableTab = ref<TableTab>('scenario')
+const TABS: { key: TableTab; label: string }[] = [
+  { key: 'scenario', label: 'battle.expected' },
+  { key: 'incoming', label: 'battle.oppMoves' },
+  { key: 'speed', label: 'battle.speed' },
+  { key: 'estimate', label: 'battle.est.title' },
+]
 
 const blocked = computed(() => {
   if (!entry.isFull.value) return t('entry.needPick', { n: entry.max })
@@ -317,12 +309,6 @@ const onReset = () => {
 .small {
   font-size: 12px;
 }
-.tables {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-  margin-top: 14px;
-}
 
 @media (max-width: 1400px) {
   .layout {
@@ -331,9 +317,6 @@ const onReset = () => {
   .center {
     grid-column: 1 / -1;
     order: 3;
-  }
-  .tables {
-    grid-template-columns: minmax(0, 1fr);
   }
 }
 @media (max-width: 860px) {

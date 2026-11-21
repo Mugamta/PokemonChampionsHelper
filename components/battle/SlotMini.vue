@@ -1,5 +1,5 @@
 <!--
-  선출 화면에서 접어 둔 포켓몬 슬롯 한 줄: 번호(상대) / 선출 순서(내 쪽) · 스프라이트 · 이름·성별 · 도구 · 펼치기 버튼.
+  선출 화면에서 접어 둔 포켓몬 슬롯 한 줄: 번호(상대) / 선출 순서(내 쪽) · 스프라이트 · 이름·성별 · 타입 · 도구 · 펼치기 버튼.
   내 쪽은 줄을 누르면 선출 토글(select), 상대는 펼침(expand). warn: 성별 미입력 등 붉은 테두리
 -->
 <template>
@@ -13,9 +13,12 @@
   >
     <span v-if="index != null" class="no num">{{ index + 1 }}</span>
     <UiPokeSprite :id="r?.species.id || null" :size="32" />
-    <span class="name">
-      {{ r ? gd.name('pokemon', r.species.id) : t('common.empty')
-      }}<span v-if="genderMark" class="gender-mark">{{ genderMark }}</span>
+    <span class="ident">
+      <span class="name">
+        {{ r ? gd.name('pokemon', r.species.id) : t('common.empty')
+        }}<span v-if="genderMark" class="gender-mark">{{ genderMark }}</span>
+      </span>
+      <UiTypeGroup v-if="r" :types="r.species.types" small />
     </span>
     <UiItemIcon v-if="slot.item" :id="slot.item" :size="18" />
     <span v-if="order != null" class="order num">{{ order }}</span>
@@ -92,13 +95,20 @@ const genderMark = computed(() => {
   flex: none;
 }
 .name {
-  flex: 1;
-  min-width: 0;
+  max-width: 100%;
   font-weight: 700;
   font-size: 13px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.ident {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
 }
 .gender-mark {
   margin-left: 3px;

@@ -3,11 +3,14 @@
   slot 은 useTeam().slots 의 원소를 그대로 받아 직접 수정한다.
 -->
 <template>
-  <article class="slot panel" :class="{ compact, narrow, empty: !slot.species }">
+  <article class="slot panel" :class="{ compact, brief, narrow, empty: !slot.species }">
     <header class="slot-head">
       <!-- 번호는 선출 화면의 상대 입력에서만 (파티 화면에는 불필요) -->
       <span v-if="compact" class="slot-no num">{{ index + 1 }}</span>
-      <UiPokeSprite :id="resolved?.species.id || null" :size="compact || narrow ? 56 : 84" />
+      <UiPokeSprite
+        :id="resolved?.species.id || null"
+        :size="brief ? 44 : compact || narrow ? 56 : 84"
+      />
       <div class="head-main">
         <TeamSpeciesPicker v-model="slot.species" :ids="speciesIds" :exclude="excludeSpecies" />
         <div v-if="resolved" class="head-meta">
@@ -57,7 +60,7 @@
       </div>
     </header>
 
-    <template v-if="slot.species && resolved">
+    <template v-if="slot.species && resolved && !brief">
       <div class="row3">
         <label class="fld">
           <span class="section-label">{{ t('common.ability') }}</span>
@@ -223,6 +226,7 @@ const props = defineProps<{
   excludeSpecies?: string[]
   excludeItems?: string[]
   compact?: boolean
+  brief?: boolean // 머리줄(포켓몬·성별·타입·메가·폼)만 — 선출 화면 상대 입력의 기본 (특성·도구·배분·기술은 자동 배치)
   narrow?: boolean // 폭이 좁은 카드 (넓은 화면에서 파티 6장을 한 줄로 놓을 때)
   notAllowed?: boolean
   previewInline?: boolean // 결정력 미리보기 조건을 카드 안에 펼침 (파티 화면에 남는 공간이 있을 때)
@@ -682,6 +686,15 @@ const bulk = (k: 'def' | 'spd') => {
 .compact .moves {
   grid-template-columns: 1fr 1fr;
   gap: 6px;
+}
+.slot.brief {
+  padding: 8px 10px;
+}
+.brief .head-main {
+  gap: 4px;
+}
+.brief .head-meta {
+  min-height: 0;
 }
 
 @media (max-width: 720px) {

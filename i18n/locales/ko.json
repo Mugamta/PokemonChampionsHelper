@@ -173,7 +173,9 @@
     "decisive": "결정력",
     "immune": "효과 없음",
     "mine": "내 파티",
-    "opponent": "상대"
+    "opponent": "상대",
+    "detail": "자세히",
+    "detailHint": "데미지 칸에 데미지 수치·실전 KO 확률·상성 배율 등을 모두 표시합니다 (끄면 % 와 확정/난수 N타만, 나머지는 마우스를 올리면 보입니다)"
   },
   "home": {
     "tagline": "포켓몬 챔피언스 랭크배틀을 위한 데미지 계산 · 선출 · 턴 관리 도구",
@@ -328,6 +330,12 @@
     "foldAll": "모두 접기",
     "unfoldAll": "모두 펼치기",
     "oppGenderMissing": "상대 성별 미입력: {names} (게임에서 확인 가능)",
+    "step": {
+      "opp": "상대 파티 입력",
+      "pick": "선출"
+    },
+    "conditions": "계산 조건",
+    "conditionsNone": "기본",
     "rec": {
       "title": "선출 추천",
       "hint": "내 파티 × 상대 파티 1:1 맞대결(가장 센 기술의 기대 데미지·스피드)과 상대 사용률로 고른 조합입니다. 참고용 — 우선도·랭크업·교체 운영은 보지 않습니다.",
@@ -344,6 +352,12 @@
     "mySide": "내 필드",
     "oppSide": "상대 필드",
     "fairyLock": "페어리록 (교체 불가 {n}턴)",
+    "fieldEdit": "바꾸기",
+    "fieldEditDone": "닫기",
+    "fieldNone": "켜진 효과 없음",
+    "editState": "상태·랭크 고치기",
+    "scenarioSplit": "배분별",
+    "scenarioSplitHint": "상대 배분 4가지(무보정 / H32 / H32·B/D32 / 보정까지)를 따로 표시합니다. 끄면 무보정 ~ 풀보정을 합친 범위 한 줄",
     "speed": "스피드 비교",
     "speedMine": "내 {name}",
     "min": "최소",
@@ -467,6 +481,7 @@
     "ko": {
       "sure": "확정 {n}타",
       "chance": "난수 {n}타 ({p}%)",
+      "chanceShort": "난수 {n}타",
       "real": "실전 {p}%",
       "realHint": "명중 {acc}% · 급소 {crit}%를 포함해 {n}타 안에 쓰러뜨릴 확률",
       "realUses": "실전 {n}번 {p}%",

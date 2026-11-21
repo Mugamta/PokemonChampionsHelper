@@ -2,6 +2,7 @@
   필드 상태: 날씨 / 필드 / 공간 + 양 진영 상태(벽·순풍·설치기)
   part: all = 전부 (좁은 화면) / global = 날씨·필드·공간만 가로 배치 (넓은 화면 가운데 위)
         mine·opp = 그 진영 상태만 (넓은 화면 양쪽 열)
+  대부분 기술·특성으로 자동 반영되므로 평소엔 켜져 있는 것만 보이고, "바꾸기"를 누르면 전체 선택지
 -->
 <template>
   <section class="panel panel-pad field" :class="'part-' + part">
@@ -9,14 +10,18 @@
       {{ title }}
       <span class="spacer" />
       <span v-if="showGlobal" class="turn num">{{ t('battle.turn', { n: s.turn }) }}</span>
+      <button type="button" class="btn btn-sm edit-btn" @click="editing = !editing">
+        {{ t(editing ? 'battle.fieldEditDone' : 'battle.fieldEdit') }}
+      </button>
     </h3>
+    <p v-if="!editing && !anyActive" class="muted small">{{ t('battle.fieldNone') }}</p>
 
-    <div v-if="showGlobal" class="globals">
-      <div class="row">
+    <div v-if="showGlobal && (editing || globalActive)" class="globals">
+      <div v-if="editing || s.weather.key" class="row">
         <span class="section-label">{{ t('weather.label') }}</span>
         <div class="chip-row">
           <button
-            v-for="w in WEATHERS"
+            v-for="w in editing ? WEATHERS : WEATHERS.filter((x) => x === s.weather.key)"
             :key="w"
             type="button"
             class="chip"
@@ -34,11 +39,11 @@
         </div>
       </div>
 
-      <div class="row">
+      <div v-if="editing || s.terrain.key" class="row">
         <span class="section-label">{{ t('terrain.label') }}</span>
         <div class="chip-row">
           <button
-            v-for="tr in TERRAINS"
+            v-for="tr in editing ? TERRAINS : TERRAINS.filter((x) => x === s.terrain.key)"
             :key="tr"
             type="button"
             class="chip"
@@ -55,11 +60,11 @@
         </div>
       </div>
 
-      <div class="row">
+      <div v-if="editing || roomActive" class="row">
         <span class="section-label">{{ t('room.label') }}</span>
         <div class="chip-row">
           <button
-            v-for="rm in ROOMS"
+            v-for="rm in editing ? ROOMS : ROOMS.filter((x) => !!s.rooms[x])"
             :key="rm"
             type="button"
             class="chip"
@@ -75,13 +80,17 @@
       </div>
     </div>
 
-    <div v-for="side in sides" :key="side" class="row">
+    <div
+      v-for="side in sides.filter((x) => editing || sideActive(x).length)"
+      :key="side"
+      class="row"
+    >
       <span v-if="part === 'all'" class="section-label side-label" :class="side">{{
         t(side === 'mine' ? 'battle.mySide' : 'battle.oppSide')
       }}</span>
       <div class="chip-row">
         <button
-          v-for="c in SIDE_CONDITIONS"
+          v-for="c in editing ? SIDE_CONDITIONS : sideActive(side)"
           :key="c"
           type="button"
           class="chip"
@@ -126,6 +135,21 @@ const title = computed(() =>
       ? t('battle.oppSide')
       : t('battle.field'),
 )
+// 바꾸기를 누르기 전에는 켜져 있는 것만
+const editing = ref(false)
+const sideActive = (side: BattleSide) =>
+  SIDE_CONDITIONS.filter(
+    (c) => !!s.value.sides[side].screens[c] || !!s.value.sides[side].hazards[c],
+  )
+const roomActive = computed(() => ROOMS.some((rm) => !!s.value.rooms[rm]))
+const globalActive = computed(
+  () => !!s.value.weather.key || !!s.value.terrain.key || roomActive.value,
+)
+const anyActive = computed(
+  () =>
+    (showGlobal.value && (globalActive.value || s.value.fairyLock > 0)) ||
+    sides.value.some((x) => sideActive(x).length > 0),
+)
 const WEATHERS: Weather[] = ['sun', 'rain', 'sand', 'snow', 'harshsun', 'heavyrain', 'strongwinds']
 const TERRAINS: Terrain[] = ['electric', 'grassy', 'misty', 'psychic']
 const SIDE_CONDITIONS = [
@@ -149,6 +173,9 @@ const SIDE_CONDITIONS = [
 }
 .panel-title {
   margin: 0;
+}
+.edit-btn {
+  margin-left: 6px;
 }
 .turn {
   font-size: 13px;

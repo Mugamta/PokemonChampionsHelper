@@ -173,7 +173,9 @@
     "decisive": "決定力",
     "immune": "効果なし",
     "mine": "自分のパーティ",
-    "opponent": "相手"
+    "opponent": "相手",
+    "detail": "詳しく",
+    "detailHint": "ダメージ欄にダメージ値・実戦KO確率・相性倍率などをすべて表示します（オフ: % と確定/乱数N発のみ、残りはマウスを重ねると表示）"
   },
   "home": {
     "tagline": "ポケモンチャンピオンズのランクバトル向け ダメージ計算・選出・ターン管理ツール",
@@ -328,6 +330,12 @@
     "foldAll": "すべてたたむ",
     "unfoldAll": "すべて開く",
     "oppGenderMissing": "相手の性別が未入力: {names} (ゲーム内で確認可能)",
+    "step": {
+      "opp": "相手のパーティ入力",
+      "pick": "選出"
+    },
+    "conditions": "計算条件",
+    "conditionsNone": "標準",
     "rec": {
       "title": "選出おすすめ",
       "hint": "自分のパーティ × 相手パーティの1対1の対面（最も強い技の期待ダメージ・素早さ）と相手の使用率で選んだ組み合わせです。参考用 — 優先度・積み技・交代の立ち回りは見ていません。",
@@ -344,6 +352,12 @@
     "mySide": "自分の場",
     "oppSide": "相手の場",
     "fairyLock": "フェアリーロック（交代不可 {n}ターン）",
+    "fieldEdit": "変更",
+    "fieldEditDone": "閉じる",
+    "fieldNone": "有効な効果なし",
+    "editState": "状態・ランクを修正",
+    "scenarioSplit": "努力値別",
+    "scenarioSplitHint": "相手の配分4通り（無振り / H32 / H32·B/D32 / 補正込み）を分けて表示します。オフ: 無振り〜特化をまとめた範囲1行",
     "speed": "すばやさ比較",
     "speedMine": "自分の{name}",
     "min": "最低",
@@ -467,6 +481,7 @@
     "ko": {
       "sure": "確定{n}発",
       "chance": "乱数{n}発（{p}%）",
+      "chanceShort": "乱数{n}発",
       "real": "実戦 {p}%",
       "realHint": "命中{acc}%・急所{crit}%を含めて{n}発以内に倒す確率",
       "realUses": "実戦 {n}回 {p}%",

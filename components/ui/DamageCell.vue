@@ -1,9 +1,25 @@
 <!-- 데미지 표 한 칸: 데미지 범위 + % + 확정/난수 N타 (또는 연속기 KO 타수)
-     + 실전 KO 확률(명중·급소·변덕레이저 포함, 마우스를 올리면 명중률·급소율) -->
+     + 실전 KO 확률(명중·급소·변덕레이저 포함, 마우스를 올리면 명중률·급소율)
+     brief: % 와 KO 판정만 (대타·탈처럼 결과가 달라지는 것은 그대로), 나머지는 마우스를 올리면 -->
 <template>
-  <div v-if="cell" class="dcell" :class="{ compact }">
+  <div v-if="cell" class="dcell" :class="{ compact, brief }">
     <template v-if="cell.immune">
       <span class="muted">{{ t('common.immune') }}</span>
+    </template>
+    <template v-else-if="brief">
+      <span class="brief-main" :title="briefHint">
+        <span class="dmg-pct num" :class="{ 'dmg-lethal': cell.lethal }"
+          >{{ pct(cell.pctMin) }}~{{ pct(cell.pctMax) }}%</span
+        >
+        <span
+          v-if="koText"
+          class="ko-tag"
+          :class="{ sure: cell.ko?.guaranteed && cell.ko.hits === 1 }"
+          >{{ koText }}</span
+        >
+      </span>
+      <span v-if="cell.disguise" class="muted hits">{{ t('battle.disguise') }}</span>
+      <span v-if="cell.sub" class="muted hits">{{ t('battle.subCell', { hp: cell.sub.hp }) }}</span>
     </template>
     <template v-else>
       <span class="dmg" :class="{ 'dmg-lethal': cell.lethal }">{{ cell.min }}~{{ cell.max }}</span>
@@ -47,12 +63,17 @@
 import type { Cell, CellGuess } from '~/composables/useTeamCalc'
 import { pct } from '~/composables/useTeamCalc'
 
-const props = defineProps<{ cell: Cell | null; compact?: boolean; showEff?: boolean }>()
+const props = defineProps<{
+  cell: Cell | null
+  compact?: boolean
+  showEff?: boolean
+  brief?: boolean
+}>()
 const { t } = useI18n()
 const gd = useGameData()
 
-// 확정/난수 N타 (연속기는 KO 타수)
-const koLabel = (c: Pick<Cell, 'ko' | 'koHit'>) => {
+// 확정/난수 N타 (연속기는 KO 타수). short: 확률 없이 (간단히 보기의 "a ~ b" 범위)
+const koLabel = (c: Pick<Cell, 'ko' | 'koHit'>, short = false) => {
   if (c.koHit) {
     if (c.koHit.worst === c.koHit.best) return t('battle.multiHit.koAt', { n: c.koHit.best })
     if (c.koHit.worst)
@@ -60,8 +81,9 @@ const koLabel = (c: Pick<Cell, 'ko' | 'koHit'>) => {
     return t('battle.multiHit.koFrom', { n: c.koHit.best })
   }
   if (!c.ko) return ''
-  return c.ko.guaranteed
-    ? t('battle.ko.sure', { n: c.ko.hits })
+  if (c.ko.guaranteed) return t('battle.ko.sure', { n: c.ko.hits })
+  return short
+    ? t('battle.ko.chanceShort', { n: c.ko.hits })
     : t('battle.ko.chance', {
         n: c.ko.hits,
         p: c.ko.percent < 0.1 ? '<0.1' : c.ko.percent.toFixed(1),
@@ -77,8 +99,8 @@ const koText = computed(() => {
   const c = props.cell
   if (!c) return ''
   if (!koSpan.value) return koLabel(c)
-  const best = koLabel(c.bounds!.best) || '—'
-  return `${best} ~ ${koLabel(c.bounds!.worst) || '—'}`
+  const best = koLabel(c.bounds!.best, props.brief) || '—'
+  return `${best} ~ ${koLabel(c.bounds!.worst, props.brief) || '—'}`
 })
 const guessText = computed(() => {
   const g: CellGuess | null | undefined = props.cell?.guess
@@ -127,6 +149,24 @@ const hitsText = computed(() => {
     ? t('battle.multiHit.fixed', { n: h.min })
     : t('battle.multiHit.range', { min: h.min, max: h.max })
 })
+// 간단히 보기에서 숨긴 내용 (마우스를 올리면 한 줄씩)
+const briefHint = computed(() => {
+  const c = props.cell
+  if (!props.brief || !c || c.immune) return undefined
+  return [
+    `${c.min}~${c.max}`,
+    koSpan.value && `${koLabel(c.bounds!.best) || '—'} ~ ${koLabel(c.bounds!.worst) || '—'}`,
+    realText.value && `${realText.value} (${realHint.value})`,
+    !realText.value && c.hitChance < 1 && t('battle.acc', { p: pctInt(c.hitChance) }),
+    c.fickle && t('battle.fickle'),
+    hitsText.value,
+    guessText.value,
+    c.sub?.breakP != null && t('battle.subBreak', { p: pct1(c.sub.breakP) }),
+    c.effectiveness !== 1 && `×${c.effectiveness}`,
+  ]
+    .filter(Boolean)
+    .join('\n')
+})
 </script>
 
 <style scoped>
@@ -151,6 +191,26 @@ const hitsText = computed(() => {
 }
 .dmg {
   font-size: 14px;
+}
+/* 간단히: % 를 주 수치로 (데미지 수치 자리) */
+.brief-main {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.brief .dmg-pct {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+.brief .dmg-pct.dmg-lethal {
+  color: var(--bad);
+}
+.compact.brief .brief-main {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 6px;
 }
 .dmg-pct {
   font-size: 12px;

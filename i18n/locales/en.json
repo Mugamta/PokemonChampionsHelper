@@ -173,7 +173,9 @@
     "decisive": "Power index",
     "immune": "No effect",
     "mine": "My team",
-    "opponent": "Opponent"
+    "opponent": "Opponent",
+    "detail": "Details",
+    "detailHint": "Show damage values, real KO chance, type multiplier and more in each damage cell (when off: % and KO only, the rest on hover)"
   },
   "home": {
     "tagline": "Damage calculator, team preview and turn tracker for Pokémon Champions ranked battles",
@@ -328,6 +330,12 @@
     "foldAll": "Collapse all",
     "unfoldAll": "Expand all",
     "oppGenderMissing": "Opponent gender not set: {names} (visible in game)",
+    "step": {
+      "opp": "Enter opponent team",
+      "pick": "Pick"
+    },
+    "conditions": "Conditions",
+    "conditionsNone": "Default",
     "rec": {
       "title": "Suggest picks",
       "hint": "Combinations chosen from 1-on-1 matchups (best move expected damage and Speed) between your team and the opponent, weighted by opponent usage. For reference — priority, setup and switching are not considered.",
@@ -344,6 +352,12 @@
     "mySide": "My side",
     "oppSide": "Opponent's side",
     "fairyLock": "Fairy Lock (no switching, {n} turns)",
+    "fieldEdit": "Edit",
+    "fieldEditDone": "Close",
+    "fieldNone": "No active effects",
+    "editState": "Edit status & stat stages",
+    "scenarioSplit": "By spread",
+    "scenarioSplitHint": "Show the 4 opponent spreads (none / H32 / H32·B/D32 / with nature) separately. When off, one line spanning no investment to full investment",
     "speed": "Speed comparison",
     "speedMine": "My {name}",
     "min": "at least",
@@ -467,6 +481,7 @@
     "ko": {
       "sure": "guaranteed {n}HKO",
       "chance": "{p}% chance to {n}HKO",
+      "chanceShort": "Possible {n}HKO",
       "real": "Real {p}%",
       "realHint": "Chance to KO within {n} hit(s) including accuracy {acc}% and crit {crit}%",
       "realUses": "Real {p}% in {n} uses",

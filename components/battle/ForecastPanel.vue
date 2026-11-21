@@ -1,4 +1,4 @@
-<!-- ① 이번 턴 예상 흐름 / ② 실전 배분 시나리오 흐름 -->
+<!-- ① 이번 턴 예상 흐름 / ② 실전 배분 시나리오 흐름 (참고용이라 기본으로 접어 둠) -->
 <template>
   <section
     v-if="
@@ -35,17 +35,18 @@
         {{ line(l) }}
       </p>
     </div>
-    <div v-if="an.scenarioFlows.value.length" class="block ref">
-      <h4 class="fc-title">
+    <details v-if="an.scenarioFlows.value.length" class="block ref">
+      <summary class="fc-title">
         {{ t('battle.scenarioTitle') }}
-      </h4>
+        <span class="count num">{{ an.scenarioFlows.value.length }}</span>
+      </summary>
       <div v-for="f in an.scenarioFlows.value" :key="f.title" class="flow">
         <span class="flow-title">{{ t(f.title) }}</span>
         <p v-for="(l, i) in f.lines" :key="i" class="fc-line">
           {{ line(l) }}
         </p>
       </div>
-    </div>
+    </details>
   </section>
 </template>
 
@@ -70,6 +71,31 @@ const line = useLine()
 }
 .ref .fc-title {
   color: var(--text-2);
+}
+.ref summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+.ref summary::-webkit-details-marker {
+  display: none;
+}
+.ref summary::before {
+  content: '▸';
+  color: var(--text-3);
+}
+.ref[open] summary {
+  margin-bottom: 6px;
+}
+.ref[open] summary::before {
+  content: '▾';
+}
+.count {
+  font-size: 11px;
+  color: var(--text-3);
 }
 .fc-line {
   margin: 0 0 3px;
