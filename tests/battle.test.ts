@@ -14,6 +14,7 @@ import { calcDamage } from '../utils/damage'
 import { koHitIndexWithSub, statusDamage } from '../utils/ko'
 import { hpStepsMatch } from '../utils/hpDisplay'
 import { calcStat } from '../utils/stats'
+import { usageFile } from '../utils/autoSet'
 
 const pad6 = (s: TeamSlot[]) => [...s, ...Array.from({ length: 6 - s.length }, emptySlot)]
 
@@ -2975,5 +2976,44 @@ describe('PP · 부른 기술 · 변신', () => {
     expect(b.encoreTurnsLeft('mine', 0)).toBe(3)
     m.volatiles.encore = 3
     expect(b.encoreTurnsLeft('mine', 0)).toBe(1)
+  })
+})
+
+describe('상대 기술: 배틀에서 확정한 메가 폼의 통계', () => {
+  it('스카프 한카리아스로 넣었는데 한카리아스나이트Z 확정 → 확정 기술 + 메가한카리아스Z 통계 기술', () => {
+    useState('reg-selected', () => 'M-C')
+    const megaz = {
+      count: 1,
+      usage: 0.1,
+      moves: ['protect', 'earthpower', 'dracometeor', 'powergem'],
+    }
+    useState('gd-usage', () => ({
+      [usageFile('single', 'M-C')]: {
+        format: 't',
+        month: '2026-10',
+        battles: 1,
+        pokemon: { garchompmegaz: megaz },
+      },
+    }))
+    const base: TeamSlot['moves'] = ['earthquake', 'dragonclaw', 'rockslide', 'stompingtantrum']
+    const b = setup(
+      'single',
+      [slot('incineroar', { moves: ['flareblitz', '', '', ''] })],
+      [slot('garchomp', { item: 'choicescarf', moves: base })],
+    )
+    // 확정 전: 선출 화면 기술 그대로
+    expect(b.resolveAt('opp', 0)!.slot.moves).toEqual(base)
+    // 지진을 쓴 뒤 메가스톤 확정: 지진(확정) + 메가 폼 통계 순서
+    mon(b, 'opp', 0).ppUsed = { earthquake: 1 }
+    b.confirmItem('opp', 0, 'garchompitez')
+    expect(b.resolveAt('opp', 0)!.slot.moves).toEqual([
+      'earthquake',
+      'protect',
+      'earthpower',
+      'dracometeor',
+    ])
+    // 선출 화면에서 이미 그 메가스톤이면 선출 화면 기술 그대로 (직접 입력한 기술을 덮어쓰지 않음)
+    useTeam('opp').slots.value[0]!.item = 'garchompitez'
+    expect(b.resolveAt('opp', 0)!.slot.moves).toEqual(base)
   })
 })

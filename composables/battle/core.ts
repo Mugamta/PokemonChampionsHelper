@@ -5,11 +5,12 @@
 import { useEntry, type BattleMode } from '~/composables/useEntry'
 import { useTeamCalc, type ResolvedSlot } from '~/composables/useTeamCalc'
 import { useOppEstimate, type OppBounds } from '~/composables/useOppEstimate'
+import { useRegulation } from '~/composables/useRegulation'
 import { isGrounded, type Combatant, type DamageOptions, type FieldState } from '~/utils/damage'
 import { hpOfPct } from '~/utils/hpDisplay'
 import type { SpeedRanges } from '~/utils/speedInference'
 import type { Range } from '~/utils/statInference'
-import type { StatTable, Status } from '~/utils/types'
+import type { StatTable, Status, TeamSlot } from '~/utils/types'
 import {
   HITS_ALLY_TARGET,
   MAX_HISTORY,
@@ -34,6 +35,7 @@ export function createCore(mode: BattleMode, hooks: CoreHooks) {
   const mineTeam = useTeam('mine')
   const oppTeam = useTeam('opp')
   const entry = useEntry(mode)
+  const reg = useRegulation()
   const state = useState<BattleState | null>(`battle-${mode}`, () => null)
 
   // 로스터 → 파티 슬롯
@@ -71,13 +73,29 @@ export function createCore(mode: BattleMode, hooks: CoreHooks) {
     const m = state.value?.sides.opp.mons[idx]
     return m?.abilityKnown ? m.ability || '' : ''
   }
-  // 배틀 계산에 쓰는 슬롯 (상대는 도구·특성을 위 규칙으로 바꾸고, 성격·능력 포인트는 기준값으로 비운 사본)
+  // ── 상대 기술 ─────────────
+  // 선출 화면의 기술은 그 화면 도구 기준 추측 (메가스톤이 아니면 원종 통계 등). 배틀에서 다른 메가스톤을 확정하면
+  // (예: 스카프 한카리아스로 넣었는데 메가한카리아스Z로 메가진화) 그 메가 폼은 배분이 달라 원종 기술이 맞지 않으므로,
+  // 기술 4칸을 확정한 기술(쓴 기술·잠꼬대로 드러난 기술) + 그 메가 폼 통계의 기술 순서로 채운다
+  const oppMoves = (idx: number, item: string): TeamSlot['moves'] => {
+    const slot = oppSlots.value[idx]!
+    const form = gd.megaFor(slot.species, item)
+    if (!form || form === gd.megaFor(slot.species, slot.item)) return slot.moves
+    const usage = gd.usageTable(mode, reg.active.value?.id)?.pokemon[form]
+    if (!usage) return slot.moves
+    const m = state.value?.sides.opp.mons[idx]
+    const known = [...Object.keys(m?.ppUsed ?? {}), ...(m?.movesSeen ?? [])]
+    const ids = [...new Set([...known, ...usage.moves, ...slot.moves].filter(Boolean))]
+    return [ids[0] ?? '', ids[1] ?? '', ids[2] ?? '', ids[3] ?? '']
+  }
+  // 배틀 계산에 쓰는 슬롯 (상대는 도구·특성·기술을 위 규칙으로 바꾸고, 성격·능력 포인트는 기준값으로 비운 사본)
   const battleSlot = (side: BattleSide, idx: number) => {
     const slot = slotsOf(side)[idx]
     if (side === 'mine' || !slot) return slot
     const item = oppItemOf(idx)
     const ability = oppAbilityOf(idx) || slot.ability
-    return { ...slot, item, ability, nature: '', sp: { ...NO_SP } }
+    const moves = oppMoves(idx, item)
+    return { ...slot, item, ability, moves, nature: '', sp: { ...NO_SP } }
   }
 
   // ── 상대 배분 ─────────────

@@ -598,7 +598,12 @@ watch(
 )
 
 // 상대 기술 사용률 (moveGroups)
-const usageOf = (oi: number) => props.usage?.pokemon[props.b.oppSlots.value[oi]?.species ?? '']
+// 지금 폼(메가진화했거나 메가스톤을 확정했으면 그 메가 폼)의 통계, 없으면 원종 통계
+const usageOf = (oi: number) => {
+  const species = props.b.oppSlots.value[oi]?.species ?? ''
+  const form = gd.megaFor(species, props.b.oppItemOf(oi))
+  return (form && props.usage?.pokemon[form]) || props.usage?.pokemon[species]
+}
 
 // 데미지 입력 방식 (DamageInput 과 공유, 브라우저 저장은 ActionPanel)
 const dmgMode = useState<'damage' | 'hp'>('battle-dmg-mode', () => 'damage')
