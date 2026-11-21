@@ -1,6 +1,6 @@
 <!--
   상위 유저 파티 하나: 순위·플레이어·레이팅·전적·리플레이 링크 + 6마리(메가·도구·특성·드러난 기술·선출 횟수).
-  드러나지 않은 도구·특성은 "?" — 가져오기는 부모(pages/teams.vue)가 한다 → emit('import')
+  드러나지 않은 도구·특성은 "?" (특성이 하나뿐인 폼은 그 특성) — 가져오기는 부모(pages/teams.vue)가 한다 → emit('import')
 -->
 <template>
   <article class="team-card panel">
@@ -55,7 +55,7 @@
           >
         </div>
         <div class="tc-row" :title="t('topTeams.abilityLabel')">
-          <span v-if="m.ability">{{ gd.name('abilities', m.ability) }}</span>
+          <span v-if="abilityOf(m)">{{ gd.name('abilities', abilityOf(m)!) }}</span>
           <span v-else class="unknown" :title="t('topTeams.unknown')"
             >{{ t('topTeams.ability') }} ?</span
           >
@@ -74,12 +74,15 @@
 </template>
 
 <script setup lang="ts">
-import type { TopTeam } from '~/utils/topTeams'
+import { knownAbility, type TopTeam, type TopTeamMon } from '~/utils/topTeams'
 
 defineProps<{ team: TopTeam }>()
 const emit = defineEmits<{ import: [] }>()
 const { t } = useI18n()
 const gd = useGameData()
+
+// 드러나지 않았어도 특성이 하나뿐이면 (메가 폼 포함) 그 특성
+const abilityOf = (m: TopTeamMon) => knownAbility(m, (id) => gd.pokemon(id)?.abilities)
 
 const pad = (n: number) => String(n).padStart(2, '0')
 const dateText = (sec: number) => {

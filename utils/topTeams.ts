@@ -380,6 +380,17 @@ export function filterTeams(
   )
 }
 
+// ── 화면: 특성 ─────────────
+// 드러난 특성, 없으면 특성이 하나뿐인 폼의 그 특성 (메가진화했으면 메가 폼 기준). abilitiesOf: 폼 id → 특성 목록
+export function knownAbility(
+  mon: TopTeamMon,
+  abilitiesOf: (id: string) => readonly string[] | undefined,
+): string | undefined {
+  if (mon.ability) return mon.ability
+  const list = abilitiesOf(mon.mega ?? mon.id)
+  return list?.length === 1 ? list[0] : undefined
+}
+
 // ── 화면: 내 파티로 가져오기 ─────────────
 // 통계 배치로 만든 슬롯에 배틀에서 드러난 것을 덮어씀: 도구·성별, 특성(원래 폼의 특성일 때만 — 메가진화 후 드러난
 // 메가 특성은 슬롯에 넣을 수 없음), 기술(드러난 기술 먼저, 나머지는 통계 기술 중 겹치지 않는 것)

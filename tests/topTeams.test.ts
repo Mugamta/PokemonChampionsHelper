@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   filterTeams,
+  knownAbility,
   mergeTeams,
   parseReplayLog,
   ratingSteps,
@@ -205,5 +206,29 @@ describe('withRevealed', () => {
     expect(withRevealed(slot, { ...mon, ability: 'snowcloak' }, ['snowcloak']).ability).toBe(
       'snowcloak',
     )
+  })
+})
+
+describe('knownAbility', () => {
+  const abilities: Record<string, string[]> = {
+    garchomp: ['sandveil', 'roughskin'],
+    garchompmegaz: ['levitate'],
+    gengar: ['cursedbody'],
+  }
+  const of = (id: string) => abilities[id]
+  it('드러난 특성이 먼저', () => {
+    expect(knownAbility({ id: 'gengar', ability: 'levitate', moves: [], brought: 1 }, of)).toBe(
+      'levitate',
+    )
+  })
+  it('특성이 하나뿐이면 그 특성, 메가진화했으면 메가 폼 기준', () => {
+    expect(knownAbility({ id: 'gengar', moves: [], brought: 1 }, of)).toBe('cursedbody')
+    expect(knownAbility({ id: 'garchomp', mega: 'garchompmegaz', moves: [], brought: 1 }, of)).toBe(
+      'levitate',
+    )
+  })
+  it('특성이 여러 개면 모름', () => {
+    expect(knownAbility({ id: 'garchomp', moves: [], brought: 1 }, of)).toBeUndefined()
+    expect(knownAbility({ id: 'unknown', moves: [], brought: 1 }, of)).toBeUndefined()
   })
 })
