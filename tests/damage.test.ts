@@ -961,15 +961,30 @@ describe('챔피언스 신규 특성 (@smogon/calc 에 없음 → 같은 효과�
       calcDamage(hv, mon('pyroarmega', ''), def, chart).rolls,
     )
   })
-  it('메가솔라 = 자신만 쾌청 판정 (불꽃 1.5배, 물은 약해지지 않음)', () => {
+  it('메가솔라 = 자신의 기술만 항상 쾌청 판정 (@smogon/calc champions 와 같음)', () => {
+    const sol = mon('meganiummega', 'megasol')
+    const plain = mon('meganiummega', '')
     const fire = data.moves.flamethrower!
-    const sol = calcDamage(fire, mon('meganiummega', 'megasol'), def, chart)
-    const sun = calcDamage(fire, mon('meganiummega', ''), def, chart, { weather: 'sun' })
-    expect(sol.rolls).toEqual(sun.rolls)
+    const sun = calcDamage(fire, plain, def, chart, { weather: 'sun' })
+    expect(calcDamage(fire, sol, def, chart).rolls).toEqual(sun.rolls)
+    // 실제 쾌청·비에서도 불꽃 1.5배 한 번만 (겹치거나 약해지지 않음)
+    expect(calcDamage(fire, sol, def, chart, { weather: 'sun' }).rolls).toEqual(sun.rolls)
+    expect(calcDamage(fire, sol, def, chart, { weather: 'rain' }).rolls).toEqual(sun.rolls)
+    // 물은 쾌청처럼 0.5배, 비에서도 강해지지 않음
     const surf = data.moves.surf!
-    expect(calcDamage(surf, mon('meganiummega', 'megasol'), def, chart).rolls).toEqual(
-      calcDamage(surf, mon('meganiummega', ''), def, chart).rolls,
-    )
+    const surfSun = calcDamage(surf, plain, def, chart, { weather: 'sun' }).rolls
+    expect(calcDamage(surf, sol, def, chart).rolls).toEqual(surfSun)
+    expect(calcDamage(surf, sol, def, chart, { weather: 'rain' }).rolls).toEqual(surfSun)
+    // 웨더볼: 어떤 날씨든 불꽃 + 위력 100
+    const wb = data.moves.weatherball!
+    const wbSun = calcDamage(wb, plain, def, chart, { weather: 'sun' })
+    for (const weather of ['', 'sand', 'rain', 'snow'] as const) {
+      const r = calcDamage(wb, sol, def, chart, { weather })
+      expect(r.type).toBe('fire')
+      expect(r.rolls).toEqual(wbSun.rolls)
+    }
+    expect(effectiveMoveType(wb, 'megasol', {})).toBe('fire')
+    expect(powerIndex(wb, sol)).toBe(powerIndex(wb, plain, { weather: 'sun' }))
   })
 })
 

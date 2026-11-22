@@ -212,6 +212,11 @@ const IGNORES_WEATHER = new Set(['cloudnine', 'airlock'])
 export const effectiveWeather = (field: FieldState, a: Combatant, d: Combatant): Weather =>
   IGNORES_WEATHER.has(a.ability) || IGNORES_WEATHER.has(d.ability) ? '' : field.weather || ''
 
+// 메가솔라: 자신의 기술은 실제 날씨와 관계없이 쾌청 판정 (@smogon/calc champions 와 같음)
+// → 웨더볼 불꽃·위력 100, 불꽃 1.5배·물 0.5배, 솔라빔 약화 없음, 모래바람/설경 방어 보정 없음
+const attackWeather = (ability: string, weather: Weather): Weather =>
+  ability === 'megasol' ? 'sun' : weather
+
 // 날씨예보(캐스퐁): 날씨에 따라 폼이 바뀌어 타입이 달라진다 (종족값은 같음). 쾌청 → 불꽃, 비 → 물, 설경 → 얼음
 const FORECAST_FORM: Partial<Record<Weather, { id: string; type: TypeId }>> = {
   sun: { id: 'castformsunny', type: 'fire' },
@@ -305,7 +310,7 @@ export const effectiveMoveType = (
   resolveMoveType(
     move,
     { ability, species } as Combatant,
-    IGNORES_WEATHER.has(ability) ? '' : field.weather || '',
+    attackWeather(ability, IGNORES_WEATHER.has(ability) ? '' : field.weather || ''),
     field.terrain || '',
   ).type
 
@@ -513,7 +518,7 @@ export function calcDamage(
     attacker.ability === 'merciless' && (defender.status === 'psn' || defender.status === 'tox')
   const crit =
     (!!opts.crit || merciless || ALWAYS_CRIT.has(move.id)) && !CRIT_IMMUNE.has(defender.ability)
-  const weather = effectiveWeather(field, attacker, defender)
+  const weather = attackWeather(attacker.ability, effectiveWeather(field, attacker, defender))
   const terrain = field.terrain || ''
   const { type, skinBoost } = resolveMoveType(move, attacker, weather, terrain)
   const zero = (reason?: string): DamageResult => ({
@@ -804,7 +809,6 @@ function finishDamage(x: FinishArgs): DamageResult {
     if (type === 'water') base = applyMod(base, M.x1_5)
     else if (type === 'fire') base = applyMod(base, M.x0_5)
   }
-  if (ab === 'megasol' && type === 'fire') base = applyMod(base, M.x1_5) // 자신에게만 쾌청 판정 (메가소울)
   if (crit) base = tr(base * 1.5)
 
   const stab = ab === 'protean' || ab === 'libero' || attacker.species.types.includes(type)
@@ -873,8 +877,9 @@ export function powerIndex(
   field: FieldState = {},
 ): number | null {
   if (move.category === 'status' || !move.power) return null
-  const weather: Weather = IGNORES_WEATHER.has(rawAttacker.ability) ? '' : field.weather || ''
-  const attacker = withForecast(rawAttacker, weather)
+  const fieldWeather: Weather = IGNORES_WEATHER.has(rawAttacker.ability) ? '' : field.weather || ''
+  const attacker = withForecast(rawAttacker, fieldWeather)
+  const weather = attackWeather(attacker.ability, fieldWeather)
   const dummy: Combatant = {
     species: { ...attacker.species, types: [], abilities: [], weight: 1 },
     stats: attacker.stats,
@@ -887,8 +892,8 @@ export function powerIndex(
   const ab = attacker.ability
   if (ab === 'protean' || ab === 'libero' || attacker.species.types.includes(type))
     v *= ab === 'adaptability' ? 2 : 1.5
-  if (weather === 'sun' || weather === 'harshsun' || ab === 'megasol')
-    v *= type === 'fire' ? 1.5 : type === 'water' && ab !== 'megasol' ? 0.5 : 1
+  if (weather === 'sun' || weather === 'harshsun')
+    v *= type === 'fire' ? 1.5 : type === 'water' ? 0.5 : 1
   else if (weather === 'rain' || weather === 'heavyrain')
     v *= type === 'water' ? 1.5 : type === 'fire' ? 0.5 : 1
   if (
