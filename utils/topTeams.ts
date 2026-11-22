@@ -28,7 +28,7 @@ export interface ReplayGame {
   sides: ReplaySide[]
 }
 
-// public/data/teams/{kind}-{reg}.json 의 파티 하나
+// public/data/teams/{출처}/{kind}-{reg}.json 의 파티 하나
 export interface TopTeamMon {
   id: string // 종 (원종·폼 id, 슬롯의 species 와 같은 기준)
   gender?: 'M' | 'F'
@@ -54,10 +54,35 @@ export interface TopTeamsFile {
   replays: number // 읽은 리플레이 수
   teams: TopTeam[] // 레이팅 높은 순
 }
-// index.json = { single | double: { [레귤레이션]: { format, fetched, replays, teams(수) } } }
-export type TopTeamsIndex = Record<
-  'single' | 'double',
-  Record<string, { format: string; fetched: string; replays: number; teams: number }>
+// ── 출처 ─────────────
+// 화면 맨 위에서 고르는 자료 출처. 파일은 public/data/teams/{출처}/{kind}-{reg}.json, 자료가 없는 출처는 "준비 중"
+//   showdown  = Pokémon Showdown 공개 리플레이 + 래더 (build-data "6.7")
+//   champions = 포켓몬 챔피언스 게임 내 랭크배틀 (아직 자료 없음)
+export const TEAM_SOURCES = ['showdown', 'champions'] as const
+export type TeamSource = (typeof TEAM_SOURCES)[number]
+// 출처별 링크 (홈 = 부제 옆 링크, replay = 카드의 리플레이 링크. 없으면 표시 안 함)
+export const TEAM_SOURCE_LINKS: Record<
+  TeamSource,
+  { home?: string; replay?: (id: string) => string }
+> = {
+  showdown: {
+    home: 'https://replay.pokemonshowdown.com/',
+    replay: (id) => `https://replay.pokemonshowdown.com/${id}`,
+  },
+  champions: {},
+}
+
+// index.json = { [출처]: { single | double: { [레귤레이션]: { format, fetched, replays, teams(수) } } } }
+export type TopTeamsIndex = Partial<
+  Record<
+    TeamSource,
+    Partial<
+      Record<
+        'single' | 'double',
+        Record<string, { format: string; fetched: string; replays: number; teams: number }>
+      >
+    >
+  >
 >
 
 const toID = (s: string | undefined) =>

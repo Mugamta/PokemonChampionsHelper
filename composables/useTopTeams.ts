@@ -1,11 +1,17 @@
 // composables/useTopTeams.ts
-// 상위 유저 파티 (public/data/teams/) — 상위 파티 화면을 열 때 목록(index)을, 고른 종류·레귤레이션마다 파티 파일을 받는다.
+// 상위 유저 파티 (public/data/teams/) — 상위 파티 화면을 열 때 목록(index)을, 고른 출처·종류·레귤레이션마다 파티 파일을 받는다.
 // 형식·고르기: utils/topTeams.ts. 파티 → 내 파티 슬롯은 toSlots (드러나지 않은 부분은 사용률 통계 배치)
 
 import { toValue, type MaybeRefOrGetter } from 'vue'
 import { useAutoSet } from '~/composables/useAutoSet'
 import type { UsageKind } from '~/utils/autoSet'
-import { withRevealed, type TopTeam, type TopTeamsFile, type TopTeamsIndex } from '~/utils/topTeams'
+import {
+  withRevealed,
+  type TeamSource,
+  type TopTeam,
+  type TopTeamsFile,
+  type TopTeamsIndex,
+} from '~/utils/topTeams'
 
 const loading = new Map<string, Promise<unknown>>()
 
@@ -45,8 +51,8 @@ export function useTopTeams(kind: MaybeRefOrGetter<UsageKind>) {
 
   return {
     index: () => get<TopTeamsIndex>('index.json'),
-    file: (reg: string | undefined) =>
-      reg ? get<TopTeamsFile>(`${toValue(kind)}-${reg}.json`) : undefined,
+    file: (source: TeamSource | undefined, reg: string | undefined) =>
+      source && reg ? get<TopTeamsFile>(`${source}/${toValue(kind)}-${reg}.json`) : undefined,
     toSlots,
   }
 }

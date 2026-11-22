@@ -1399,7 +1399,20 @@
   },
   "topTeams": {
     "title": "Top Player Teams",
-    "sub": "Teams used by high-rated players in Pokémon Showdown ranked battles (public replays)",
+    "src": {
+      "label": "Source",
+      "soon": "Coming soon",
+      "showdown": {
+        "name": "Pokémon Showdown",
+        "sub": "Teams used by high-rated players in Pokémon Showdown ranked battles (public replays)",
+        "note": "These are Showdown records, not in-game ranked battles. Items, Abilities and moves are shown only when revealed in battle; games by the same player with the same six Pokémon are merged."
+      },
+      "champions": {
+        "name": "Pokémon Champions",
+        "sub": "Teams of top players in Pokémon Champions in-game ranked battles",
+        "note": ""
+      }
+    },
     "by": {
       "rating": "By rating",
       "rank": "By ladder rank"
@@ -1409,7 +1422,6 @@
     "rankTop": "Top {n}",
     "search": "Find by Pokémon",
     "summary": "{replays} replays · ladder rank as of {date} · {n} teams",
-    "note": "These are Showdown records, not in-game ranked battles. Items, Abilities and moves are shown only when revealed in battle; games by the same player with the same six Pokémon are merged.",
     "noData": "No top team data for this regulation.",
     "none": "No teams match these filters.",
     "rating": "Rating",

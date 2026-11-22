@@ -16,11 +16,11 @@
         {{ t('topTeams.record', { games: team.games, wins: team.wins }) }} ·
         {{ t('topTeams.last', { date: dateText(team.last) }) }}
       </span>
-      <span class="tc-links">
+      <span v-if="replayUrl" class="tc-links">
         <a
           v-for="(id, i) in team.replays"
           :key="id"
-          :href="`https://replay.pokemonshowdown.com/${id}`"
+          :href="replayUrl(id)"
           target="_blank"
           rel="noopener"
           class="tc-replay"
@@ -76,7 +76,8 @@
 <script setup lang="ts">
 import { knownAbility, type TopTeam, type TopTeamMon } from '~/utils/topTeams'
 
-defineProps<{ team: TopTeam }>()
+// replayUrl = 출처의 리플레이 주소 (utils/topTeams.ts TEAM_SOURCE_LINKS, 없으면 리플레이 링크를 숨김)
+defineProps<{ team: TopTeam; replayUrl?: (id: string) => string }>()
 const emit = defineEmits<{ import: [] }>()
 const { t } = useI18n()
 const gd = useGameData()

@@ -1220,10 +1220,10 @@ try {
 // 기술·도구·특성·메가를 모은다. 리플레이마다 양쪽 플레이어의 배틀 전 레이팅(Elo)이 있고, 래더 TOP 500 으로 순위를 붙인다.
 //   리플레이 = 레이팅 높은 순 검색 TEAMS_PAGES 쪽 + 래더 상위 TEAMS_USERS 명의 최근 리플레이 (레이팅 배틀만)
 //   같은 플레이어의 같은 6마리 = 한 파티 (utils/topTeams.ts mergeTeams), 레이팅 높은 순 TEAMS_MAX 개
-// public/data/teams/index.json = { single | double: { [레귤레이션]: { format, fetched, replays, teams } } },
-// teams/{kind}-{reg}.json = { format, fetched, replays, teams: [TopTeam] }. 형식은 utils/topTeams.ts.
+// public/data/teams/index.json = { [출처]: { single | double: { [레귤레이션]: { format, fetched, replays, teams } } } },
+// teams/showdown/{kind}-{reg}.json = { format, fetched, replays, teams: [TopTeam] }. 형식·출처 목록은 utils/topTeams.ts.
 // 검색·래더는 소스 캐시(--refresh 로 다시 받음), 리플레이는 내용이 바뀌지 않으므로 읽은 결과만 캐시한다.
-// 받기 실패면 기존 teams/ 를 유지한다
+// 받기 실패면 기존 teams/showdown/ 을 유지한다. 다른 출처(teams/<출처>/, index 의 다른 키)는 건드리지 않는다
 const REPLAY = 'https://replay.pokemonshowdown.com'
 const TEAMS_PAGES = 8 // 레이팅 순 검색 쪽 수 (쪽당 50개)
 const TEAMS_USERS = 50 // 최근 리플레이를 따로 찾아보는 래더 상위 플레이어 수
@@ -1358,7 +1358,7 @@ try {
     for (const [reg, t] of Object.entries(meta[kind] ?? {})) formats[kind][reg] = t.format
   topTeams = await buildTopTeams(formats)
 } catch (e) {
-  warn.push(`상위 파티 받기 실패 (기존 teams/ 유지): ${e.message}`)
+  warn.push(`상위 파티 받기 실패 (기존 teams/showdown/ 유지): ${e.message}`)
 }
 
 // ── 7. 출력 ─────────────
@@ -1393,11 +1393,21 @@ if (usageStats) {
   write('stats/index.json', usageStats.index)
 }
 if (topTeams) {
-  const dir = path.join(OUT, 'teams')
+  const dir = path.join(OUT, 'teams', 'showdown')
   fs.rmSync(dir, { recursive: true, force: true })
   fs.mkdirSync(dir, { recursive: true })
-  for (const [name, file] of topTeams.files) write(`teams/${name}.json`, file)
-  write('teams/index.json', topTeams.index)
+  for (const [name, file] of topTeams.files) write(`teams/showdown/${name}.json`, file)
+  // index 는 다른 출처 자료를 남기고 showdown 만 바꿈 (예전 형식 = 출처 없이 single/double 이면 버림)
+  const indexFile = path.join(OUT, 'teams', 'index.json')
+  let index = {}
+  try {
+    index = JSON.parse(fs.readFileSync(indexFile, 'utf8'))
+  } catch {
+    // 처음 만드는 경우
+  }
+  delete index.single
+  delete index.double
+  write('teams/index.json', { ...index, showdown: topTeams.index })
 }
 for (const L of Object.keys(names)) {
   write(`names.${L}.json`, names[L])
