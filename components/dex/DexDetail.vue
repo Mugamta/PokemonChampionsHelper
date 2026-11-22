@@ -1,7 +1,8 @@
 <!--
   도감 상세: 포켓몬 하나의 종족값·실능치(배분·성격·랭크 반영)·스피드(도구 반영)·내구·타입별 실질 내구와 기술표.
   처음에는 사용률 통계의 배분(성격·능력 포인트·특성·도구)으로 채우고, 없으면 무보정·능력 포인트 0.
-  사용률·기술 채용률·통계 배분은 고른 시즌·월 통계 (useDexPeriod, 기술·도구 탭과 공유).
+  사용률·기술 채용률·통계 배분은 고른 시즌·월 통계 (useDexPeriod, 기술·도구 탭과 공유), 오른쪽에 순위·채용률 추이
+  (DexUsageTrend), 기술표 위에 레귤레이션별 패치 이력 (DexPatchHistory).
   메가진화 폼은 메가스톤·메가 특성으로 고정. 계산: utils/dex.ts, useTeamCalc
 -->
 <template>
@@ -41,6 +42,7 @@
         </p>
         <p v-else-if="!period.loading.value" class="usage-line muted">{{ t('dex.noUsage') }}</p>
       </div>
+      <DexUsageTrend :mon-id="mon.id" class="head-trend" />
     </section>
 
     <!-- 배분·도구·특성·랭크 -->
@@ -186,6 +188,8 @@
         </table>
       </div>
     </section>
+
+    <DexPatchHistory :id="mon.id" kind="pokemon" />
 
     <DexMoves
       :r="r"
@@ -335,6 +339,7 @@ const barColor = (v: number) =>
 }
 .head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 16px;
 }
@@ -343,6 +348,12 @@ const barColor = (v: number) =>
   flex-direction: column;
   gap: 6px;
   min-width: 0;
+  flex: 1 1 280px;
+}
+/* 오른쪽 순위·채용률 추이 (좁으면 아래로) */
+.head-trend {
+  flex: 0 1 380px;
+  margin-left: auto;
 }
 .name-row {
   display: flex;
@@ -379,6 +390,9 @@ const barColor = (v: number) =>
 }
 .kind-row {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
 }
 .usage-line {
   margin: 0;

@@ -1,6 +1,7 @@
 <!--
   패치 내역: 레귤레이션마다 직전 레귤레이션과 비교해 바뀐 출전 포켓몬·메가진화·도구·기술 수치·습득 기술·종족값.
-  데이터는 레귤레이션별로 덮어쓴 게임 데이터(useGameData().dataFor)를 utils/regulationData.ts 의 diffRegulations 로 비교.
+  데이터는 레귤레이션별로 덮어쓴 게임 데이터(useGameData().dataFor)를 utils/regulationData.ts 의 diffRegulations 로 비교
+  (composables/usePatchHistory.ts — 도감의 포켓몬·기술·도구별 패치 이력과 공유).
   기술·특성의 동작(수치가 아닌 효과) 변경은 데이터에 없어서 표시하지 않는다.
   첫 레귤레이션(개막)은 빈 레귤레이션과 비교해 처음 나온 포켓몬·메가진화·도구·기술을 전부 "추가"로 보여준다.
   포켓몬은 도감 번호 순(추가·제외 목록은 세대별), 포켓몬·기술·도구를 누르면 도감의 해당 탭으로.
@@ -187,13 +188,8 @@
 </template>
 
 <script setup lang="ts">
-import {
-  availableMegas,
-  diffRegulations,
-  isEmptyDiff,
-  openingDiff,
-  type RegulationDiff,
-} from '~/utils/regulationData'
+import { usePatchHistory } from '~/composables/usePatchHistory'
+import { availableMegas, isEmptyDiff, type RegulationDiff } from '~/utils/regulationData'
 
 const { t } = useI18n()
 const gd = useGameData()
@@ -222,27 +218,24 @@ const groupLearn = (d: RegulationDiff): LearnRow[] => {
   )
 }
 
-// 최신 레귤레이션이 위로
-const entries = computed(() => {
-  if (!gd.ready.value) return []
-  const list = reg.list.value
-  return list
-    .map((r, i) => {
-      const cd = gd.dataFor(r.id)!
-      const prev = list[i - 1]
-      const diff = prev ? diffRegulations(gd.dataFor(prev.id)!, prev, cd, r) : openingDiff(cd, r)
+// 최신 레귤레이션이 위로 (비교는 usePatchHistory 가 레귤레이션마다 한 번만)
+const history = usePatchHistory()
+const entries = computed(() =>
+  history.entries.value
+    .map((h) => {
+      const r = reg.list.value.find((x) => x.id === h.reg)!
       return {
         reg: r,
-        first: !prev,
-        diff,
-        empty: isEmptyDiff(diff),
-        learn: groupLearn(diff),
-        megas: availableMegas(cd, r).length,
-        items: Object.values(cd.items).filter((it) => !it.megaStone).length,
+        first: h.first,
+        diff: h.diff,
+        empty: isEmptyDiff(h.diff),
+        learn: groupLearn(h.diff),
+        megas: availableMegas(h.data, r).length,
+        items: Object.values(h.data.items).filter((it) => !it.megaStone).length,
       }
     })
-    .reverse()
-})
+    .reverse(),
+)
 
 // 도감으로 (포켓몬은 PatchMonList)
 const moveLink = (id: string) => ({ path: '/dex', query: { tab: 'moves', move: id } })
@@ -251,20 +244,7 @@ const itemLink = (id: string) => ({ path: '/dex', query: { tab: 'items', item: i
 const byNum = <T extends { id: string }>(list: T[]) =>
   [...list].sort((a, b) => (gd.pokemon(a.id)?.num ?? 0) - (gd.pokemon(b.id)?.num ?? 0))
 
-const moveValue = (key: string, v: unknown) => {
-  if (key === 'type') return gd.name('types', String(v))
-  if (key === 'category') return t('category.' + String(v))
-  if (key === 'accuracy') return v == null ? '—' : String(v)
-  if (key === 'power') return v ? String(v) : '—'
-  return String(v)
-}
-const pokemonLabel = (key: string) =>
-  ['types', 'abilities', 'weight'].includes(key) ? t('patch.field.' + key) : t('stat.' + key)
-const pokemonValue = (key: string, v: unknown) => {
-  if (key === 'types') return (v as string[]).map((x) => gd.name('types', x)).join(' / ')
-  if (key === 'abilities') return (v as string[]).map((x) => gd.name('abilities', x)).join(' / ')
-  return String(v)
-}
+const { moveValue, pokemonLabel, pokemonValue } = history
 </script>
 
 <style scoped>

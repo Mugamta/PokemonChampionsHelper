@@ -55,6 +55,8 @@
       <p v-else class="muted small">{{ t('dex.it.noUsers') }}</p>
       <p class="note muted">{{ t('dex.it.usersNote') }}</p>
     </section>
+
+    <DexPatchHistory :id="item.id" kind="items" />
   </div>
 </template>
 

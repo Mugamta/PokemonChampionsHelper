@@ -198,3 +198,106 @@ export function groupByGeneration(
   }
   return out
 }
+
+// ── 도감용 패치 이력 (포켓몬·기술·도구 하나) ─────────────
+// entries = 레귤레이션 순서대로 { 레귤레이션 id, 개막 여부, 직전과의 diff, 그 레귤레이션 데이터 }
+export interface RegDiffEntry {
+  reg: string
+  first: boolean
+  diff: RegulationDiff
+  data: GameData
+}
+export interface MonHistory {
+  reg: string
+  first: boolean
+  joined: boolean // 출전 가능해짐 (메가는 메가진화 가능해짐)
+  left: boolean
+  learnAdded: string[]
+  learnRemoved: string[]
+  changes: FieldChange[] // 종족값·타입·특성·무게
+  moveChanges: { id: string; changes: FieldChange[] }[] // 이 포켓몬이 배우는 기술의 수치 변경
+}
+export interface MoveHistory {
+  reg: string
+  first: boolean
+  joined: boolean
+  left: boolean
+  changes: FieldChange[]
+  learnAdded: string[] // 새로 배우게 된 포켓몬
+  learnRemoved: string[]
+}
+export interface ItemHistory {
+  reg: string
+  first: boolean
+  joined: boolean
+  left: boolean
+}
+
+// 포켓몬 하나 (메가 폼이면 출전 여부는 메가 목록, 습득 기술·기술 변경은 원종 기준)
+export function monHistory(entries: readonly RegDiffEntry[], id: string): MonHistory[] {
+  const out: MonHistory[] = []
+  for (const e of entries) {
+    const d = e.diff
+    const baseId = e.data.pokemon[id]?.mega?.from ?? id
+    const mega = baseId !== id
+    const learn = d.learnsetChanges.find((c) => c.id === baseId)
+    const learnset = new Set(e.data.pokemon[baseId]?.learnset ?? [])
+    const h: MonHistory = {
+      reg: e.reg,
+      first: e.first,
+      joined: (mega ? d.megasAdded : d.pokemonAdded).includes(id),
+      left: (mega ? d.megasRemoved : d.pokemonRemoved).includes(id),
+      learnAdded: learn?.added ?? [],
+      learnRemoved: learn?.removed ?? [],
+      changes: d.pokemonChanges.find((c) => c.id === id)?.changes ?? [],
+      moveChanges: d.moveChanges.filter((c) => learnset.has(c.id)),
+    }
+    if (
+      h.joined ||
+      h.left ||
+      h.learnAdded.length ||
+      h.learnRemoved.length ||
+      h.changes.length ||
+      h.moveChanges.length
+    )
+      out.push(h)
+  }
+  return out
+}
+
+// 기술 하나
+export function moveHistory(entries: readonly RegDiffEntry[], id: string): MoveHistory[] {
+  const out: MoveHistory[] = []
+  for (const e of entries) {
+    const d = e.diff
+    const h: MoveHistory = {
+      reg: e.reg,
+      first: e.first,
+      joined: d.movesAdded.includes(id),
+      left: d.movesRemoved.includes(id),
+      changes: d.moveChanges.find((c) => c.id === id)?.changes ?? [],
+      learnAdded: d.learnsetChanges.filter((c) => c.added.includes(id)).map((c) => c.id),
+      learnRemoved: d.learnsetChanges.filter((c) => c.removed.includes(id)).map((c) => c.id),
+    }
+    if (h.joined || h.left || h.changes.length || h.learnAdded.length || h.learnRemoved.length)
+      out.push(h)
+  }
+  return out
+}
+
+// 도구 하나 (메가스톤은 그 메가진화가 추가·제외된 레귤레이션)
+export function itemHistory(entries: readonly RegDiffEntry[], id: string): ItemHistory[] {
+  const out: ItemHistory[] = []
+  for (const e of entries) {
+    const d = e.diff
+    const byStone = (megas: string[]) => megas.some((m) => e.data.pokemon[m]?.mega?.item === id)
+    const h: ItemHistory = {
+      reg: e.reg,
+      first: e.first,
+      joined: d.itemsAdded.includes(id) || byStone(d.megasAdded),
+      left: d.itemsRemoved.includes(id) || byStone(d.megasRemoved),
+    }
+    if (h.joined || h.left) out.push(h)
+  }
+  return out
+}

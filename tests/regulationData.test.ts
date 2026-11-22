@@ -8,7 +8,11 @@ import {
   diffRegulations,
   generationOf,
   groupByGeneration,
+  itemHistory,
+  monHistory,
+  moveHistory,
   openingDiff,
+  type RegDiffEntry,
 } from '../utils/regulationData'
 
 const load = (f: string) =>
@@ -127,6 +131,58 @@ describe('openingDiff · 세대', () => {
       { gen: 1, ids: ['b', 'c'] },
       { gen: 4, ids: ['a'] },
       { gen: 9, ids: ['d'] },
+    ])
+  })
+})
+
+describe('도감 패치 이력', () => {
+  // 패치 내역 화면과 같은 순서 (오래된 레귤레이션부터)
+  const entries: RegDiffEntry[] = base.regulations.map((r, i, list) => {
+    const cd = applyRegulation(base, r)
+    const prev = list[i - 1]
+    return {
+      reg: r.id,
+      first: !prev,
+      diff: prev ? diffRegulations(applyRegulation(base, prev), prev, cd, r) : openingDiff(cd, r),
+      data: cd,
+    }
+  })
+
+  it('포켓몬: 개막 참가 + 습득 기술 제외', () => {
+    const h = monHistory(entries, 'archaludon')
+    expect(h[0]).toMatchObject({ reg: 'M-A', first: true, joined: true })
+    const mc = h.find((x) => x.reg === 'M-C')!
+    expect(mc.learnRemoved).toEqual(['metalburst', 'mirrorcoat'])
+    expect(mc.joined).toBe(false)
+  })
+
+  it('포켓몬: 배우는 기술의 수치 변경 (희망사항 PP)', () => {
+    const learner = reg('M-C').pokemon.find((id) =>
+      applyRegulation(base, reg('M-C')).pokemon[id]?.learnset?.includes('wish'),
+    )!
+    const mc = monHistory(entries, learner).find((x) => x.reg === 'M-C')!
+    expect(mc.moveChanges.find((c) => c.id === 'wish')!.changes).toEqual([
+      { key: 'pp', from: 12, to: 8 },
+    ])
+  })
+
+  it('메가 폼: 메가진화 추가 레귤레이션', () => {
+    const h = monHistory(entries, 'garchompmegaz')
+    expect(h.find((x) => x.reg === 'M-C')?.joined).toBe(true)
+  })
+
+  it('기술: 수치 변경 + 배우지 못하게 된 포켓몬', () => {
+    const wish = moveHistory(entries, 'wish').find((x) => x.reg === 'M-C')!
+    expect(wish.changes).toEqual([{ key: 'pp', from: 12, to: 8 }])
+    const mb = moveHistory(entries, 'metalburst').find((x) => x.reg === 'M-C')!
+    expect(mb.learnRemoved).toContain('archaludon')
+  })
+
+  it('도구: 추가 레귤레이션, 메가스톤은 그 메가 기준', () => {
+    expect(itemHistory(entries, 'lifeorb').find((x) => x.reg === 'M-B')?.joined).toBe(true)
+    expect(itemHistory(entries, 'rockyhelmet').find((x) => x.reg === 'M-C')?.joined).toBe(true)
+    expect(itemHistory(entries, 'garchompitez')).toEqual([
+      { reg: 'M-C', first: false, joined: true, left: false },
     ])
   })
 })

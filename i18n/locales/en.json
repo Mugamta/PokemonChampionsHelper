@@ -1069,6 +1069,21 @@
       "users": "Used by",
       "noUsers": "No Pokémon holds this item in usage stats",
       "usersNote": "% = share of teams using that Pokémon in the period that held this item (0.5%+, season = all months of the regulation combined). Prices: Serebii Champions item list"
+    },
+    "period": {
+      "season": "Whole season"
+    },
+    "trend": {
+      "title": "Rank & usage trend",
+      "none": "Not ranked"
+    },
+    "patch": {
+      "title": "Patch history",
+      "all": "All patch notes",
+      "none": "No changes between regulations.",
+      "opened": "Launch",
+      "joined": "Added",
+      "left": "Removed"
     }
   },
   "vs": {

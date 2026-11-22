@@ -8,7 +8,7 @@ import { useUsageStats } from '~/composables/useUsageStats'
 import { periodsOf, statsKey, type StatsMeta, type StatsMon } from '~/utils/usageStats'
 
 export function useDexPeriod() {
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   const reg = useRegulation()
   const kind = useUsageKind()
   const stats = useUsageStats()
@@ -41,6 +41,23 @@ export function useDexPeriod() {
     return m
   })
 
+  // 칩 고르기: 레귤레이션(시즌) → 그 레귤레이션의 시즌 전체 / 월
+  const monthsOf = (regId: string) => months.value.filter((m) => m.reg === regId)
+  const select = (p: StatsMeta) => (picked.value = statsKey(p))
+  // 레귤레이션을 바꾸면 그 시즌 전체
+  const selectReg = (regId: string) => {
+    const s = seasons.value.find((x) => x.reg === regId)
+    if (s) select(s)
+  }
+  // 월 짧은 이름 (4월 / Apr / 4月)
+  const monthShort = (period: string) => {
+    const [y, m] = period.split('-').map(Number)
+    if (!y || !m) return period
+    return new Intl.DateTimeFormat(locale.value, { month: 'short', timeZone: 'UTC' }).format(
+      Date.UTC(y, m - 1, 1),
+    )
+  }
+
   const periodLabel = (p: StatsMeta) =>
     p.period === 'season'
       ? t('usageStats.season', { reg: p.reg })
@@ -60,5 +77,9 @@ export function useDexPeriod() {
     byId,
     periodLabel,
     monthsText,
+    monthsOf,
+    select,
+    selectReg,
+    monthShort,
   }
 }

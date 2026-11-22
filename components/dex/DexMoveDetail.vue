@@ -83,6 +83,8 @@
       <p v-else class="muted small">{{ t('dex.mv.noLearners') }}</p>
       <p class="note muted">{{ t('dex.mv.learnersNote') }}</p>
     </section>
+
+    <DexPatchHistory :id="move.id" kind="moves" />
   </div>
 </template>
 
