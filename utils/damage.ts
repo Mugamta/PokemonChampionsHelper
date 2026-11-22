@@ -875,6 +875,7 @@ export function powerIndex(
   move: Move,
   rawAttacker: Combatant,
   field: FieldState = {},
+  opts: DamageOptions = {}, // 위력이 전투 상황에 따라 바뀌는 기술 (분노의주먹 timesHit 등)
 ): number | null {
   if (move.category === 'status' || !move.power) return null
   const fieldWeather: Weather = IGNORES_WEATHER.has(rawAttacker.ability) ? '' : field.weather || ''
@@ -887,7 +888,17 @@ export function powerIndex(
     item: '',
   }
   const { type, skinBoost } = resolveMoveType(move, attacker, weather, field.terrain || '')
-  const { power, attack } = offense(move, attacker, dummy, field, false, type, skinBoost, weather)
+  const { power, attack } = offense(
+    move,
+    attacker,
+    dummy,
+    field,
+    false,
+    type,
+    skinBoost,
+    weather,
+    opts,
+  )
   let v = power * attack
   const ab = attacker.ability
   if (ab === 'protean' || ab === 'libero' || attacker.species.types.includes(type))

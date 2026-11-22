@@ -84,21 +84,30 @@ export function useVs() {
   const resolved = (side: VsSide) => (side === 'left' ? left.value : right.value)
 
   // 포켓몬을 바꾸면 특성·도구·기술·전투 상태 초기화 (능력 포인트는 유지). 지우면 전부 초기화
+  // 메가 폼을 고르면 원종 + 그 메가스톤으로 고정. 같은 원종의 메가 ↔ 일반만 바꾸면 도구만 바꾼다
   const setSpecies = (side: VsSide, id: string | null) => {
     const m = state.value[side]
-    const species = id ?? ''
-    if (m.slot.species === species) return
+    const mega = gd.pokemon(id)?.mega
+    const species = mega?.from ?? id ?? ''
+    const stone = mega?.item ?? ''
+    if (m.slot.species === species) {
+      if (stone) m.slot.item = stone
+      else if (gd.megaFor(species, m.slot.item)) m.slot.item = ''
+      m.megaOn = true
+      return
+    }
     const fresh = emptyVsMon()
     m.slot.species = species
     m.slot.gender = ''
     m.slot.ability = gd.pokemon(species)?.abilities[0] ?? ''
-    m.slot.item = ''
+    m.slot.item = stone
     m.slot.moves = ['', '', '', '']
     m.megaOn = true
     m.altOn = null
     m.status = ''
     m.boosts = fresh.boosts
     m.hpPct = 100
+    m.timesHit = 0
     if (!species) {
       m.slot.nature = 'serious'
       for (const k of STAT_KEYS) m.slot.sp[k] = 0
@@ -136,6 +145,7 @@ export function useVs() {
     const field = vsFieldState(state.value.field, mt)
     const opts = {
       crit: mf.crit,
+      timesHit: mf.timesHit,
       helpingHand: state.value.field.doubles && mf.helpingHand,
       spread: state.value.field.doubles && isSpreadMove(move, { attacker: atk, field }),
     }

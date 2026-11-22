@@ -892,6 +892,10 @@ describe('배틀 상황에 따라 위력이 바뀌는 기술 (Showdown 계산식
     expect(power('ragefist', { timesHit: 2 })).toBe(150)
     expect(power('ragefist', { timesHit: 9 })).toBe(350)
   })
+  it('분노의주먹 결정력도 맞은 횟수를 반영 (VS 계산기)', () => {
+    const base = powerIndex(move('ragefist'), atk())!
+    expect(powerIndex(move('ragefist'), atk(), {}, { timesHit: 2 })).toBe(base * 3)
+  })
   it('보복: 대상이 먼저 행동했으면 2배 (교체로 나온 대상은 제외)', () => {
     expect(power('payback')).toBe(50)
     expect(power('payback', { movesLast: true })).toBe(100)

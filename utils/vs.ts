@@ -22,6 +22,7 @@ export interface VsMon {
   boosts: Record<BoostKey, number>
   hpPct: number // 현재 HP (%)
   crit: boolean // 이 포켓몬의 공격을 급소로 계산
+  timesHit: number // 지금까지 공격을 맞은 횟수 (분노의주먹 위력)
   // 이 포켓몬 쪽 진영 상태
   reflect: boolean
   lightScreen: boolean
@@ -54,6 +55,7 @@ export const emptyVsMon = (): VsMon => ({
   boosts: { atk: 0, def: 0, spa: 0, spd: 0, spe: 0 },
   hpPct: 100,
   crit: false,
+  timesHit: 0,
   reflect: false,
   lightScreen: false,
   auroraVeil: false,

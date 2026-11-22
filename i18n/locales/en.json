@@ -1094,6 +1094,7 @@
     "hp": "Current HP",
     "sideState": "Side / attack",
     "critHint": "Calculate this Pokémon's attack as a critical hit",
+    "timesHit": "Times hit",
     "shared": "Shared conditions",
     "format": "Format",
     "doubleHint": "Spread moves deal 0.75×; Helping Hand and Friend Guard become available",

@@ -8,8 +8,8 @@
       <UiPokeSprite :id="r?.species.id || null" :size="72" />
       <div class="head-main">
         <TeamSpeciesPicker
-          :model-value="mon.slot.species"
-          :ids="reg.selectableSpecies.value"
+          :model-value="pickedId"
+          :ids="speciesIds"
           @update:model-value="vs.setSpecies(side, $event)"
         />
         <div v-if="r" class="head-meta">
@@ -72,7 +72,11 @@
         <TeamMovePicker
           v-model="mon.slot.moves[0]"
           :learnset="attackMoves"
-          :power="calc.power(r, mon.slot.moves[0], field, mon.status, mon.boosts)"
+          :power="
+            calc.power(r, mon.slot.moves[0], field, mon.status, mon.boosts, {
+              timesHit: mon.timesHit,
+            })
+          "
           :hits="calc.hits(r, mon.slot.moves[0])"
           :ability="r.ability"
           :species="calc.attackForm(r).species"
@@ -80,6 +84,19 @@
           :usage="moveUsage"
           show-info
         />
+        <!-- 분노의주먹: 맞은 횟수만큼 위력 50씩 (최대 6회 = 350) -->
+        <div v-if="mon.slot.moves[0] === 'ragefist'" class="times-hit">
+          <span class="section-label">{{ t('vs.timesHit') }}</span>
+          <span class="rank" :class="{ on: mon.timesHit > 0 }">
+            <button type="button" class="rb" :disabled="mon.timesHit <= 0" @click="mon.timesHit--">
+              −
+            </button>
+            <span class="rank-val num">{{ mon.timesHit }}</span>
+            <button type="button" class="rb" :disabled="mon.timesHit >= 6" @click="mon.timesHit++">
+              +
+            </button>
+          </span>
+        </div>
       </div>
 
       <div class="stats">
@@ -237,6 +254,17 @@ const SIDE_CHIPS = [
 
 const mon = computed(() => vs.state.value[props.side])
 const r = computed(() => vs.resolved(props.side))
+// 포켓몬 검색: 메가 폼도 이름으로 고를 수 있게 (고르면 원종 + 메가스톤, composables/useVs.ts setSpecies)
+const speciesIds = computed(() => [
+  ...reg.selectableSpecies.value,
+  ...Object.values(gd.data.value?.pokemon || {})
+    .filter((p) => p.mega && reg.isAllowed(p.id))
+    .map((p) => p.id),
+])
+// 메가스톤을 지니고 메가진화를 켜 두었으면 검색칸에 메가 폼 이름
+const pickedId = computed(() =>
+  r.value?.megaId && mon.value.megaOn ? r.value.megaId : mon.value.slot.species,
+)
 // 결정력 표시용 (방어 측과 무관)
 const field = computed(() => vsFieldState(vs.state.value.field))
 const shownTypes = computed(() =>
@@ -337,6 +365,12 @@ const bulk = (k: 'def' | 'spd') => {
   flex-direction: column;
   gap: 3px;
   min-width: 0;
+}
+.times-hit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
 }
 .stats {
   display: flex;

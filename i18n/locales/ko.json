@@ -1094,6 +1094,7 @@
     "hp": "현재 HP",
     "sideState": "진영·공격",
     "critHint": "이 포켓몬의 공격을 급소로 계산합니다",
+    "timesHit": "맞은 횟수",
     "shared": "공용 상태",
     "format": "형식",
     "doubleHint": "광역기 0.75배, 도우미·프렌드가드 선택 가능",

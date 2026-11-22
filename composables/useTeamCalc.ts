@@ -389,10 +389,11 @@ export function useTeamCalc() {
     field: FieldState = {},
     status?: Status,
     boosts?: Combatant['boosts'],
+    opts: DamageOptions = {},
   ) => {
     const move = gd.move(moveId)
     if (!r || !move) return null
-    const v = powerIndex(move, combatant(attackForm(r), { status, boosts }), field)
+    const v = powerIndex(move, combatant(attackForm(r), { status, boosts }), field, opts)
     return v == null ? null : Math.floor(v * (hits(r, moveId)?.expFactor ?? 1))
   }
 
