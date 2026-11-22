@@ -1,6 +1,6 @@
 <!--
   VS 화면 한쪽 포켓몬: 포켓몬·특성·도구·성격, 통계로 많이 쓴 특성·배분(components/vs/UsageHints.vue),
-  기술 1개(이 포켓몬이 배우는 공격 기술만), 능력 포인트·랭크, 현재 HP·상태이상, 이 포켓몬 쪽 진영 상태.
+  기술 1개(이 포켓몬이 배우는 공격 기술만, 통계에서 많이 쓴 기술이 위), 능력 포인트·랭크, 현재 HP·상태이상, 이 포켓몬 쪽 진영 상태.
 -->
 <template>
   <article class="panel vs-mon" :class="[side, { empty: !r }]">
@@ -77,6 +77,7 @@
           :ability="r.ability"
           :species="calc.attackForm(r).species"
           :field="field"
+          :usage="moveUsage"
           show-info
         />
       </div>
@@ -210,7 +211,9 @@
 
 <script setup lang="ts">
 import { useTeamCalc } from '~/composables/useTeamCalc'
+import { useUsageKind } from '~/composables/useUsageKind'
 import { useVs } from '~/composables/useVs'
+import { pickUsageTable } from '~/utils/autoSet'
 import { typesInWeather } from '~/utils/damage'
 import { SP_PER_STAT_MAX, SP_TOTAL_MAX, clampBoost, isSpValid, spTotal } from '~/utils/stats'
 import { STAT_KEYS, type BoostKey, type StatKey } from '~/utils/types'
@@ -222,6 +225,7 @@ const gd = useGameData()
 const reg = useRegulation()
 const calc = useTeamCalc()
 const vs = useVs()
+const kind = useUsageKind()
 
 const STATUSES = ['brn', 'par', 'psn', 'tox', 'slp', 'frz'] as const
 const SIDE_CHIPS = [
@@ -245,6 +249,16 @@ const attackMoves = computed(() =>
     return !!m && m.category !== 'status'
   }),
 )
+// 사용률 통계의 기술별 채용률 (VsUsageHints 와 같은 통계: 지금 폼, 메가 폼이 통계에 없으면 원종)
+// → 기술 목록에서 많이 쓴 기술이 맨 위에
+const moveUsage = computed(() => {
+  const p = pickUsageTable(gd.usageMeta(kind.value), reg.active.value?.id)
+  const table = p && gd.usageTable(kind.value, p.reg)
+  const cur = r.value
+  if (!table || !cur) return null
+  const shown = (cur.isMega ? table.pokemon[cur.species.id] : null) ?? table.pokemon[cur.base.id]
+  return shown?.moveUsage ?? null
+})
 const spValid = computed(() => isSpValid(mon.value.slot.sp))
 const step = (k: BoostKey, d: number) => {
   mon.value.boosts[k] = clampBoost(mon.value.boosts[k] + d)

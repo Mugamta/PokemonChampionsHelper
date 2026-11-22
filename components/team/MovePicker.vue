@@ -43,10 +43,11 @@
         >
       </template>
       <template #item="{ props: p, item }">
-        <v-list-item v-bind="p" :title="undefined">
+        <v-list-item v-bind="p" :title="undefined" :class="{ 'top-last': item.topLast }">
           <div class="opt" :title="item.desc">
             <UiTypeBadge :type="typeOf(item.value) || item.type" small />
             <span class="opt-name">{{ item.title }}</span>
+            <span v-if="item.share != null" class="opt-share num">{{ pct(item.share) }}</span>
             <UiCategoryBadge :category="item.category" />
             <span class="opt-pow num">{{ item.power || '—' }}</span>
           </div>
@@ -115,6 +116,7 @@ const props = defineProps<{
   ability?: string // 기술을 쓰는 포켓몬의 특성 (메가 적용 후). 스킨류면 노말 기술 타입이 바뀜
   species?: Pokemon | null // 기술을 쓰는 폼 (오라휠·레이징불처럼 폼에 따라 타입이 바뀌는 기술)
   field?: FieldState
+  usage?: Record<string, number> | null // 기술별 채용률 (0~1). 주면 통계에 있는 기술을 많이 쓴 순으로 맨 위에
 }>()
 const { t } = useI18n()
 const gd = useGameData()
@@ -166,7 +168,13 @@ const items = computed(() => {
   const ids = props.learnset.filter((m) => !ex.has(m) || m === model.value)
   // 습득 기술에 없는 값(예전 데이터 등)도 이름으로 보이도록 포함
   if (model.value && gd.move(model.value) && !ids.includes(model.value)) ids.push(model.value)
-  return gd.options('moves', ids).map((o) => {
+  // 통계에 있는 기술 → 채용률 높은 순 (같으면 이름 순, 정렬이 안정적이라 유지됨), 나머지 → 이름 순
+  const share = props.usage ?? {}
+  const opts = gd
+    .options('moves', ids)
+    .sort((a, b) => (share[b.value] ?? -1) - (share[a.value] ?? -1))
+  const topCount = opts.filter((o) => share[o.value] != null).length
+  return opts.map((o, i) => {
     const m = gd.move(o.value)!
     return {
       ...o,
@@ -174,9 +182,13 @@ const items = computed(() => {
       category: m.category,
       power: m.power,
       desc: gd.text('moves', o.value),
+      share: share[o.value],
+      // 통계 기술과 나머지 사이 구분선 (나머지가 있을 때만)
+      topLast: i === topCount - 1 && topCount < opts.length,
     }
   })
 })
+const pct = (v: number) => `${Number((v * 100).toFixed(1))}%`
 </script>
 
 <style scoped>
@@ -194,6 +206,14 @@ const items = computed(() => {
 }
 .opt-name {
   flex: 1;
+}
+.opt-share {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent-2);
+}
+.top-last {
+  border-bottom: 1px dashed var(--line);
 }
 .opt-pow {
   width: 28px;
