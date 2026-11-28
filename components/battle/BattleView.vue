@@ -35,7 +35,30 @@
       </div>
     </div>
 
-    <div v-if="blocked" class="panel empty-state">
+    <!-- 선출만 덜 됨: 화면을 옮기지 않고 여기서 바로 고름 (다 고르면 배틀 시작) -->
+    <div v-if="blocked === 'pick'" class="panel panel-pad pick-here">
+      <div class="pick-head">
+        <span class="section-label">{{ t('entry.pickHint', { n: entry.max }) }}</span>
+        <span class="muted small num">{{ entry.picks.value.length }}/{{ entry.max }}</span>
+      </div>
+      <BattlePickRecommend :mode="mode" :field="pickField" />
+      <div class="pick-grid">
+        <template v-for="(sl, i) in mine.slots.value" :key="i">
+          <BattleSlotMini
+            v-if="sl.species"
+            :slot="sl"
+            :mega-on="mine.megaOn.value[i]"
+            :alt-on="mine.altOn.value[i]"
+            :order="entry.order(i)"
+            selectable
+            no-expand
+            @select="entry.toggle(i)"
+          />
+        </template>
+      </div>
+    </div>
+
+    <div v-else-if="blocked" class="panel empty-state">
       <p>{{ blocked }}</p>
       <NuxtLink :to="`/${mode}`" class="btn btn-primary">{{
         t(mode === 'single' ? 'entry.titleSingle' : 'entry.titleDouble')
@@ -193,11 +216,18 @@ const TABS: { key: TableTab; label: string }[] = [
   { key: 'estimate', label: 'battle.est.title' },
 ]
 
+// 'pick' = 선출만 덜 됨 (이 화면에서 바로 고름), 그 외 문구 = 선출 화면으로 돌아가야 함
 const blocked = computed(() => {
-  if (!entry.isFull.value) return t('entry.needPick', { n: entry.max })
   if (!opp.slots.value.every((s) => s.species)) return t('entry.needOpponent')
+  if (!entry.isFull.value) return 'pick'
   return ''
 })
+const mine = useTeam('mine')
+const pickField = computed(() => ({
+  weather: '' as const,
+  terrain: '' as const,
+  doubles: props.mode === 'double',
+}))
 watchEffect(() => {
   if (!blocked.value) b.ensure()
 })
@@ -246,6 +276,24 @@ const onReset = () => {
 .empty-state .btn {
   text-decoration: none;
 }
+.pick-here {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 960px;
+  width: 100%;
+  margin: 0 auto;
+}
+.pick-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.pick-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 8px;
+}
 .layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr) minmax(0, 1fr);
@@ -273,7 +321,7 @@ const onReset = () => {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
 }
-.mini {
+.mini-row .mini {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -288,22 +336,22 @@ const onReset = () => {
   font-weight: 700;
   cursor: pointer;
 }
-.mini:hover:not(:disabled) {
+.mini-row .mini:hover:not(:disabled) {
   border-color: var(--opp);
 }
-.mini.active {
+.mini-row .mini.active {
   border-color: var(--opp);
   box-shadow: 0 0 0 1px var(--opp);
 }
-.mini.cand {
+.mini-row .mini.cand {
   opacity: 0.75;
   border-style: dashed;
 }
-.mini:disabled {
+.mini-row .mini:disabled {
   opacity: 0.4;
   cursor: default;
 }
-.mini :deep(.hp) {
+.mini-row .mini :deep(.hp) {
   width: 100%;
 }
 .small {

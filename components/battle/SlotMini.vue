@@ -1,6 +1,7 @@
 <!--
   선출 화면에서 접어 둔 포켓몬 슬롯 한 줄: 번호(상대) / 선출 순서(내 쪽) · 스프라이트 · 이름·성별 · 타입 · 도구 · 펼치기 버튼.
-  내 쪽은 줄을 누르면 선출 토글(select), 상대는 펼침(expand). warn: 성별 미입력 등 붉은 테두리
+  내 쪽은 줄을 누르면 선출 토글(select), 상대는 펼침(expand). warn: 성별 미입력 등 붉은 테두리.
+  배틀 화면에서 선출이 덜 됐을 때도 쓴다 (noExpand)
 -->
 <template>
   <div
@@ -23,6 +24,7 @@
     <UiItemIcon v-if="slot.item" :id="slot.item" :size="18" />
     <span v-if="order != null" class="order num">{{ order }}</span>
     <button
+      v-if="!noExpand"
       type="button"
       class="unfold"
       :title="t('entry.unfold')"
@@ -46,6 +48,7 @@ const props = defineProps<{
   selectable?: boolean
   dim?: boolean
   warn?: boolean
+  noExpand?: boolean // 펼치기 버튼 숨김 (배틀 화면에서 바로 선출할 때)
 }>()
 const emit = defineEmits<{ select: []; expand: [] }>()
 const activate = () => (props.selectable ? emit('select') : emit('expand'))

@@ -35,11 +35,12 @@
         }}</span>
         <!-- 상대 입력·선출이 덜 된 것은 위 단계 표시로 보이므로 그 외(파티 미완성)만 -->
         <span v-if="blocker === partyBlocker" class="warn-text small">{{ blocker }}</span>
-        <NuxtLink
-          :to="`/${mode}/battle`"
-          class="btn btn-primary"
-          :class="{ disabled: !!blocker }"
-          @click="(e: MouseEvent) => blocker && e.preventDefault()"
+        <!-- 선출만 덜 됐으면 배틀 화면에서 바로 고를 수 있으므로 통과, 그 외엔 진짜로 막는다
+             (NuxtLink 에 @click preventDefault 를 걸어도 이동이 먼저 일어나서 버튼으로 바꿈) -->
+        <button v-if="blocker && !onlyPickMissing" type="button" class="btn btn-primary" disabled>
+          {{ t('entry.toBattle') }} →
+        </button>
+        <NuxtLink v-else :to="`/${mode}/battle`" class="btn btn-primary"
           >{{ t('entry.toBattle') }} →</NuxtLink
         >
       </div>
@@ -368,6 +369,7 @@ const blocker = computed(() => {
   if (!entry.isFull.value) return t('entry.needPick', { n: entry.max })
   return ''
 })
+const onlyPickMissing = computed(() => blocker.value === t('entry.needPick', { n: entry.max }))
 </script>
 
 <style scoped>
@@ -415,7 +417,7 @@ const blocker = computed(() => {
 .opp-wrap :deep(.slot-head) {
   padding-right: 24px;
 }
-.btn.disabled {
+.btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
