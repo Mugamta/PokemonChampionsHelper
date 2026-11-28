@@ -1457,5 +1457,37 @@
     "import": "Use as my team",
     "importConfirm": "Replace your current team with this team? Unrevealed moves, items, Abilities and spreads are filled from usage stats.",
     "more": "Show more ({n})"
+  },
+  "recog": {
+    "button": "Screenshot",
+    "buttonHint": "Fill in the opponent's six Pokémon from a screenshot of the in-game team selection screen",
+    "title": "Opponent's team from a screenshot",
+    "close": "Close",
+    "hint": "Paste (Ctrl+V), drop, or choose a screenshot of the in-game team selection screen (\"Choose 3 Pokémon to battle\").",
+    "pickFile": "Choose file",
+    "capture": "Capture screen",
+    "captureAgain": "Capture again",
+    "stopCapture": "Stop sharing",
+    "captureHint": "Share the window that shows the game (e.g. a capture card) and each press reads the current screen (no new prompt until you stop sharing)",
+    "ocrLang": "Game language",
+    "lang": {
+      "ko": "한국어",
+      "ja": "日本語",
+      "en": "English"
+    },
+    "privacy": "The image is processed only on this device and is never uploaded. Text recognition downloads its engine and language data (a few MB) the first time.",
+    "working": "Recognizing…",
+    "notFound": "Could not find the Pokémon panels of the team selection screen. Make sure the whole screen is in the screenshot.",
+    "badImage": "Could not read the image.",
+    "oppNotFound": "Could not find the opponent's panels.",
+    "mineNotFound": "Could not find your panels.",
+    "unsure": "Check this (similar candidates)",
+    "apply": "Apply to opponent's team",
+    "applyHint": "Replaces the six opponent slots and auto-fills ability, item and moves. Gender follows the on-screen symbol",
+    "ocrLoading": "Reading names and items…",
+    "ocrFailed": "Text recognition could not be loaded, so only icons were used.",
+    "inParty": "Same as your saved team",
+    "notInParty": "Not in your saved team",
+    "itemDiff": "Item differs from saved ({item})"
   }
 }

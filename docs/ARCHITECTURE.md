@@ -17,7 +17,8 @@ components/
                        (SpeedPanel = 상대 스피드 구간 막대, EstimatePanel = 상대 배분 추정, SlotMini = 선출 화면의 접은 슬롯 한 줄,
                        RecommendPanel = 추천 플레이 (싱글) / RecommendDoubles = 더블 — 행동 패널 제목 줄의 "추천 플레이" 버튼으로 여는 다이얼로그, 열려 있는 동안만 계산,
                        RecommendLog = 추천과 실제 행동 비교, RecommendWeights = 가중치 입력(미리 정한 값),
-                       RecommendOppChips = 상대 예상 선택지 칩(비중 조정), PickRecommend = 선출 화면 선출·선두 추천)
+                       RecommendOppChips = 상대 예상 선택지 칩(비중 조정), PickRecommend = 선출 화면 선출·선두 추천,
+                       ScreenRecog = 선출 화면 "스크린샷 인식" 버튼 + 다이얼로그)
   perf/                포켓몬 성능표: BulkTable / PowerTable / SpeedTable, MonCell(포켓몬 칸)
   usage/               사용률 통계 화면: MonDetail(고른 포켓몬의 기술·도구·특성·배분·함께 쓴 포켓몬·월별 순위 추이)
   vs/                  VS 화면: MonPanel(한쪽 포켓몬 입력), UsageHints(통계 특성·배분), ResultCard(공격 → 방어 결과)
@@ -27,7 +28,8 @@ composables/           상태 + 계산 연결 (아래 표)
 utils/                 순수 계산 (tests/ 에서 테스트): types.ts, stats.ts, damage.ts, ko.ts, typeCheck.ts(타입 상성 도우미),
                        speedInference.ts(선후공 → 상대 스피드 구간), statInference.ts(데미지 → 상대 배분 격자),
                        perfTable.ts(성능표 내구·결정력·스피드), autoSet.ts(상대 포켓몬 자동 배치), accuracy.ts(명중·급소),
-                       recommend.ts(추천 플레이 이득표·점수), pickRecommend.ts(선출 조합 순위), vs.ts(VS 화면 상태·필드·행동 순서)
+                       recommend.ts(추천 플레이 이득표·점수), pickRecommend.ts(선출 조합 순위), vs.ts(VS 화면 상태·필드·행동 순서),
+                       screenRecog.ts(선출 화면 스크린샷 → 칸 찾기·아이콘 매칭·성별 기호·OCR 글자 보정)
 plugins/locale.client.ts  언어 선택 (localStorage 'pch_lang' → 브라우저 언어 → en)
 plugins/theme.client.ts   화면 테마 낮/밤/시스템 (localStorage 'pch_theme', 없으면 시스템) → <html data-theme> + Vuetify 테마
 plugins/page-loading.client.ts  페이지 이동 시 로딩 오버레이(UiPageLoading, "도감을 불러오는 중") 를 먼저 그린 뒤 이동, page:finish·page:loading:end 에서 끔. 같은 페이지(라우트 레코드) 안의 이동은 제외
@@ -59,7 +61,7 @@ Nuxt 컴포넌트 이름은 폴더 접두사가 붙는다: `components/team/Slot
 |---|---|---|
 | `/` | pages/index.vue | 모드 카드, 현재 레귤레이션, 파티 진행도 |
 | `/party` | pages/party.vue → TeamSlotEditor ×6 | 포켓몬/성별(TeamGenderToggle, 둘 다 가능한 종만 ♂/♀)/특성/도구/성격/능력P/기술, 실능치·HP 배수·내구·결정력, 결정력 미리보기 조건, "통계 추천" 버튼(사용률 통계가 있는 포켓몬) |
-| `/single`, `/double` | BattleEntryView(mode) | 위 단계 표시(상대 입력 → 선출 → 배틀 시작), 왼쪽 내 파티(기본 한 줄, 눌러서 선출), 가운데 데미지 표(방향 탭 · 계산 조건 버튼 · 자세히), 오른쪽 상대 6마리 입력(기본 이름 줄만 = SlotEditor brief, 포켓몬을 고르면 자동 배치 + "자동 배치" 버튼) |
+| `/single`, `/double` | BattleEntryView(mode) | 위 단계 표시(상대 입력 → 선출 → 배틀 시작), 왼쪽 내 파티(기본 한 줄, 눌러서 선출), 가운데 데미지 표(방향 탭 · 계산 조건 버튼 · 자세히), 오른쪽 상대 6마리 입력(기본 이름 줄만 = SlotEditor brief, 포켓몬을 고르면 자동 배치 + "자동 배치" 버튼 + "스크린샷 인식" = BattleScreenRecog: 게임 선출 화면 스크린샷 붙여넣기·끌어 놓기·파일·화면 공유 → 상대 6마리·성별 인식, 후보를 눌러 고친 뒤 적용 / 내 쪽은 저장한 파티와 다른 점만 표시) |
 | `/single/battle`, `/double/battle` | BattleView(mode) | 필드 포켓몬 패널(상태·랭크 고치기는 접힘), 필드 상태(켜진 것만, "바꾸기"), 행동 입력·턴 적용, 예상 흐름, 가운데 아래 탭(예상 데미지 / 상대 기술 / 스피드 구간 / 배분 추정) |
 | `/stats` | pages/stats.vue → PerfBulkTable / PerfPowerTable / PerfSpeedTable | 포켓몬 성능표. 검색, 탭은 `?tab=bulk|power|speed` |
 | `/usage` | pages/usage.vue → UsageMonDetail | 사용률 통계 (헤더 "통계"). Smogon 월별 통계를 **시즌(= 레귤레이션, 달 합산)별 / 월별** 순위표로: 순위·순위 변동(시즌 = 직전 시즌, 월 = 같은 레귤레이션의 직전 달, 첫 달은 직전 시즌)·채용률·사용 수, 검색. 툴바 1줄 = 시즌별/월별 · 싱글/더블 · 검색, 2줄 = 기간 칩. 싱글/더블은 `useUsageKind` 공유. `?mode=season|month&reg=&period=&id=`, 기본 = 현재 레귤레이션 시즌 / 가장 최근 달. 데이터 `useUsageStats` (`public/data/stats/`), 계산 utils/usageStats.ts. 상세 아래 **대면** 칸(UsageMatchupList): 상대하기 어려운/쉬운 상대(물러난 비율 높은/낮은 순, `rankedMatchups`) + 상대를 골라 양쪽 기록 비교(UsageMatchupLine) |
@@ -84,6 +86,7 @@ Nuxt 컴포넌트 이름은 폴더 접두사가 붙는다: `components/team/Slot
 | `usePatchHistory()` | 레귤레이션마다 직전과의 diff 목록 `entries`(오래된 것부터, 레귤레이션 데이터 객체별 캐시) + 바뀐 값 표시 `moveValue/pokemonLabel/pokemonValue` (패치 내역 화면·도감 패치 이력) |
 | `useUsageKind()` | 사용률 통계 종류(싱글/더블) 선택, localStorage `pch_usage_kind`. 첫 화면·도감·파티 화면이 공유 (`TeamUsageKindToggle`) |
 | `useAutoSet(kind?)` | 상대 포켓몬 자동 배치: 현재 레귤레이션의 싱글/더블 사용률 통계(`public/data/usage/`, `usageSet`, kind 생략 시 `useUsageKind`)가 있으면 우선, 없으면 `utils/autoSet.ts` 규칙. 슬롯에 적용(`apply`, 같은 파티 도구 중복 피함). 표는 따로 받으므로 자동 배치 전에 `ready()` 를 기다린다 |
+| `useScreenRecog()` | 화면 인식의 브라우저 쪽: 이미지 디코딩(높이 480px 로 줄여 매칭, OCR 은 원본), 후보 스프라이트(현재 레귤레이션에서 고를 수 있는 포켓몬, 메가 제외)를 크기별로 줄인 캐시, tesseract.js OCR 워커(언어별, 동적 import), 화면 공유 스트림(한 번 허락하면 공유 중지까지 재사용). `recognize(blob, ocrLang)` → `result`(상대 먼저, 내 쪽 글자 인식은 이어서). 계산은 `utils/screenRecog.ts` |
 | `useVs()` | VS 화면 상태(localStorage `pch-vs-v1` 자동 저장), 포켓몬 변경·좌우 교체·초기화, 양방향 결과 `leftToRight` / `rightToLeft`, 행동 순서 `speed`. 상태 형식·필드 변환·순서 계산은 `utils/vs.ts` |
 | `useBattle(mode)` | 배틀 상태 머신. `useState('battle-{mode}')` 에 저장(화면 이동해도 유지, 선출/상대 구성이 바뀌면 자동 초기화). 구현은 `composables/battle/*` 를 조립, 타입·상수는 `utils/battleState.ts` |
 | `useBattleAnalysis(b)` | 행동 순서, 스피드 구간(`speedBands`), 시나리오 데미지, ①②③ 흐름, 연속기 자멸 위험, 상태이상 예고. 문구는 `{key, params}` |

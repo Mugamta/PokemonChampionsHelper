@@ -170,6 +170,8 @@
         <h2 class="panel-title">
           {{ t('entry.opponentTitle') }}
           <span class="spacer" />
+          <!-- 게임 선출 화면 스크린샷으로 상대 6마리 입력 -->
+          <BattleScreenRecog @apply="applyRecog" />
           <button
             type="button"
             class="btn btn-sm"
@@ -235,7 +237,7 @@
 <script setup lang="ts">
 // 같은 모듈에서 타입만 import 하면 자동 import 가 그 모듈의 함수를 건너뛰므로 함수도 명시적으로 import
 import { useEntry, type BattleMode } from '~/composables/useEntry'
-import type { Terrain, Weather } from '~/utils/types'
+import type { Gender, Terrain, Weather } from '~/utils/types'
 
 const props = defineProps<{ mode: BattleMode }>()
 const { t } = useI18n()
@@ -257,6 +259,20 @@ const autoSetAll = async () => {
       opp.slots.value.filter((_, j) => j < i).map((x) => x.item),
     )
     opp.megaOn.value[i] = true
+  })
+}
+
+// 스크린샷 인식 결과 적용: 종을 바꾸면 슬롯 편집기가 자동 배치하고 성별을 비우므로, 성별은 그다음에 넣는다
+const applyRecog = async (mons: { species: string; gender: Gender }[]) => {
+  mons.forEach((m, i) => {
+    const s = opp.slots.value[i]
+    if (s && m.species) s.species = m.species
+  })
+  await nextTick()
+  mons.forEach((m, i) => {
+    const s = opp.slots.value[i]
+    if (s && m.species === s.species && m.gender && !gd.pokemon(m.species)?.gender)
+      s.gender = m.gender
   })
 }
 
