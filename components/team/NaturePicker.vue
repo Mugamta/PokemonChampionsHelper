@@ -27,7 +27,7 @@
     variant="solo-filled"
     flat
     hide-details
-    :menu-props="{ maxHeight: 420 }"
+    :menu-props="menuProps"
     class="nature-picker"
   >
     <template #selection="{ item }">
@@ -93,7 +93,7 @@ const items = computed<NatureItem[]>(() => {
 const current = computed(() => items.value.find((n) => n.value === model.value) ?? null)
 
 // 처음엔 가벼운 자리표시, 누르거나 포커스하면 진짜 입력칸 (화면 전환 속도, composables/useLazyField.ts)
-const { live, menu, real, activate } = useLazyField()
+const { live, menu, real, activate, menuProps } = useLazyField(420)
 </script>
 
 <style scoped>

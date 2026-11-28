@@ -34,7 +34,7 @@
       clearable
       auto-select-first
       :disabled="disabled"
-      :menu-props="{ maxHeight: 380 }"
+      :menu-props="menuProps"
     >
       <!-- 결정력은 입력칸 안 오른쪽에 (아래 정보 줄이 한 줄에 들어가도록) -->
       <template v-if="showInfo && move && power != null" #append-inner>
@@ -122,7 +122,7 @@ const { t } = useI18n()
 const gd = useGameData()
 
 // 처음엔 가벼운 자리표시, 누르거나 포커스하면 진짜 입력칸 (화면 전환 속도, composables/useLazyField.ts)
-const { live, menu, real, activate } = useLazyField()
+const { live, menu, real, activate, menuProps } = useLazyField(380)
 
 const move = computed(() => gd.move(model.value))
 // 특성/날씨/필드로 바뀐 타입

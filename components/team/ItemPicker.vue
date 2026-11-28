@@ -29,7 +29,7 @@
     hide-details
     clearable
     auto-select-first
-    :menu-props="{ maxHeight: 360 }"
+    :menu-props="menuProps"
   >
     <template #prepend-inner>
       <UiItemIcon v-if="model" :id="model" :size="24" />
@@ -64,7 +64,7 @@ const { t } = useI18n()
 const gd = useGameData()
 
 // 처음엔 가벼운 자리표시, 누르거나 포커스하면 진짜 입력칸 (화면 전환 속도, composables/useLazyField.ts)
-const { live, menu, real, activate } = useLazyField()
+const { live, menu, real, activate, menuProps } = useLazyField()
 
 const items = computed(() => {
   const all = gd.data.value?.items || {}

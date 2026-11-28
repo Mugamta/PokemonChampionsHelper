@@ -28,7 +28,7 @@
     clearable
     auto-select-first
     :prepend-inner-icon="mdiMagnify"
-    :menu-props="{ maxHeight: 360 }"
+    :menu-props="menuProps"
     class="species-picker"
   >
     <template #item="{ props: p, item }">
@@ -58,7 +58,7 @@ const { t } = useI18n()
 const gd = useGameData()
 
 // 처음엔 가벼운 자리표시, 누르거나 포커스하면 진짜 입력칸 (화면 전환 속도, composables/useLazyField.ts)
-const { live, menu, real, activate } = useLazyField()
+const { live, menu, real, activate, menuProps } = useLazyField()
 
 const items = computed(() => {
   const ex = new Set(props.exclude || [])
